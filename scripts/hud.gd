@@ -75,7 +75,7 @@ func _draw() -> void:
 		ctext(vs.x * 0.5, vs.y * 0.36, game.banner, 46, Color(1, 0.95, 0.6, a))
 		if game.banner_sub != "":
 			ctext(vs.x * 0.5, vs.y * 0.36 + 44 * s, game.banner_sub, 22, Color(1, 1, 1, a))
-	if OS.is_debug_build() and game.show_debug:
+	if game.show_debug:
 		_draw_debug(vs)
 		# touch diagnostics: marker where the last touch landed
 		if c != null and Time.get_ticks_msec() - c.last_touch_ms < 600:
@@ -117,6 +117,8 @@ func _draw_status(vs: Vector2) -> void:
 	ctext(vs.x * 0.5, 62 * s, "HI %07d" % maxi(Save.high_score, game.score), 14, Color(1, 1, 1, 0.7))
 	# INTEL / TUTORIAL buttons
 	for n in ["intel", "tutorial"]:
+		if not c.helper_buttons:
+			break
 		var r: Rect2 = c.btn[n]
 		_panel(r)
 		text(Vector2(r.position.x, r.get_center().y + 7 * s), n.to_upper(), 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)

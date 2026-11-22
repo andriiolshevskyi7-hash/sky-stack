@@ -18,7 +18,9 @@ var night := 0.0
 var paused := false
 var focus := Vector3.ZERO
 var env: Environment
-var sky_mat: ProceduralSkyMaterial
+var sky_mat: ShaderMaterial
+const TOP_SUNSET := Color("6b4a8a")
+const HORIZON_SUNSET := Color("ffb37a")
 const HORIZON_DAY := Color("9fcdf2")
 const HORIZON_NIGHT := Color("2a2f4e")
 const TOP_DAY := Color("2f74d6")
@@ -74,11 +76,16 @@ func _process(delta: float) -> void:
 	cloud_offset += WIND * delta
 	RenderingServer.global_shader_parameter_set("cloud_offset", cloud_offset)
 	RenderingServer.global_shader_parameter_set("cloud_shadow", 0.32 * (1.0 - night))
-	var hz := HORIZON_DAY.lerp(HORIZON_NIGHT, night).lerp(Color(1.0, 0.7, 0.55), dusk * 0.6)
+	var hz := HORIZON_DAY.lerp(HORIZON_SUNSET, dusk).lerp(HORIZON_NIGHT, night)
+	var top := TOP_DAY.lerp(TOP_SUNSET, dusk).lerp(TOP_NIGHT, night)
 	if sky_mat != null:
-		sky_mat.sky_horizon_color = hz
-		sky_mat.ground_horizon_color = hz
-		sky_mat.sky_top_color = TOP_DAY.lerp(TOP_NIGHT, night)
+		sky_mat.set_shader_parameter("horizon_color", Vector3(hz.r, hz.g, hz.b))
+		sky_mat.set_shader_parameter("top_color", Vector3(top.r, top.g, top.b))
+		var gc := Color("1f5fbf").lerp(Color("0d1430"), night)
+		sky_mat.set_shader_parameter("ground_color", Vector3(gc.r, gc.g, gc.b))
+		sky_mat.set_shader_parameter("night", night)
+		sky_mat.set_shader_parameter("sun_amount", clampf(1.0 - night * 1.5, 0.0, 1.0))
+		sky_mat.set_shader_parameter("sun_dir", Vector3(-0.55, maxf(e, -0.2) * 0.9 + 0.05, -0.8))
 	RenderingServer.global_shader_parameter_set("fog_color", Vector3(hz.r, hz.g, hz.b))
 	if env != null:
 		env.background_color = SKY_DAY.lerp(SKY_NIGHT, night)

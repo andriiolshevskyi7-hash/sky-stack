@@ -279,6 +279,15 @@ func damage_building(id: int, amount: float) -> bool:
 	return false
 
 
+## Drop every chunk (world was regenerated); they stream back in.
+func reset_all() -> void:
+	for k in chunks:
+		chunks[k]["node"].queue_free()
+	chunks.clear()
+	for k in _pending:
+		_regen[k] = true
+
+
 func total_quads() -> int:
 	var q := 0
 	for k in chunks:

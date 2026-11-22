@@ -25,13 +25,15 @@ var controls: Controls
 var hud: Hud
 var menu: Menu
 var env: Environment
-var sky_mat: ProceduralSkyMaterial
+var sky_mat: ShaderMaterial
 var cockpit: Cockpit
 var trails: Trails
 var missiles: Missiles
 var wingmen: Wingmen
 var intel: Intel
 var tutorial: Tutorial
+var settings_ui: SettingsScreen
+var enemy_jets := 3
 
 var score := 0
 var wave := 0
@@ -75,14 +77,8 @@ func _ready() -> void:
 	world.add_child(cam)
 	cam.mode = Save.cam_mode as GameCamera.Mode
 	env = Environment.new()
-	sky_mat = ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("2f74d6")
-	sky_mat.sky_horizon_color = Color("9fcdf2")
-	sky_mat.ground_horizon_color = Color("9fcdf2")
-	sky_mat.ground_bottom_color = Color("1f5fbf")
-	sky_mat.sun_angle_max = 0.0
-	sky_mat.sky_curve = 0.28
-	sky_mat.ground_curve = 0.05
+	sky_mat = ShaderMaterial.new()
+	sky_mat.shader = preload("res://shaders/sky.gdshader")
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env.sky = sky
@@ -194,6 +190,10 @@ func _ready() -> void:
 	layer.add_child(menu)
 	intel = Intel.new()
 	layer.add_child(intel)
+	settings_ui = SettingsScreen.new()
+	layer.add_child(settings_ui)
+	settings_ui.changed.connect(func(k: String) -> void: apply_settings(k))
+	settings_ui.closed.connect(_open_pause)
 	intel.closed.connect(func() -> void:
 		if state == State.PAUSE and not menu.visible:
 			_resume())
@@ -213,6 +213,7 @@ func _ready() -> void:
 	jet.died.connect(_on_jet_died)
 	jet.damaged.connect(func(a: float) -> void: flash = minf(0.8, flash + 0.25 + a * 0.02))
 
+	apply_settings("")
 	jet.reset(SPAWN, 0.0)
 	cam.update_cam(0.016, jet, 0.0)
 	chunks.focus = cam.ground_point()
@@ -231,6 +232,12 @@ func _parse_args() -> void:
 			start_game()
 		elif a.begins_with("--cam="):
 			cam.mode = int(a.substr(6)) as GameCamera.Mode
+		elif a.begins_with("--tod="):
+			Save.settings["time"] = int(a.substr(6))
+			apply_settings("time")
+		elif a == "--settings":
+			_open_pause()
+			_open_settings()
 		elif a == "--touch":
 			controls.touch_seen = true
 		elif a == "--nofog":
@@ -355,7 +362,7 @@ func _start_wave(n: int) -> void:
 	wave_queue.clear()
 	for i in 3 + n:
 		wave_queue.append(Enemies.DRONE)
-	for i in maxi(0, n - 1) + n / 2:
+	for i in mini(12, enemy_jets + (n - 1) / 2):
 		wave_queue.append(Enemies.JET)
 	if n >= 3:
 		for i in (n - 1) / 2:
@@ -524,10 +531,6 @@ func end_tutorial() -> void:
 	between_t = 2.0
 
 
-func touch_buttons_visible() -> bool:
-	return controls.touch_seen
-
-
 func enemies_left() -> int:
 	return wave_queue.size() + enemies.count_active()
 
@@ -540,6 +543,8 @@ func _on_cam() -> void:
 	cam.cycle_mode()
 	Save.cam_mode = cam.mode
 	Save.store()
+	if menu.visible and state == State.PAUSE:
+		_open_pause()
 	Sfx.play("ui")
 
 
@@ -558,13 +563,80 @@ func _open_pause() -> void:
 	Sfx.set_engine(false, 0.0)
 	menu.open("PAUSED", "", [
 		["RESUME", _resume],
-		[func() -> String: return "CAMERA: " + GameCamera.MODE_NAMES[cam.mode], _on_cam],
-		[func() -> String: return "SPRITE TURN: " + ("64 STEPS" if Save.sprite_snap else "SMOOTH"), _toggle_snap],
-		[func() -> String: return "DAY/NIGHT CYCLE: " + ("ON" if daynight.cycle else "OFF"), _toggle_cycle],
-		[func() -> String: return "PITCH: " + ("INVERTED" if jet.invert_pitch else "NORMAL"), _toggle_invert],
-		[func() -> String: return "DEBUG OVERLAY: " + ("ON" if show_debug else "OFF"), func() -> void: show_debug = not show_debug],
+		["SETTINGS", _open_settings],
+		["INTEL", func() -> void:
+			menu.close()
+			intel.open(controls.touch_seen)],
+		[func() -> String: return "VIEW: " + GameCamera.MODE_NAMES[cam.mode], _on_cam],
+		["RESTART", start_game],
 		["QUIT TO TITLE", _to_title],
 	])
+
+
+func _open_settings() -> void:
+	menu.close()
+	settings_ui.open()
+
+
+## Push the settings (Save.settings) into every system. key = the one that
+## changed ("" = all).
+func apply_settings(key: String) -> void:
+	var st: Dictionary = Save.settings
+	for k in ["speed", "boost", "turn", "bank", "cruise", "ceiling", "clearance", "crashes", "cannon", "reload"]:
+		jet.cfg[k] = st[k]
+	jet.invert_pitch = st["invert"]
+	missiles.max_missiles = int(st["missiles"])
+	missiles.reload_time = st["reload"]
+	missiles.slowmo_s = st["slowmo"]
+	if key == "missiles" or key == "":
+		missiles.ammo = missiles.max_missiles
+	if key == "cannon":
+		jet.ammo = float(st["cannon"])
+	wingmen.count = int(st["wingmen"])
+	enemy_jets = int(st["enemy_jets"])
+	cam.transition = st["view_change"]
+	cam.overhead_follow = st["overhead_follow"]
+	cam.chase_dist = st["chase_dist"]
+	cam.chase_height = st["chase_height"]
+	cam.shake_mult = st["shake"]
+	if key == "view" or key == "":
+		cam.mode = int(st["view"]) as GameCamera.Mode
+		cam._since_switch = 0.0
+	daynight.cycle = st["day_cycle"]
+	if key == "time" or key == "":
+		daynight.t = [0.42, 0.74, 0.0][int(st["time"])]
+	if key == "islands" or key == "seed":
+		Stacks.rebuild_islands(int(st["seed"]), float(st["islands"]))
+		chunks.reset_all()
+		traffic._urban.clear()
+	var cover := lerpf(0.82, 0.5, float(st["clouds"])) if float(st["clouds"]) > 0.0 else 1.1
+	clouds.cover = cover
+	RenderingServer.global_shader_parameter_set("cloud_cover", cover)
+	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(Stacks.get_sheet("jet").w) if st["jet_shadow"] else 0.0001)
+	pv.set_post("bloom", float(st["glow"]) * 0.55)
+	pv.set_post("contrast", st["contrast"])
+	pv.set_post("vignette", st["vignette"])
+	pv.set_post("grain", st["grain"])
+	Save.apply()
+	fx.realistic_flames = int(st["flames"]) == 1
+	fx.burner_mult = st["afterburner"]
+	fx.spray_mult = st["spray"]
+	fx.sparks_mult = st["sparks"]
+	trails.visible = st["trails"]
+	jet.trails = trails if st["trails"] else null
+	controls.helper_buttons = st["helper_buttons"]
+	show_debug = st["debug"]
+	AudioServer.set_bus_mute(0, not st["sound"])
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(0.001, float(st["volume"]))))
+
+
+func touch_buttons_visible() -> bool:
+	match int(Save.settings.get("touch_buttons", 0)):
+		1:
+			return true
+		2:
+			return false
+	return controls.touch_seen
 
 
 func _resume() -> void:
@@ -703,6 +775,22 @@ func test_hook(t: Node) -> Array:
 	if tutorial.step < 1:
 		errs.append("tutorial did not advance after turning")
 	tutorial.stop()
+	# --- settings apply live (and defaults match the spec)
+	var d := SettingsScreen.defaults()
+	if d["speed"] != 92.0 or d["cruise"] != 110.0 or d["missiles"] != 6.0 or d["islands"] != 0.33 or d["glow"] != 0.8:
+		errs.append("settings defaults differ from the spec")
+	settings_ui.set_value("speed", 150.0)
+	if float(jet.cfg["speed"]) != 150.0:
+		errs.append("speed setting not applied")
+	settings_ui.set_value("time", 2)
+	await t.get_tree().create_timer(0.3).timeout
+	if daynight.night < 0.9:
+		errs.append("night setting not applied (night %.2f)" % daynight.night)
+	settings_ui.set_value("islands", 0.5)
+	if CityGen.island_h(3000.0, 3000.0) == CityGen.island_h(3000.0, 3000.0) and chunks.chunks.size() > 30:
+		errs.append("islands change did not reset the streamed chunks")
+	for k in ["speed", "time", "islands"]:
+		settings_ui.set_value(k, d[k])
 	# cockpit view: camera locks into the canopy, jet hidden, overlay shown
 	cam.mode = GameCamera.Mode.COCKPIT
 	cam._since_switch = 0.0

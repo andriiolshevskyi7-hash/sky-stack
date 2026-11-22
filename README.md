@@ -30,37 +30,43 @@ first if Android refuses to update it (`adb uninstall com.skystack.game`).
 
 | Touch | Keyboard / mouse (desktop testing) |
 | --- | --- |
-| Left half: floating joystick | WASD / arrow keys |
-| **BOOST** button | Shift (or K) |
-| **FIRE** button | Space, J or left mouse button |
-| **UP / DOWN** buttons (overhead view only): climb / dive | E / Q (any view) |
-| **CAM** button (top right): overhead → chase → cockpit | C |
-| **II** button: pause menu | Esc / P |
+| Drag anywhere: left/right turns, **drag down climbs, drag up dives** | A/D or arrows turn, S/Down climbs, W/Up dives |
+| Quick tap: barrel roll | R |
+| **LOOP** (flown for you) | L |
+| **VIEW**: overhead → chase → cockpit | C or V |
+| **GUN** (hold; ammo counter, 5 s reload when empty) | Space, J or mouse button |
+| **MISSILE** (count bar) | M |
+| **BOOST** (hold) | Shift |
+| **INTEL** (all controls), **TUTORIAL**, **II** pause | I, Esc / P |
 
-On the title screen, tap anywhere to start.
+Tricks: full climb + BOOST held = back flip; full dive + BOOST held (needs
+height) = front flip; holding a dive into the ground with BOOST off = eject
+(parachute + close-up on the pilot, then a new jet).
 
-Joystick behaviour depends on the view:
+Fight: keep an enemy ahead until the box turns red, then MISSILE. When an
+enemy missile comes, two rings close in around your jet — roll exactly as
+they meet to dodge (short slow motion); a MISSILE straight after a dodge fires
+three for free. An AI wingman flies with you.
 
-* **OVERHEAD** (top-down, north up, jet in the centre): push the stick in the
-  direction you want to fly; UP/DOWN buttons change altitude.
-* **CHASE** (behind the jet, perspective ground plane to the horizon) and
-  **COCKPIT** (first person with canopy, HUD and dashboard): stick left/right
-  banks and turns, stick up/down pitches (up = climb; can be inverted in the
-  pause menu).
+## Settings (pause menu → SETTINGS)
 
-## Gameplay
+All values persist in `user://save.cfg`. Defaults:
 
-The world is a bright ocean with islands; the city sits on the main island
-(dense downtown, sparser residential, parks, forests and beaches) with small
-towns on other islands. You cruise at 125 m, high above the rooftops: **dive
-below 75 m and thread between skyscrapers to build a score multiplier (up to
-x4)**, but clipping a building or the ground costs health.
-
-Defend the city in waves: enemy jets, drones and bombers attack the buildings
-(CITY bar). From wave 4 rooftop anti-air guns join in. High score is saved to
-`user://save.cfg`. Pause menu: camera, sprite turn smooth/64 steps,
-day/night cycle (off by default — the game starts in full day), pitch
-inversion, debug overlay.
+* **Flight** – speed 92, boost x1.8, turn rate 1.25, bank 52°, cruising
+  altitude 110, ceiling 1500, ground clearance 7, wingmen 1, crashes on,
+  invert off
+* **Combat** – cannon 300, missiles 6, reload 5 s, enemy jets 3, dodge slow
+  motion 1.3 s
+* **Camera** – view chase, view change 1.4 s, overhead turns with the jet
+  0.6, chase distance 2.6 jet lengths, chase height 25°
+* **World** – time of day day / sunset / night, day-night cycle off, islands
+  0.33, clouds 0.45, world seed 7, jet shadow on
+* **Look** – glow 0.8, contrast 0.15, darkened corners 0.3, film grain 0.25,
+  sprite turn smooth
+* **Effects** – thruster flames pixel, afterburner 0.75, wingtip trails on,
+  sea spray 1, explosion sparks 0.6, camera shake 1
+* **Helpers** – touch buttons auto, Tutorial/Intel buttons on, debug overlay
+  off · **Sound** on, volume 0.6
 
 ## Tech overview
 

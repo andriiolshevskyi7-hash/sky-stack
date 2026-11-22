@@ -33,6 +33,10 @@ var _since_switch := 10.0
 ## when set, the camera frames this node in a close-up (ejection)
 var override: Node3D
 var overhead_follow := 0.6
+var chase_dist := 2.6 # jet lengths (1 length = 64 units incl. trail)
+var chase_height := 25.0
+var transition := 1.4 # seconds for a view change
+var shake_mult := 1.0
 
 
 func _ready() -> void:
@@ -49,7 +53,7 @@ func cycle_mode() -> void:
 
 
 func add_shake(amount: float) -> void:
-	shake = minf(shake + amount, 8.0)
+	shake = minf(shake + amount * shake_mult, 8.0)
 
 
 ## Ground-plane right / up vectors of the screen (for screen-relative steering).
@@ -72,9 +76,9 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 		Mode.CHASE:
 			var f: Vector3 = jet.forward()
 			var f3: Vector3 = jet.forward3()
-			# distance so the jet's wingspan covers CHASE_JET_FRAC of the screen height
-			var dist := 40.0 / (2.0 * tan(deg_to_rad(FOV[Mode.CHASE]) * 0.5) * CHASE_JET_FRAC)
-			var el := deg_to_rad(CHASE_HEIGHT_DEG)
+			# 2.6 jet lengths ~ jet wingspan at ~0.19 of the screen height
+			var dist := chase_dist * 64.0
+			var el := deg_to_rad(chase_height)
 			var p := jp - f * dist * cos(el) + Vector3.UP * (dist * sin(el) - sin(jet.pitch) * dist * 0.5)
 			var t := jp + f3 * dist * 0.6
 			var tr := Transform3D(Basis.IDENTITY, p).looking_at(t, Vector3.UP)
@@ -99,6 +103,7 @@ func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 		_pos = t.origin
 		_rot = t.basis.get_rotation_quaternion()
 		_fov = t_fov
+	var tk := 1.4 / maxf(0.2, transition)
 	var rate_p := 7.0
 	var rate_r := 6.0
 	if mode == Mode.OVERHEAD:
@@ -107,14 +112,14 @@ func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	elif mode == Mode.COCKPIT and override == null:
 		# ease in, then lock rigidly to the canopy (a lagging follow would
 		# never catch a jet doing ~100 units/s)
-		var k := clampf((_since_switch - 0.6) / 0.8, 0.0, 1.0)
+		var k := clampf((_since_switch - transition * 0.43) / (transition * 0.57), 0.0, 1.0)
 		rate_p = lerpf(4.0, 200.0, k * k)
 		rate_r = lerpf(4.0, 200.0, k * k)
-	elif _since_switch < 1.2:
-		rate_p = minf(rate_p, 3.2)
-		rate_r = minf(rate_r, 3.0)
+	elif _since_switch < transition * 0.85:
+		rate_p = minf(rate_p, 3.2 * tk)
+		rate_r = minf(rate_r, 3.0 * tk)
 	_pos = _pos.lerp(t.origin, 1.0 - exp(-delta * rate_p))
-	if mode == Mode.COCKPIT and _since_switch > 1.4 and override == null:
+	if mode == Mode.COCKPIT and _since_switch > transition and override == null:
 		_pos = t.origin
 	_rot = _rot.slerp(t.basis.get_rotation_quaternion(), 1.0 - exp(-delta * rate_r))
 	_fov = lerpf(_fov, t_fov, 1.0 - exp(-delta * 3.0))

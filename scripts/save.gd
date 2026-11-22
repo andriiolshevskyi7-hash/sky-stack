@@ -1,22 +1,41 @@
 extends Node
-## Autoload "Save": high score + settings in user://save.cfg
+## Autoload "Save": high score + all settings in user://save.cfg
 
 const PATH := "user://save.cfg"
 var high_score := 0
-var sprite_snap := false
-var cam_mode := 1
-var day_cycle := false
-var invert_pitch := false
+var settings := {}
+
+var sprite_snap: bool:
+	get:
+		return bool(settings.get("sprite_snap", false))
+	set(v):
+		settings["sprite_snap"] = v
+var cam_mode: int:
+	get:
+		return int(settings.get("view", 1))
+	set(v):
+		settings["view"] = v
+var day_cycle: bool:
+	get:
+		return bool(settings.get("day_cycle", false))
+	set(v):
+		settings["day_cycle"] = v
+var invert_pitch: bool:
+	get:
+		return bool(settings.get("invert", false))
+	set(v):
+		settings["invert"] = v
 
 
 func _ready() -> void:
+	settings = SettingsScreen.defaults()
 	var cf := ConfigFile.new()
 	if cf.load(PATH) == OK:
 		high_score = cf.get_value("game", "high_score", 0)
-		sprite_snap = cf.get_value("settings", "sprite_snap", false)
-		cam_mode = cf.get_value("settings", "cam_mode", 1)
-		day_cycle = cf.get_value("settings", "day_cycle", false)
-		invert_pitch = cf.get_value("settings", "invert_pitch", false)
+		var saved: Dictionary = cf.get_value("settings", "values", {})
+		for k in saved:
+			if settings.has(k):
+				settings[k] = saved[k]
 	apply()
 
 
@@ -27,11 +46,13 @@ func apply() -> void:
 func store() -> void:
 	var cf := ConfigFile.new()
 	cf.set_value("game", "high_score", high_score)
-	cf.set_value("settings", "sprite_snap", sprite_snap)
-	cf.set_value("settings", "cam_mode", cam_mode)
-	cf.set_value("settings", "day_cycle", day_cycle)
-	cf.set_value("settings", "invert_pitch", invert_pitch)
+	cf.set_value("settings", "values", settings)
 	cf.save(PATH)
+
+
+func reset_defaults() -> void:
+	settings = SettingsScreen.defaults()
+	store()
 
 
 ## Returns true if this is a new record.

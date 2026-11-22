@@ -98,14 +98,15 @@ func test_world_gen() -> void:
 	check(d["boxes"][4] == 3.0, "destroyed building regenerates as rubble")
 	# open ocean chunk: find one and check it is empty
 	var found := false
-	for k in 40:
-		var cx := 6 + k
-		if CityGen.island_h(cx * 256.0 + 128.0, 128.0) < 0.3 and CityGen.island_h(cx * 256.0, 0.0) < 0.3 and CityGen.island_h(cx * 256.0 + 256.0, 256.0) < 0.3:
-			var sea := CityGen.generate_chunk(cx, 0, Stacks.sheets, {})
-			check(sea["boxes"].size() == 0 and sea["props"].is_empty(), "open ocean chunk %d has no buildings or props" % cx)
+	for k in 600:
+		var cx := 3 + k % 24
+		var cz := -12 + k / 24
+		if CityGen.island_h(cx * 256.0 + 128.0, cz * 256.0 + 128.0) < 0.3 and CityGen.island_h(cx * 256.0, cz * 256.0) < 0.3 and CityGen.island_h(cx * 256.0 + 256.0, cz * 256.0 + 256.0) < 0.3:
+			var sea := CityGen.generate_chunk(cx, cz, Stacks.sheets, {})
+			check(sea["boxes"].size() == 0 and sea["props"].is_empty(), "open ocean chunk %d,%d has no buildings or props" % [cx, cz])
 			found = true
 			break
-	check(found, "deep ocean exists east of the main island")
+	check(found, "deep ocean exists around the islands")
 
 
 func test_city_layout() -> void:

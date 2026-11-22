@@ -487,17 +487,21 @@ func _build_globals() -> void:
 	RenderingServer.global_shader_parameter_set("jet_shadow_tex", jet_shadow_tex)
 	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(get_sheet("jet").w))
 	RenderingServer.global_shader_parameter_set("cloud_tex", cloud_tex)
-	_build_islands()
+	rebuild_islands(int(Save.settings.get("seed", 7)), float(Save.settings.get("islands", 0.33)))
+
+
+func rebuild_islands(p_seed: int, land: float) -> void:
+	_build_islands(p_seed, land)
 	CityGen.set_maps(island_img, cloud_img)
 	RenderingServer.global_shader_parameter_set("island_tex", island_tex)
 
 
 ## Tiling island heightmap: mostly ocean, a big main island at the origin and
 ## scattered smaller islands. ~30% land. Stored as L8, 0.5 = sea level.
-func _build_islands() -> void:
+func _build_islands(p_seed: int = 7, land: float = 0.33) -> void:
 	var n := CityGen.ISL_N
 	var noise := FastNoiseLite.new()
-	noise.seed = 31
+	noise.seed = p_seed
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	noise.frequency = 0.022
 	noise.fractal_octaves = 4
@@ -515,7 +519,7 @@ func _build_islands() -> void:
 			vals[y * n + x] = data[y * n + x] / 255.0 * (1.0 - 0.45 * bump) + bump * 0.75
 	var sorted := vals.duplicate()
 	sorted.sort()
-	var sea_v := sorted[int(n * n * 0.70)] # 70% of the map is ocean
+	var sea_v := sorted[clampi(int(n * n * (1.0 - land)), 0, n * n - 1)] # share of ocean
 	var hi := sorted[n * n - 1]
 	var lo := sorted[0]
 	for i in n * n:

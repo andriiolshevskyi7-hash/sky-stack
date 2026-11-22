@@ -23,6 +23,8 @@ var batch: StackBatch
 var mat: ShaderMaterial
 ## 0..1 opacity (dithered); the overhead view makes clouds see-through
 var opacity := 1.0
+## placement threshold on the cloud noise (lower = more clouds), set from settings
+var cover := 0.62
 var fog := 0.0
 var _img: Image
 
@@ -68,7 +70,7 @@ func _process(_delta: float) -> void:
 			for attempt in 24:
 				var a := rng.randf() * TAU
 				var c := Vector2(focus.x, focus.z) + Vector2(cos(a), sin(a)) * rng.randf_range(60.0, RANGE)
-				if _noise(c.x, c.y, off) > 0.68:
+				if _noise(c.x, c.y, off) > cover + 0.06:
 					anchors[i] = c + off
 					p = c
 					break

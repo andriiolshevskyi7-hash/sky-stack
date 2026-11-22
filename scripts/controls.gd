@@ -23,6 +23,7 @@ var touch_seen := false
 var ui_scale := 1.0
 var invert := false
 var enabled := true
+var helper_buttons := true
 
 # button rects (screen px)
 var btn := {} # name -> Rect2
@@ -86,6 +87,8 @@ func reset() -> void:
 
 func _hit_button(p: Vector2) -> String:
 	for n in btn:
+		if not helper_buttons and (n == "intel" or n == "tutorial"):
+			continue
 		if btn[n].grow(6.0 * ui_scale).has_point(p):
 			return n
 	return ""

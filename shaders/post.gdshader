@@ -14,6 +14,9 @@ uniform float threshold = 0.8;
 uniform float fog = 0.0;
 uniform float flash = 0.0;
 uniform float dither_amount = 0.035;
+uniform float contrast = 0.15;
+uniform float vignette = 0.3;
+uniform float grain = 0.25;
 
 vec3 bright(vec2 uv) {
 	vec3 c = texture(src_lin, uv).rgb;
@@ -42,6 +45,13 @@ void fragment() {
 		float vig = clamp(dot(q, q) * 0.7, 0.0, 1.0);
 		c = mix(c, vec3(0.85, 0.12, 0.1), flash * vig);
 	}
+	// colour depth / contrast, darkened corners, film grain
+	float lum = dot(c, vec3(0.299, 0.587, 0.114));
+	c = mix(vec3(lum), c, 1.0 + contrast);
+	c = (c - 0.5) * (1.0 + contrast * 0.8) + 0.5;
+	vec2 vq = UV * 2.0 - 1.0;
+	c *= 1.0 - vignette * 0.55 * smoothstep(0.35, 1.6, dot(vq, vq));
+	c += (hash12(FRAGCOORD.xy + fract(TIME * 7.13) * vec2(91.7, 53.3)) - 0.5) * grain * 0.1;
 	if (palette_mix > 0.0) {
 		vec3 cq = c + (bay - 0.5) * dither_amount;
 		vec3 best = vec3(0.0);

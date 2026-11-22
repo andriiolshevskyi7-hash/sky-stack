@@ -18,6 +18,10 @@ var rng := RandomNumberGenerator.new()
 # persistent smoke columns (burning buildings / chimneys): Vector4(x,y,z,rate)
 var columns: Array[Vector4] = []
 var chimneys := PackedVector3Array()
+var sparks_mult := 0.6
+var burner_mult := 0.75
+var spray_mult := 1.0
+var realistic_flames := false
 var _col_t := 0.0
 
 const C_YELLOW := Color(1.0, 0.95, 0.55)
@@ -56,7 +60,11 @@ func _rv(m: float) -> Vector3:
 
 
 func explosion(p: Vector3, scale: float = 1.0) -> void:
-	spawn(p, Vector3.ZERO, 0.12, 14.0 * scale, FLASH)
+	var sm := sparks_mult / 0.6
+	if sparks_mult > 0.0:
+		spawn(p, Vector3.ZERO, 0.12, 14.0 * scale * minf(1.5, sm), FLASH)
+		for i in int(8 * scale * sm):
+			spawn(p, _rv(110.0) + Vector3(0, 30, 0), rng.randf_range(0.2, 0.5), 1.0, SPARK)
 	for i in int(26 * scale):
 		spawn(p + _rv(3.0 * scale), _rv(60.0 * scale), rng.randf_range(0.3, 0.8), rng.randf_range(1.5, 3.5) * scale, FIRE)
 	for i in int(14 * scale):
@@ -85,7 +93,17 @@ func muzzle(p: Vector3) -> void:
 
 
 func afterburner(p: Vector3, fwd: Vector3, boost: bool = false) -> void:
-	spawn(p + _rv(0.6), -fwd * 30.0 + _rv(4.0), rng.randf_range(0.05, 0.1), 2.0, BURNER)
+	if burner_mult <= 0.0:
+		return
+	var bm := burner_mult / 0.75
+	if realistic_flames:
+		for i in 3:
+			spawn(p + _rv(0.8), -fwd * rng.randf_range(20.0, 45.0) * bm + _rv(3.0), rng.randf_range(0.06, 0.14) * bm, rng.randf_range(2.5, 4.0), BURNER)
+		if boost:
+			for i in 4:
+				spawn(p + _rv(1.2), -fwd * rng.randf_range(50.0, 80.0) * bm + _rv(5.0), rng.randf_range(0.1, 0.22) * bm, rng.randf_range(3.0, 5.0), BURNER)
+		return
+	spawn(p + _rv(0.6), -fwd * 30.0 * bm + _rv(4.0), rng.randf_range(0.05, 0.1) * bm, 2.0, BURNER)
 	if boost:
 		spawn(p + _rv(1.0), -fwd * 55.0 + _rv(6.0), rng.randf_range(0.1, 0.2), 3.0, BURNER)
 		spawn(p + _rv(1.0), -fwd * 45.0 + _rv(6.0), rng.randf_range(0.08, 0.16), 2.5, BURNER)
@@ -93,6 +111,9 @@ func afterburner(p: Vector3, fwd: Vector3, boost: bool = false) -> void:
 
 ## Sea spray / wake when the jet skims the water.
 func spray(p: Vector3, k: float) -> void:
+	k *= spray_mult
+	if k <= 0.0:
+		return
 	for i in int(1 + k * 3.0):
 		spawn(p + Vector3(rng.randf_range(-6, 6), 0, rng.randf_range(-6, 6)), Vector3(rng.randf_range(-8, 8), rng.randf_range(10, 30) * k, rng.randf_range(-8, 8)), rng.randf_range(0.3, 0.7), rng.randf_range(1.5, 2.5), SPARK_W)
 	spawn(p, Vector3.ZERO, 1.4, 2.5, TRAIL)

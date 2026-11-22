@@ -11,6 +11,7 @@ global uniform sampler2D jet_shadow_tex;
 global uniform sampler2D cloud_tex;
 global uniform vec2 cloud_offset;
 global uniform float cloud_shadow;
+global uniform float cloud_cover;
 global uniform float sprite_snap;
 global uniform float fade_radius;
 global uniform sampler2D island_tex;
@@ -55,7 +56,7 @@ float shadow_amount(vec3 w) {
 	if (w.y < CLOUD_SHADOW_H - 10.0) {
 		vec2 cp = (w.xz - sun_shift * (CLOUD_SHADOW_H - w.y) + cloud_offset) / 1400.0;
 		float n = texture(cloud_tex, fract(cp)).r;
-		s = max(s, cloud_shadow * step(0.62, n));
+		s = max(s, cloud_shadow * step(cloud_cover, n));
 	}
 	return s;
 }
