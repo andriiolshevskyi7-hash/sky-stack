@@ -28,6 +28,10 @@ var env: Environment
 var sky_mat: ProceduralSkyMaterial
 var cockpit: Cockpit
 var trails: Trails
+var missiles: Missiles
+var wingmen: Wingmen
+var intel: Intel
+var tutorial: Tutorial
 
 var score := 0
 var wave := 0
@@ -115,6 +119,12 @@ func _ready() -> void:
 	enemies = Enemies.new()
 	enemies.name = "Enemies"
 	world.add_child(enemies)
+	missiles = Missiles.new()
+	missiles.name = "Missiles"
+	world.add_child(missiles)
+	wingmen = Wingmen.new()
+	wingmen.name = "Wingmen"
+	world.add_child(wingmen)
 	traffic = Traffic.new()
 	traffic.name = "Traffic"
 	world.add_child(traffic)
@@ -158,7 +168,19 @@ func _ready() -> void:
 	enemies.chunks = chunks
 	enemies.combat = combat
 	enemies.fx = fx
+	enemies.missiles = null
 	traffic.fx = fx
+	missiles.game = self
+	missiles.jet = jet
+	missiles.enemies = enemies
+	missiles.fx = fx
+	enemies.missiles = missiles
+	wingmen.jet = jet
+	wingmen.enemies = enemies
+	wingmen.combat = combat
+	tutorial = Tutorial.new()
+	tutorial.game = self
+	add_child(tutorial)
 	jet.invert_pitch = Save.invert_pitch
 	rng.randomize()
 
@@ -170,12 +192,19 @@ func _ready() -> void:
 	layer.add_child(hud)
 	menu = Menu.new()
 	layer.add_child(menu)
+	intel = Intel.new()
+	layer.add_child(intel)
+	intel.closed.connect(func() -> void:
+		if state == State.PAUSE and not menu.visible:
+			_resume())
 
 	controls.cam_pressed.connect(_on_cam)
 	controls.pause_pressed.connect(_on_pause)
 	controls.roll_pressed.connect(func() -> void: jet.barrel_roll())
 	controls.loop_pressed.connect(func() -> void: jet.loop(false))
 	controls.missile_pressed.connect(_on_missile)
+	controls.intel_pressed.connect(_on_intel)
+	controls.tutorial_pressed.connect(_on_tutorial)
 	jet.ejected.connect(_on_ejected)
 	jet.trick.connect(func(n: String) -> void:
 		if state == State.PLAY:
@@ -261,7 +290,10 @@ func _process(delta: float) -> void:
 	speed_lines.size = Vector2(pv.low)
 	speed_lines.strength = lerpf(speed_lines.strength, 1.0 if jet.boosting else 0.0, 1.0 - exp(-delta * 6.0))
 	if state == State.PLAY:
-		_update_waves(delta)
+		if tutorial.active():
+			tutorial.process(delta)
+		else:
+			_update_waves(delta)
 	RenderingServer.global_shader_parameter_set("jet_pos", jet.global_position if jet.alive else Vector3(0, -1000, 0))
 	RenderingServer.global_shader_parameter_set("jet_yaw", jet.yaw)
 	banner_time -= delta
@@ -307,6 +339,10 @@ func start_game() -> void:
 	city_hp = city_max
 	enemies.clear()
 	combat.clear()
+	missiles.clear()
+	tutorial.stop()
+	wingmen.reset()
+	Engine.time_scale = 1.0
 	wave_queue.clear()
 	between_t = 3.0
 	show_banner("GET READY", "Protect the city", 2.5)
@@ -448,15 +484,44 @@ func _update_pilot(delta: float) -> void:
 
 
 func missiles_max() -> int:
-	return 6
+	return missiles.max_missiles
 
 
 func missiles_left() -> int:
-	return 6
+	return 0 if missiles.reload > 0.0 else missiles.ammo
 
 
 func _on_missile() -> void:
-	pass
+	if state == State.PLAY:
+		missiles.fire_player()
+
+
+func _on_intel() -> void:
+	if state == State.PLAY:
+		state = State.PAUSE
+		get_tree().paused = true
+		controls.reset()
+		controls.enabled = false
+		intel.open(controls.touch_seen)
+	elif state == State.PAUSE and intel.visible:
+		intel.visible = false
+		_resume()
+
+
+func _on_tutorial() -> void:
+	if state != State.PLAY:
+		return
+	enemies.clear()
+	combat.clear()
+	wave_queue.clear()
+	between_t = 0.0
+	tutorial.start()
+	show_banner("TUTORIAL", "", 1.5)
+
+
+func end_tutorial() -> void:
+	enemies.clear()
+	between_t = 2.0
 
 
 func touch_buttons_visible() -> bool:
@@ -570,6 +635,74 @@ func test_hook(t: Node) -> Array:
 			break
 	if kills != before + 1:
 		errs.append("enemy kill not registered")
+	# --- combat: lock-on + missile kill (wingman held back so it can't steal the kill)
+	wingmen.process_mode = Node.PROCESS_MODE_DISABLED
+	wave_queue.clear()
+	tutorial.step = 99 # pause the wave director while testing
+	enemies.clear()
+	jet.autopilot = false
+	jet.position.y = 200.0
+	jet.pitch = 0.0
+	jet.turn_rate = 0.0
+	jet.man = Jet.M_NONE
+	jet.roll_extra = 0.0
+	missiles.clear()
+	enemies.spawn(Enemies.BOMBER, jet.position + jet.forward() * 300.0)
+	for e in enemies.pool:
+		if e.active:
+			e.speed = jet.speed
+			e.yaw = jet.yaw
+			e.hp = 3.0
+	await t.get_tree().create_timer(1.2).timeout
+	if not missiles.locked:
+		errs.append("no missile lock on an enemy straight ahead (lock_t %.2f)" % missiles.lock_t)
+	var k0 := kills
+	missiles.fire_player()
+	await t.get_tree().create_timer(3.0).timeout
+	if kills <= k0:
+		errs.append("locked missile did not kill the target")
+	# --- enemy missile: roll as the rings meet -> dodge, counter volley armed
+	enemies.clear()
+	var d0 := missiles.dodges
+	missiles.fire_enemy(jet.position - jet.forward() * 200.0)
+	var rolled := false
+	for i in 300:
+		await t.get_tree().process_frame
+		if not rolled and missiles.incoming_t < 0.35:
+			jet.barrel_roll()
+			rolled = true
+		if missiles.dodges > d0:
+			break
+	if missiles.dodges <= d0 or missiles.counter_t <= 0.0:
+		errs.append("rolling as the rings meet did not dodge the missile")
+	Engine.time_scale = 1.0
+	wingmen.process_mode = Node.PROCESS_MODE_INHERIT
+	await t.get_tree().process_frame
+	if wingmen.pos.size() != wingmen.count:
+		errs.append("wingman missing")
+	tutorial.step = -1
+	# --- INTEL pauses, tap outside resumes
+	_on_intel()
+	await t.get_tree().process_frame
+	if not (intel.visible and get_tree().paused):
+		errs.append("INTEL did not open paused")
+	var ev := InputEventScreenTouch.new()
+	ev.position = Vector2(4, 4)
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await t.get_tree().process_frame
+	await t.get_tree().process_frame
+	if intel.visible or get_tree().paused:
+		errs.append("tap outside INTEL did not resume")
+	# --- tutorial first step advances when turning
+	_on_tutorial()
+	jet.turn_rate = 1.2
+	for i in 120:
+		tutorial.process(0.016)
+		jet.turn_rate = 1.2
+	if tutorial.step < 1:
+		errs.append("tutorial did not advance after turning")
+	tutorial.stop()
 	# cockpit view: camera locks into the canopy, jet hidden, overlay shown
 	cam.mode = GameCamera.Mode.COCKPIT
 	cam._since_switch = 0.0

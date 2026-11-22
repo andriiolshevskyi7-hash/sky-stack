@@ -27,6 +27,7 @@ class E:
 	var t := 0.0
 	var smoke_cd := 0.0
 	var bank := 0.0
+	var mcd := 8.0
 
 var pool: Array[E] = []
 var batches: Array[StackBatch] = []
@@ -36,6 +37,7 @@ var jet: Jet
 var chunks: ChunkManager
 var combat: Combat
 var fx: Fx
+var missiles: Node
 
 
 func _ready() -> void:
@@ -77,6 +79,7 @@ func spawn(type: int, p: Vector3) -> bool:
 			e.t = 0.0
 			e.flash = 0.0
 			e.orbit = rng.randf() * TAU
+			e.mcd = rng.randf_range(5.0, 10.0)
 			if type == BOMBER:
 				_bomber_target(e)
 			return true
@@ -150,6 +153,10 @@ func _process(delta: float) -> void:
 						e.t = 0.0
 						_pick_building(e, 20.0)
 					var fwd := _forward(e.yaw)
+					e.mcd -= delta
+					if missiles != null and jet.alive and dj < 520.0 and dj > 120.0 and e.mcd <= 0.0 and fwd.dot(to_jet / maxf(dj, 0.01)) > 0.8:
+						e.mcd = rng.randf_range(9.0, 15.0)
+						missiles.fire_enemy(e.pos + fwd * 14.0)
 					if jet.alive and dj < 260.0 and fwd.dot(to_jet / maxf(dj, 0.01)) > 0.96 and e.fire_cd <= 0.0:
 						combat.enemy_bullet(e.pos + fwd * 12.0, (fwd * dj + Vector3(0, jp.y - e.pos.y, 0)), 260.0, 5.0)
 						e.burst += 1
