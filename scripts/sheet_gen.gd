@@ -5,7 +5,7 @@ class_name SheetGen
 
 ## name: [cell_w, cell_h, slices, variants, generator method]
 const DEFS := {
-	"jet": [32, 32, 9, 1, "_jet"],
+	"jet": [40, 40, 11, 1, "_jet"],
 	"enemy_jet": [28, 28, 7, 1, "_enemy_jet"],
 	"drone": [18, 18, 4, 1, "_drone"],
 	"bomber": [52, 52, 9, 1, "_bomber"],
@@ -39,49 +39,57 @@ static func P(i: int) -> Color:
 # ------------------------------------------------------------------ aircraft
 
 static func _jet(p: Painter, s: int, v: int) -> void:
-	var body := P(Pal.LGRAY)
-	var dark := P(Pal.GRAY)
-	var wing := P(Pal.STEEL)
-	var acc := P(Pal.RED)
+	# sleek dark fighter: swept wings, twin canted tails, orange accents
+	var body := Color("545969")
+	var dark := Color("3a3e4b")
+	var light := Color("6d7386")
+	var acc := Color("f0580e")
+	var canopy := Color("1e8ca0")
 	match s:
 		0:
-			p.srect(2, 8, 29, dark)
-			p.srect(3, 24, 31, P(Pal.DGRAY))
+			p.srect(2, 7, 36, dark)
 		1:
-			p.srect(3, 6, 30, body)
-			p.srect(4, 12, 19, dark)
-			p.srect(3, 27, 31, P(Pal.DGRAY))
+			p.srect(3, 4, 37, dark)
+			p.srect(4, 12, 23, Color("2c2f39"))
 		2:
-			p.srect(1, 1, 4, body)
-			p.srect(2, 3, 6, body)
-			p.srect(3, 6, 30, body)
-			p.srect(2, 30, 32, dark)
-			p.erect(13, 31, 6, 1, P(Pal.AMBER), Painter.EM_ALWAYS)
+			p.srect(1, 0, 3, body)
+			p.srect(2, 3, 7, body)
+			p.srect(3, 7, 37, body)
+			p.rect(16, 37, 3, 2, dark)
+			p.rect(21, 37, 3, 2, dark)
+			p.erect(17, 39, 1, 1, Color("ffb43c"), Painter.EM_ALWAYS)
+			p.erect(22, 39, 1, 1, Color("ffb43c"), Painter.EM_ALWAYS)
 		3:
-			p.mpoly(PackedVector2Array([Vector2(16, 10), Vector2(2, 23), Vector2(2, 26), Vector2(16, 24)]), wing)
-			p.mpoly(PackedVector2Array([Vector2(16, 25), Vector2(8, 30), Vector2(8, 32), Vector2(16, 31)]), wing)
-			p.srect(3, 3, 31, body)
-			p.rect(2, 23, 2, 3, acc)
-			p.rect(28, 23, 2, 3, acc)
+			p.mpoly(PackedVector2Array([Vector2(20, 13), Vector2(3, 27), Vector2(3, 30), Vector2(20, 26)]), body)
+			p.mpoly(PackedVector2Array([Vector2(20, 29), Vector2(10, 35), Vector2(10, 38), Vector2(20, 36)]), body)
+			p.srect(3, 2, 38, body)
+			p.rect(3, 27, 2, 3, acc)
+			p.rect(35, 27, 2, 3, acc)
 		4:
-			p.mpoly(PackedVector2Array([Vector2(16, 13), Vector2(6, 22), Vector2(6, 24), Vector2(16, 23)]), wing.lightened(0.1))
-			p.srect(3, 4, 29, body)
-			p.srect(1, 14, 22, acc)
+			p.mpoly(PackedVector2Array([Vector2(20, 15), Vector2(6, 26), Vector2(6, 28), Vector2(20, 25)]), light)
+			p.srect(3, 3, 36, light)
+			p.srect(1, 2, 5, acc)
 		5:
-			p.srect(2, 5, 27, body)
-			p.srect(2, 7, 12, P(Pal.SKY))
+			p.srect(2, 4, 34, body)
+			p.srect(1, 16, 30, light)
 		6:
-			p.srect(2, 7, 12, P(Pal.PALE))
-			p.srect(1, 12, 27, body)
-			p.rect(10, 22, 2, 8, dark)
-			p.rect(20, 22, 2, 8, dark)
+			p.srect(2, 6, 13, canopy)
+			p.srect(1, 13, 33, body)
+			p.rect(14, 28, 2, 9, dark)
+			p.rect(24, 28, 2, 9, dark)
 		7:
-			p.srect(1, 8, 11, P(Pal.WHITE))
-			p.rect(10, 24, 2, 6, dark)
-			p.rect(20, 24, 2, 6, dark)
+			p.srect(1, 7, 12, canopy.lightened(0.35))
+			p.rect(13, 30, 2, 7, body)
+			p.rect(25, 30, 2, 7, body)
 		8:
-			p.rect(10, 26, 2, 4, acc)
-			p.rect(20, 26, 2, 4, acc)
+			p.rect(13, 31, 2, 6, body)
+			p.rect(25, 31, 2, 6, body)
+		9:
+			p.rect(12, 32, 2, 5, body)
+			p.rect(26, 32, 2, 5, body)
+		10:
+			p.rect(12, 33, 2, 3, acc)
+			p.rect(26, 33, 2, 3, acc)
 
 
 static func _enemy_jet(p: Painter, s: int, v: int) -> void:

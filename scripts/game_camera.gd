@@ -11,7 +11,10 @@ extends Camera3D
 enum Mode { OVERHEAD, CHASE, COCKPIT }
 const MODE_NAMES := ["OVERHEAD", "CHASE", "COCKPIT"]
 const FOV := [48.0, 62.0, 76.0]
-const FOG_FAR := [0.0, 1250.0, 1150.0]
+const FOG_FAR := [0.0, 3600.0, 3600.0]
+## chase framing: jet width as a fraction of the screen height
+const CHASE_JET_FRAC := 0.19
+const CHASE_HEIGHT_DEG := 25.0
 
 var mode := Mode.CHASE
 var view_h := 336.0 # unused in perspective, kept for API compatibility
@@ -32,7 +35,7 @@ var _since_switch := 10.0
 func _ready() -> void:
 	projection = PROJECTION_PERSPECTIVE
 	near = 0.5
-	far = 3000.0
+	far = 9000.0
 	fov = 62.0
 	current = true
 
@@ -64,8 +67,11 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 		Mode.CHASE:
 			var f: Vector3 = jet.forward()
 			var f3: Vector3 = jet.forward3()
-			var p := jp - f * 70.0 + Vector3.UP * (38.0 - sin(jet.pitch) * 40.0)
-			var t := jp + f3 * 70.0 + Vector3.UP * 4.0
+			# distance so the jet's wingspan covers CHASE_JET_FRAC of the screen height
+			var dist := 40.0 / (2.0 * tan(deg_to_rad(FOV[Mode.CHASE]) * 0.5) * CHASE_JET_FRAC)
+			var el := deg_to_rad(CHASE_HEIGHT_DEG)
+			var p := jp - f * dist * cos(el) + Vector3.UP * (dist * sin(el) - sin(jet.pitch) * dist * 0.5)
+			var t := jp + f3 * dist * 0.6
 			var tr := Transform3D(Basis.IDENTITY, p).looking_at(t, Vector3.UP)
 			tr.basis = tr.basis * Basis(Vector3.BACK, -jet.roll * 0.22)
 			return tr

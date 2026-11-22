@@ -15,6 +15,7 @@ uniform bool fadeable = true;
 uniform bool receive_shadow = true;
 uniform vec2 variant_stride = vec2(0.0);
 uniform float dither_alpha = 1.0;
+uniform float near_fade = 0.0; // dissolve when closer than this to the camera
 
 varying vec3 wpos;
 varying float flash;
@@ -42,6 +43,10 @@ void fragment() {
 	vec4 a = texture(albedo_tex, UV);
 	if (a.a < 0.5) discard;
 	if (dither_alpha < 0.999 && bayer4(FRAGCOORD.xy) > dither_alpha) discard;
+	if (near_fade > 0.0) {
+		float nd = length(VERTEX);
+		if (bayer4(FRAGCOORD.xy) > smoothstep(near_fade * 0.4, near_fade, nd)) discard;
+	}
 	if (fadeable && fade_hides(VERTEX, VIEW_MATRIX, FRAGCOORD.xy)) discard;
 	vec4 e = texture(emit_tex, UV);
 	vec3 col = receive_shadow ? lit(a.rgb * COLOR.rgb, wpos) : a.rgb * COLOR.rgb * ambient;

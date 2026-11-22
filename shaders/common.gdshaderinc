@@ -20,7 +20,7 @@ global uniform vec3 fog_color;
 
 const vec3 SHADOW_TINT = vec3(0.42, 0.55, 0.88);
 
-const float CLOUD_SHADOW_H = 80.0;
+const float CLOUD_SHADOW_H = 300.0;
 
 float bayer2(vec2 a) {
 	a = floor(a);
@@ -73,7 +73,7 @@ vec3 lit(vec3 col, vec3 w) {
 vec3 fogged(vec3 col, vec3 w) {
 	if (fog_far <= 0.0) return col;
 	float d = distance(w, cam_pos);
-	return mix(col, fog_color, smoothstep(fog_far * 0.55, fog_far, d));
+	return mix(col, fog_color, 0.9 * smoothstep(fog_far * 0.3, fog_far, d));
 }
 
 // Island height (manual bilinear, matches CityGen.island_h on the CPU).

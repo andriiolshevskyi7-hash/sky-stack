@@ -12,7 +12,7 @@ const HALF_ST := 8.0
 const LOT := 48.0
 const CHUNK := 256.0
 const BPC := 4
-const JET_ALT := 125.0 # default cruise altitude (above almost every roof)
+const JET_ALT := 110.0 # default cruise altitude (above almost every roof)
 const LOW_ALT := 75.0 # below this you are "low flying" between towers
 
 ## Island heightmap: 256x256 bytes tiling every 256*24 world units. 0.5 = sea
@@ -223,7 +223,11 @@ static func district(bx: int, bz: int) -> int:
 	var cv := city_val(cxw, czw)
 	var h := hashf(bx, bz, 3)
 	if cv > 0.86:
-		return D_PARK if h < 0.1 else D_DOWNTOWN
+		if h < 0.22:
+			return D_PARK
+		if h < 0.3:
+			return D_MIDTOWN
+		return D_DOWNTOWN
 	if cv > 0.62:
 		if h < 0.16:
 			return D_PARK
@@ -499,10 +503,14 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 	var cv := city_val((bx + 0.5) * BLOCK, (bz + 0.5) * BLOCK)
 	match d:
 		D_DOWNTOWN:
-			var parts := _split(rng, inner, rng.randi_range(0, 2))
+			# one or two towers on a plaza, heights vary a lot
+			var parts := _split(rng, inner, 0 if rng.randf() < 0.55 else 1)
 			for i in parts.size():
-				var r: Rect2 = parts[i].grow(-rng.randf_range(1.5, 3.0))
-				var h := 40.0 + pow(rng.randf(), 1.5) * 115.0 * clampf((cv - 0.8) * 4.0, 0.4, 1.0)
+				var r: Rect2 = parts[i].grow(-rng.randf_range(4.0, 8.0))
+				if i == 1 and rng.randf() < 0.4:
+					_trees(cb, rng, parts[i], rng.randi_range(2, 4), [])
+					continue
+				var h := 22.0 + pow(rng.randf(), 2.2) * 135.0 * clampf((cv - 0.8) * 4.0, 0.4, 1.0)
 				var styles := [F_GLASS, F_GLASS_DARK, F_OFFICE, F_LUX, F_MODERN, F_GREEN]
 				var roofs := [R_TAR, R_GRAVEL, R_METAL]
 				_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y, h,

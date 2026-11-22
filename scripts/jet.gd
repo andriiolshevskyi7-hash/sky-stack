@@ -13,7 +13,7 @@ const ALT := CityGen.JET_ALT
 const BASE_SPEED := 95.0
 const BOOST_SPEED := 175.0
 const MIN_ALT := 8.0
-const MAX_ALT := 230.0
+const MAX_ALT := 1500.0
 const MAX_PITCH := 0.6
 const MAX_AMMO := 300.0
 const RADIUS := 6.0
@@ -51,6 +51,7 @@ var cam: GameCamera
 var chunks: ChunkManager
 var combat: Node # Combat (step 2)
 var fx: Node # Fx (step 3)
+var trails: Trails
 
 
 func _ready() -> void:
@@ -201,9 +202,10 @@ func step(delta: float) -> void:
 			smoke_cd = 0.06
 			fx.smoke(position - forward() * 12.0, 1)
 		var vb := visual_basis()
-		fx.contrail(position + vb * Vector3(-14.0, 3.0, 8.0))
-		fx.contrail(position + vb * Vector3(14.0, 3.0, 8.0))
-		fx.afterburner(position + vb * Vector3(0.0, 2.5, 16.0), forward3(), boosting)
+		if trails != null:
+			trails.add(0, position + vb * Vector3(-17.0, 3.0, 9.0))
+			trails.add(1, position + vb * Vector3(17.0, 3.0, 9.0))
+		fx.afterburner(position + vb * Vector3(0.0, 2.5, 20.0), forward3(), boosting)
 	# ---- visual
 	stack.basis = visual_basis()
 	stack.bank = 0.0

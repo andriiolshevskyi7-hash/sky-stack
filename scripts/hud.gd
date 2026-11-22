@@ -135,8 +135,7 @@ func _draw_small_buttons(c: Controls) -> void:
 	var pp: Vector2 = c.pause_pos
 	draw_rect(Rect2(pp + Vector2(-9, -11) * s, Vector2(6, 22) * s), C_TEXT)
 	draw_rect(Rect2(pp + Vector2(3, -11) * s, Vector2(6, 22) * s), C_TEXT)
-	var mode_name: String = GameCamera.MODE_NAMES[game.cam.mode]
-	text(c.cam_pos + Vector2(-c.small_radius, 6 * s), mode_name.substr(0, 3), 15, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, c.small_radius * 2.0)
+	text(c.cam_pos + Vector2(-c.small_radius, 6 * s), "VIEW", 15, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, c.small_radius * 2.0)
 
 
 func _draw_debug(vs: Vector2) -> void:

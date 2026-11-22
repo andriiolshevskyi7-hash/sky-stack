@@ -19,7 +19,7 @@ var paused := false
 var focus := Vector3.ZERO
 var env: Environment
 var sky_mat: ProceduralSkyMaterial
-const HORIZON_DAY := Color("bfe2ff")
+const HORIZON_DAY := Color("9fcdf2")
 const HORIZON_NIGHT := Color("2a2f4e")
 const TOP_DAY := Color("2f74d6")
 const TOP_NIGHT := Color("0a0a14")

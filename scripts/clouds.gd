@@ -1,16 +1,18 @@
 class_name Clouds
 extends Node3D
-## Big fluffy sprite-stacked clouds floating BELOW the jet's cruise altitude.
+## Big fluffy sprite-stacked clouds floating well ABOVE cruise altitude: climb
+## to fly through them.
 ## Each puff is a cluster of 14-slice stacks. Puffs are placed on the peaks of
 ## the shared cloud-noise field, which is also what casts the blue cloud
 ## shadows on the water/ground, so clouds and shadows drift together.
-## Dive through one -> white-out fog.
+## Inside one -> white-out fog. They dissolve near the camera and turn
+## see-through in the overhead view so they never hide the jet.
 
-const COUNT := 22
-const RANGE := 900.0
-const BASE_Y := 62.0
-const SCALE := 2.6
-const PUFF_R := 70.0
+const COUNT := 26
+const RANGE := 1400.0
+const BASE_Y := 280.0
+const SCALE := 3.2
+const PUFF_R := 85.0
 
 var focus := Vector3.ZERO
 var daynight: DayNight
@@ -18,6 +20,9 @@ var rng := RandomNumberGenerator.new()
 var anchors: Array[Vector2] = [] # anchored in noise space (moves with the wind)
 var variants := PackedInt32Array()
 var batch: StackBatch
+var mat: ShaderMaterial
+## 0..1 opacity (dithered); the overhead view makes clouds see-through
+var opacity := 1.0
 var fog := 0.0
 var _img: Image
 
@@ -28,6 +33,8 @@ func _ready() -> void:
 	var m: ShaderMaterial = Stacks.batch_material("cloud").duplicate()
 	m.set_shader_parameter("receive_shadow", false)
 	m.set_shader_parameter("fadeable", true)
+	m.set_shader_parameter("near_fade", 140.0)
+	mat = m
 	batch = StackBatch.new().setup("cloud", COUNT * 3, m)
 	add_child(batch)
 	for i in COUNT:
@@ -51,6 +58,7 @@ func world_pos(i: int) -> Vector3:
 
 func _process(_delta: float) -> void:
 	var off := daynight.cloud_offset if daynight != null else Vector2.ZERO
+	mat.set_shader_parameter("dither_alpha", opacity)
 	batch.begin()
 	for i in COUNT:
 		var q := anchors[i]

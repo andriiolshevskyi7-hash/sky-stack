@@ -27,6 +27,7 @@ var menu: Menu
 var env: Environment
 var sky_mat: ProceduralSkyMaterial
 var cockpit: Cockpit
+var trails: Trails
 
 var score := 0
 var wave := 0
@@ -35,7 +36,7 @@ var city_max := 1000.0
 var banner := ""
 var banner_sub := ""
 var banner_time := 0.0
-var show_debug := true
+var show_debug := false
 var _score_acc := 0.0
 var _over_t := 0.0
 var over_reason := ""
@@ -72,11 +73,12 @@ func _ready() -> void:
 	env = Environment.new()
 	sky_mat = ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = Color("2f74d6")
-	sky_mat.sky_horizon_color = Color("bfe2ff")
-	sky_mat.ground_horizon_color = Color("bfe2ff")
-	sky_mat.ground_bottom_color = Color("2f74d6")
+	sky_mat.sky_horizon_color = Color("9fcdf2")
+	sky_mat.ground_horizon_color = Color("9fcdf2")
+	sky_mat.ground_bottom_color = Color("1f5fbf")
 	sky_mat.sun_angle_max = 0.0
-	sky_mat.sky_curve = 0.12
+	sky_mat.sky_curve = 0.28
+	sky_mat.ground_curve = 0.05
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env.sky = sky
@@ -87,13 +89,13 @@ func _ready() -> void:
 	terrain = MeshInstance3D.new()
 	terrain.name = "Terrain"
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(9000, 9000)
+	plane.size = Vector2(20000, 20000)
 	terrain.mesh = plane
 	var tmat := ShaderMaterial.new()
 	tmat.shader = preload("res://shaders/terrain.gdshader")
 	terrain.material_override = tmat
 	terrain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	terrain.custom_aabb = AABB(Vector3(-4500, -10, -4500), Vector3(9000, 20, 9000))
+	terrain.custom_aabb = AABB(Vector3(-10000, -10, -10000), Vector3(20000, 20, 20000))
 	world.add_child(terrain)
 
 	chunks = ChunkManager.new()
@@ -141,6 +143,11 @@ func _ready() -> void:
 	jet.chunks = chunks
 	jet.combat = combat
 	jet.fx = fx
+	trails = Trails.new()
+	trails.name = "Trails"
+	trails.cam = cam
+	world.add_child(trails)
+	jet.trails = trails
 	combat.game = self
 	combat.jet = jet
 	combat.enemies = enemies
@@ -229,6 +236,7 @@ func _process(delta: float) -> void:
 	traffic.focus = gf
 	terrain.position = Vector3(snappedf(gf.x, 64.0), 0.0, snappedf(gf.z, 64.0))
 	jet.flight_mode = cam.mode != GameCamera.Mode.OVERHEAD
+	clouds.opacity = lerpf(clouds.opacity, 0.35 if cam.mode == GameCamera.Mode.OVERHEAD else 1.0, 1.0 - exp(-delta * 3.0))
 	controls.show_alt_buttons = not jet.flight_mode
 	fx.clear_columns_far(cam.focus, 900.0)
 	daynight.focus = gf
@@ -283,6 +291,7 @@ func start_game() -> void:
 	over_reason = ""
 	jet.autopilot = false
 	jet.reset(jet.position, jet.yaw)
+	trails.clear()
 	score = 0
 	wave = 0
 	kills = 0
