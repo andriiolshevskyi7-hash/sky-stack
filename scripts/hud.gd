@@ -64,7 +64,7 @@ func _draw() -> void:
 		_draw_status(vs)
 	elif playing:
 		ctext(vs.x * 0.5, 44 * s, "%07d" % game.score, 30)
-	if c != null and c.touch_seen and game.state == game.State.PLAY:
+	if c != null and game.state == game.State.PLAY and game.touch_buttons_visible():
 		_draw_touch(c)
 	if game.state == game.State.PLAY:
 		_draw_arrows(vs)
@@ -104,38 +104,45 @@ func _draw_status(vs: Vector2) -> void:
 		ctext(vs.x * 0.5, vs.y - 40 * s, "LOW FLYING  x%d" % jet.multiplier, 28, Color(1, 0.85, 0.3, pulse))
 
 
+## Rectangular semi-transparent buttons (like the reference).
 func _draw_touch(c: Controls) -> void:
-	# joystick
-	draw_circle(c.joy_center, c.joy_radius, Color(1, 1, 1, 0.10))
-	draw_arc(c.joy_center, c.joy_radius, 0, TAU, 48, Color(1, 1, 1, 0.35), 3.0 * s)
-	draw_circle(c.joy_knob, c.joy_radius * 0.42, Color(1, 1, 1, 0.45 if c.joy_active else 0.25))
-	# buttons
-	_btn(c.fire_pos, c.btn_radius, "FIRE", c.fire, Color(1.0, 0.35, 0.3))
-	_btn(c.boost_pos, c.btn_radius * 0.85, "BOOST", c.boost, Color(1.0, 0.75, 0.25))
-	if c.show_alt_buttons:
-		_btn(c.climb_pos, c.small_radius, "UP", c.alt_axis > 0.0, Color(0.5, 0.85, 1.0))
-		_btn(c.dive_pos, c.small_radius, "DOWN", c.alt_axis < 0.0, Color(0.5, 0.85, 1.0))
-
-
-func _btn(p: Vector2, r: float, label: String, pressed: bool, col: Color) -> void:
-	var fill := col
-	fill.a = 0.55 if pressed else 0.22
-	draw_circle(p, r, fill)
-	draw_arc(p, r, 0, TAU, 48, Color(col.r, col.g, col.b, 0.9), 3.0 * s)
-	text(p + Vector2(-r, 8 * s), label, 20, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0)
+	var jet: Jet = game.jet
+	for n in ["loop", "view", "gun", "missile", "boost"]:
+		var r: Rect2 = c.btn[n]
+		var on: bool = c.pressed.get(n, false)
+		draw_rect(r, Color(0.08, 0.13, 0.28, 0.62 if on else 0.42))
+		draw_rect(r, Color(0.75, 0.85, 1.0, 0.55), false, maxf(1.0, 2.0 * s))
+		var label: String = n.to_upper()
+		var cy := r.position.y + r.size.y * 0.5
+		match n:
+			"gun":
+				text(Vector2(r.position.x, cy - 2 * s), "GUN", 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+				var am := "RELOAD" if jet.reloading > 0.0 else str(int(jet.ammo))
+				text(Vector2(r.position.x, cy + 22 * s), am, 15, Color(1, 1, 1, 0.8), HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+			"missile":
+				text(Vector2(r.position.x, cy - 2 * s), "MISSILE", 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+				var mx: int = game.missiles_max()
+				var have: int = game.missiles_left()
+				var bw := 8.0 * s
+				var x0 := r.get_center().x - (mx * (bw + 3 * s)) * 0.5
+				for i in mx:
+					draw_rect(Rect2(Vector2(x0 + i * (bw + 3 * s), cy + 10 * s), Vector2(bw, 12 * s)), Color(1, 1, 1, 0.9 if i < have else 0.25))
+			_:
+				text(Vector2(r.position.x, cy + 7 * s), label, 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	if c.dragging:
+		draw_arc(c.drag_start, c.drag_radius, 0, TAU, 40, Color(1, 1, 1, 0.18), 2.0 * s)
+		draw_circle(c.drag_start + (c.drag_pos - c.drag_start).limit_length(c.drag_radius), 14.0 * s, Color(1, 1, 1, 0.3))
 
 
 func _draw_small_buttons(c: Controls) -> void:
 	if c == null:
 		return
-	for p in [c.pause_pos, c.cam_pos]:
-		draw_circle(p, c.small_radius, Color(0, 0, 0, 0.35))
-		draw_arc(p, c.small_radius, 0, TAU, 32, Color(1, 1, 1, 0.6), 2.0 * s)
-	# pause icon
-	var pp: Vector2 = c.pause_pos
-	draw_rect(Rect2(pp + Vector2(-9, -11) * s, Vector2(6, 22) * s), C_TEXT)
-	draw_rect(Rect2(pp + Vector2(3, -11) * s, Vector2(6, 22) * s), C_TEXT)
-	text(c.cam_pos + Vector2(-c.small_radius, 6 * s), "VIEW", 15, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, c.small_radius * 2.0)
+	var r: Rect2 = c.btn["pause"]
+	draw_rect(r, Color(0.08, 0.13, 0.28, 0.5))
+	draw_rect(r, Color(0.75, 0.85, 1.0, 0.5), false, maxf(1.0, 2.0 * s))
+	var pp := r.get_center()
+	draw_rect(Rect2(pp + Vector2(-8, -11) * s, Vector2(5, 22) * s), C_TEXT)
+	draw_rect(Rect2(pp + Vector2(3, -11) * s, Vector2(5, 22) * s), C_TEXT)
 
 
 func _draw_debug(vs: Vector2) -> void:

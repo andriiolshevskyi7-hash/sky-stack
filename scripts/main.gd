@@ -173,6 +173,14 @@ func _ready() -> void:
 
 	controls.cam_pressed.connect(_on_cam)
 	controls.pause_pressed.connect(_on_pause)
+	controls.roll_pressed.connect(func() -> void: jet.barrel_roll())
+	controls.loop_pressed.connect(func() -> void: jet.loop(false))
+	controls.missile_pressed.connect(_on_missile)
+	jet.ejected.connect(_on_ejected)
+	jet.trick.connect(func(n: String) -> void:
+		if state == State.PLAY:
+			score += 25
+			show_banner(n, "", 0.8))
 	jet.died.connect(_on_jet_died)
 	jet.damaged.connect(func(a: float) -> void: flash = minf(0.8, flash + 0.25 + a * 0.02))
 
@@ -194,6 +202,8 @@ func _parse_args() -> void:
 			start_game()
 		elif a.begins_with("--cam="):
 			cam.mode = int(a.substr(6)) as GameCamera.Mode
+		elif a == "--touch":
+			controls.touch_seen = true
 		elif a == "--nofog":
 			cam.fog_enabled = false
 		elif a == "--nodebug":
@@ -226,6 +236,7 @@ func _process(delta: float) -> void:
 		return
 	delta = minf(delta, 0.05)
 	jet.step(delta)
+	_update_pilot(delta)
 	cam.update_cam(delta, jet, jet.speed_ratio())
 	jet.visible = jet.alive and cam.cockpit_blend < 0.6
 	cockpit.size = Vector2(pv.low)
@@ -235,9 +246,7 @@ func _process(delta: float) -> void:
 	chunks.focus = gf
 	traffic.focus = gf
 	terrain.position = Vector3(snappedf(gf.x, 64.0), 0.0, snappedf(gf.z, 64.0))
-	jet.flight_mode = cam.mode != GameCamera.Mode.OVERHEAD
 	clouds.opacity = lerpf(clouds.opacity, 0.35 if cam.mode == GameCamera.Mode.OVERHEAD else 1.0, 1.0 - exp(-delta * 3.0))
-	controls.show_alt_buttons = not jet.flight_mode
 	fx.clear_columns_far(cam.focus, 900.0)
 	daynight.focus = gf
 	clouds.focus = gf
@@ -396,6 +405,64 @@ func ground_focus() -> Vector3:
 	return cam.ground_point()
 
 
+# ------------------------------------------------------------------ ejection
+
+var pilot: Node3D
+var _pilot_vel := Vector3.ZERO
+var _eject_t := 0.0
+
+
+func _on_ejected(at: Vector3) -> void:
+	pilot = Node3D.new()
+	var st := SpriteStack.new()
+	st.sheet = "parachute"
+	pilot.add_child(st)
+	world.add_child(pilot)
+	pilot.position = at + Vector3(0, 6, 0)
+	_pilot_vel = Vector3(0, 30, 0) + jet.forward() * 20.0
+	_eject_t = 0.0
+	cam.override = pilot
+	show_banner("EJECTED", "Search and rescue inbound", 3.5)
+
+
+func _update_pilot(delta: float) -> void:
+	if pilot == null:
+		return
+	_eject_t += delta
+	_pilot_vel = _pilot_vel.lerp(Vector3(4.0, -7.0, 2.0), 1.0 - exp(-delta * 1.5))
+	pilot.position += _pilot_vel * delta
+	pilot.rotation.y += delta * 0.4
+	if pilot.position.y < 1.0:
+		pilot.position.y = 1.0
+	if _eject_t > 4.5:
+		# rescued: back in a fresh jet
+		var p := pilot.position
+		pilot.queue_free()
+		pilot = null
+		cam.override = null
+		if state == State.PLAY or state == State.TITLE:
+			score = maxi(0, score - 300)
+			jet.reset(p, jet.yaw)
+			trails.clear()
+			show_banner("RESCUED", "New jet  -300", 2.0)
+
+
+func missiles_max() -> int:
+	return 6
+
+
+func missiles_left() -> int:
+	return 6
+
+
+func _on_missile() -> void:
+	pass
+
+
+func touch_buttons_visible() -> bool:
+	return controls.touch_seen
+
+
 func enemies_left() -> int:
 	return wave_queue.size() + enemies.count_active()
 
@@ -510,5 +577,13 @@ func test_hook(t: Node) -> Array:
 	if jet.visible or cam.cockpit_blend < 0.9:
 		errs.append("cockpit view did not engage (blend %.2f, jet visible %s)" % [cam.cockpit_blend, jet.visible])
 	cam.mode = GameCamera.Mode.CHASE
+	# eject -> parachute close-up -> rescued in a new jet
+	jet._eject()
+	await t.get_tree().create_timer(0.5).timeout
+	if pilot == null or cam.override == null:
+		errs.append("eject did not spawn the pilot close-up")
+	await t.get_tree().create_timer(4.6).timeout
+	if not jet.alive or pilot != null:
+		errs.append("pilot was not rescued into a new jet")
 	print("    enemies=%d cars=%d fx=%d score=%d" % [enemies.count_active(), traffic.active_cars, fx.n, score])
 	return errs

@@ -3,7 +3,7 @@ extends Node3D
 ## Pooled pixel particles: explosions, smoke trails, sparks, muzzle flashes,
 ## afterburner. Structure-of-arrays, swap-remove, zero per-frame allocations.
 
-enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL }
+enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL, SPARK_W }
 const MAX := 1400
 
 var pos := PackedVector3Array()
@@ -91,6 +91,13 @@ func afterburner(p: Vector3, fwd: Vector3, boost: bool = false) -> void:
 		spawn(p + _rv(1.0), -fwd * 45.0 + _rv(6.0), rng.randf_range(0.08, 0.16), 2.5, BURNER)
 
 
+## Sea spray / wake when the jet skims the water.
+func spray(p: Vector3, k: float) -> void:
+	for i in int(1 + k * 3.0):
+		spawn(p + Vector3(rng.randf_range(-6, 6), 0, rng.randf_range(-6, 6)), Vector3(rng.randf_range(-8, 8), rng.randf_range(10, 30) * k, rng.randf_range(-8, 8)), rng.randf_range(0.3, 0.7), rng.randf_range(1.5, 2.5), SPARK_W)
+	spawn(p, Vector3.ZERO, 1.4, 2.5, TRAIL)
+
+
 ## White foam wake behind boats.
 func wake(p: Vector3) -> void:
 	spawn(p + _rv(1.5), Vector3.ZERO, 1.6, 2.0, TRAIL)
@@ -157,6 +164,9 @@ func _process(delta: float) -> void:
 			SPARK:
 				v.y -= 140.0 * delta
 				col = C_YELLOW
+			SPARK_W:
+				v.y -= 60.0 * delta
+				col = Color(0.95, 0.98, 1.0, 1.0 - t)
 			FLASH:
 				col = Color(1, 1, 0.9)
 				s *= 1.0 - t * 0.5

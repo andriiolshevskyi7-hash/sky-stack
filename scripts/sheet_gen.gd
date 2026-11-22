@@ -29,6 +29,7 @@ const DEFS := {
 	"container": [8, 20, 8, 4, "_container"],
 	"fountain": [18, 18, 4, 1, "_fountain"],
 	"cloud": [64, 64, 14, 3, "_cloud"],
+	"parachute": [26, 26, 14, 1, "_parachute"],
 }
 
 
@@ -587,3 +588,22 @@ static func _cloud(p: Painter, s: int, v: int) -> void:
 		p.ell(cx, cy, rr, rr * 0.92, col)
 		if s >= 7:
 			p.ell(cx - rr * 0.25, cy - rr * 0.25, rr * 0.55, rr * 0.5, top)
+
+
+static func _parachute(p: Painter, s: int, v: int) -> void:
+	# pilot (bottom), shroud lines, striped canopy dome (top)
+	if s < 3:
+		p.rect(12, 12, 2, 2, Color("f0580e") if s < 2 else Color("e8c99b"))
+		if s == 1:
+			p.rect(11, 12, 4, 1, Color("f0580e"))
+	elif s < 9:
+		var k := float(s - 3) / 5.0
+		for c in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+			p.px(int(13 + c.x * (1 + k * 9)), int(13 + c.y * (1 + k * 9)), Color("c2c3c7"))
+	else:
+		var r := 12.5 * sqrt(maxf(0.0, 1.0 - pow(float(s - 9) / 5.0, 2.0)))
+		for seg in 8:
+			var col := Color("f0580e") if seg % 2 == 0 else Color("f4f4f4")
+			var a0 := TAU * seg / 8.0
+			var a1 := TAU * (seg + 1) / 8.0
+			p.poly(PackedVector2Array([Vector2(13, 13), Vector2(13 + cos(a0) * r, 13 + sin(a0) * r), Vector2(13 + cos(a1) * r, 13 + sin(a1) * r)]), col)

@@ -30,6 +30,9 @@ var _rot := Quaternion.IDENTITY
 var _fov := 62.0
 var _fog := 0.0
 var _since_switch := 10.0
+## when set, the camera frames this node in a close-up (ejection)
+var override: Node3D
+var overhead_follow := 0.6
 
 
 func _ready() -> void:
@@ -62,8 +65,10 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 	var jp: Vector3 = jet.position
 	match m:
 		Mode.OVERHEAD:
-			var p := jp + Vector3(0.0, 430.0, 40.0)
-			return Transform3D(Basis.IDENTITY, p).looking_at(jp + Vector3(0, 0, -6.0), Vector3.FORWARD)
+			var a: float = jet.yaw * overhead_follow
+			var up := Vector3(-sin(a), 0.0, -cos(a))
+			var p := jp + Vector3(0.0, 430.0, 0.0) - up * 40.0
+			return Transform3D(Basis.IDENTITY, p).looking_at(jp + up * 6.0, up)
 		Mode.CHASE:
 			var f: Vector3 = jet.forward()
 			var f3: Vector3 = jet.forward3()
@@ -83,7 +88,12 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	_since_switch += delta
 	var t := _target(mode, jet)
+	if override != null and is_instance_valid(override):
+		var op := override.global_position
+		t = Transform3D(Basis.IDENTITY, op + Vector3(26.0, 10.0, 26.0)).looking_at(op + Vector3(0, 4, 0), Vector3.UP)
 	var t_fov: float = FOV[mode] + 9.0 * speed_ratio
+	if override != null:
+		t_fov = 55.0
 	if _first:
 		_first = false
 		_pos = t.origin
@@ -94,7 +104,7 @@ func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	if mode == Mode.OVERHEAD:
 		rate_p = 5.0
 		rate_r = 4.0
-	elif mode == Mode.COCKPIT:
+	elif mode == Mode.COCKPIT and override == null:
 		# ease in, then lock rigidly to the canopy (a lagging follow would
 		# never catch a jet doing ~100 units/s)
 		var k := clampf((_since_switch - 0.6) / 0.8, 0.0, 1.0)
@@ -104,12 +114,12 @@ func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 		rate_p = minf(rate_p, 3.2)
 		rate_r = minf(rate_r, 3.0)
 	_pos = _pos.lerp(t.origin, 1.0 - exp(-delta * rate_p))
-	if mode == Mode.COCKPIT and _since_switch > 1.4:
+	if mode == Mode.COCKPIT and _since_switch > 1.4 and override == null:
 		_pos = t.origin
 	_rot = _rot.slerp(t.basis.get_rotation_quaternion(), 1.0 - exp(-delta * rate_r))
 	_fov = lerpf(_fov, t_fov, 1.0 - exp(-delta * 3.0))
 	_fog = lerpf(_fog, FOG_FAR[mode] if fog_enabled else 0.0, 1.0 - exp(-delta * 2.0))
-	cockpit_blend = clampf(1.0 - (_pos.distance_to(_target(Mode.COCKPIT, jet).origin) - 2.0) / 20.0, 0.0, 1.0)
+	cockpit_blend = 0.0 if override != null else clampf(1.0 - (_pos.distance_to(_target(Mode.COCKPIT, jet).origin) - 2.0) / 20.0, 0.0, 1.0)
 	shake = maxf(0.0, shake - delta * 14.0)
 	var b := Basis(_rot)
 	var off := Vector3.ZERO

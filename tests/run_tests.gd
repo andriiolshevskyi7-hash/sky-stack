@@ -190,38 +190,52 @@ func test_touch(main: Node) -> void:
 	check(main.state == main.State.PLAY, "touch on START starts the game")
 	check(not main.menu.visible, "menu closed after START")
 	var c: Controls = main.controls
-	# joystick: touch left half, drag right
+	# drag steering anywhere: drag right + down = turn right + climb
 	var vs := c.get_viewport().get_visible_rect().size
-	var jp := Vector2(vs.x * 0.15, vs.y * 0.75)
+	var jp := Vector2(vs.x * 0.45, vs.y * 0.45)
 	_touch(jp, true, 1)
 	await _frames(1)
-	_drag(jp + Vector2(60, 0), 1)
+	_drag(jp + Vector2(80, 80), 1)
 	await _frames(2)
-	print("    dbg vs=%s joy=%s roles=%s en=%s" % [c.get_viewport().get_visible_rect().size, c.joy_active, c._touch_role, c.enabled])
-	check(c.stick.x > 0.5, "joystick drag steers (stick=%s)" % c.stick)
-	# FIRE + BOOST with two more fingers
-	_touch(c.fire_pos, true, 2)
-	_touch(c.boost_pos, true, 3)
+	check(c.stick.x > 0.5 and c.stick.y > 0.5, "drag steers: right turns, down climbs (stick=%s)" % c.stick)
+	# GUN + BOOST with two more fingers
+	_touch(c.button_center("gun"), true, 2)
+	_touch(c.button_center("boost"), true, 3)
 	await _frames(2)
-	check(c.fire, "FIRE button held")
+	check(c.fire, "GUN button held")
 	check(c.boost, "BOOST button held")
-	_touch(c.fire_pos, false, 2)
-	_touch(c.boost_pos, false, 3)
+	_touch(c.button_center("gun"), false, 2)
+	_touch(c.button_center("boost"), false, 3)
 	_touch(jp, false, 1)
 	await _frames(2)
 	check(not c.fire and not c.boost and c.stick == Vector2.ZERO, "buttons released")
-	# CAM
+	# quick tap = barrel roll
+	_touch(jp, true, 1)
+	await _frames(1)
+	_touch(jp, false, 1)
+	await _frames(2)
+	check(main.jet.man == Jet.M_ROLL, "tap does a barrel roll")
+	# LOOP
+	main.jet.man = Jet.M_NONE
+	_touch(c.button_center("loop"), true)
+	await _frames(2)
+	_touch(c.button_center("loop"), false)
+	await _frames(2)
+	check(main.jet.man == Jet.M_LOOP, "LOOP button starts a loop")
+	main.jet.man = Jet.M_NONE
+	main.jet.pitch = 0.0
+	# VIEW
 	var mode_before: int = main.cam.mode
-	_touch(c.cam_pos, true)
+	_touch(c.button_center("view"), true)
 	await _frames(2)
-	_touch(c.cam_pos, false)
+	_touch(c.button_center("view"), false)
 	await _frames(2)
-	check(main.cam.mode != mode_before, "CAM button cycles the view")
+	check(main.cam.mode != mode_before, "VIEW button cycles the view")
 	main.cam.mode = mode_before
 	# PAUSE -> RESUME
-	_touch(c.pause_pos, true)
+	_touch(c.button_center("pause"), true)
 	await _frames(2)
-	_touch(c.pause_pos, false)
+	_touch(c.button_center("pause"), false)
 	await _frames(2)
 	check(main.state == main.State.PAUSE and get_tree().paused, "pause button pauses")
 	var resume: Vector2 = main.menu.button_center(0)
