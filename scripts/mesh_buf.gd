@@ -73,7 +73,7 @@ func ground_rect(x0: float, z0: float, x1: float, z1: float, y: float, tile_idx:
 
 ## Append one sprite stack (all slices) at pos, rotated by yaw (Godot Y-rotation
 ## convention), uniformly scaled. Slice 0 is the bottom one.
-func add_stack(sh, variant: int, pos: Vector3, yaw: float, scale: float, tint: Color) -> void:
+func add_stack(sh, variant: int, pos: Vector3, yaw: float, scale: float, tint: Color, copies: int = 1) -> void:
 	var cy := cos(yaw)
 	var sy := sin(yaw)
 	var hw: float = sh.w * 0.5 * scale
@@ -90,6 +90,11 @@ func add_stack(sh, variant: int, pos: Vector3, yaw: float, scale: float, tint: C
 		var y: float = pos.y + s * sh.spacing * scale
 		var shade := 0.72 + 0.28 * float(s) / denom
 		var col := Color(tint.r * shade, tint.g * shade, tint.b * shade, tint.a)
+		for c in range(1, copies):
+			var yc: float = y + sh.spacing * scale * float(c) / copies
+			quad(Vector3(pos.x + wc[0].x, yc, pos.z + wc[0].y), Vector3(pos.x + wc[1].x, yc, pos.z + wc[1].y),
+				Vector3(pos.x + wc[2].x, yc, pos.z + wc[2].y), Vector3(pos.x + wc[3].x, yc, pos.z + wc[3].y),
+				r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), col)
 		quad(Vector3(pos.x + wc[0].x, y, pos.z + wc[0].y), Vector3(pos.x + wc[1].x, y, pos.z + wc[1].y),
 			Vector3(pos.x + wc[2].x, y, pos.z + wc[2].y), Vector3(pos.x + wc[3].x, y, pos.z + wc[3].y),
 			r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), col)

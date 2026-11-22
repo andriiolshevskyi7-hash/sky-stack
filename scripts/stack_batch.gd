@@ -30,7 +30,7 @@ func setup(p_sheet: String, p_capacity: int, mat: Material = null) -> StackBatch
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
 	mm.use_custom_data = true
-	mm.mesh = Stacks.make_stack_mesh(p_sheet)
+	mm.mesh = Stacks.make_stack_mesh(p_sheet, 4 if p_sheet == "jet" else (1 if p_sheet == "cloud" else 2))
 	mm.instance_count = capacity
 	mm.visible_instance_count = 0
 	multimesh = mm

@@ -204,7 +204,7 @@ func _process(delta: float) -> void:
 			if e.smoke_cd <= 0.0:
 				e.smoke_cd = 0.08
 				fx.smoke(e.pos, 1)
-		batches[e.type].push(e.pos, e.yaw, 0, Color.WHITE, e.bank, e.flash)
+		batches[e.type].push_basis(e.pos, Basis.from_euler(Vector3(0.0, e.yaw, -e.bank * 2.9)), 0, Color.WHITE, e.flash)
 	for b in batches:
 		b.end()
 

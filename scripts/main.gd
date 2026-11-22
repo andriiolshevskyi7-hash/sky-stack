@@ -25,6 +25,8 @@ var controls: Controls
 var hud: Hud
 var menu: Menu
 var env: Environment
+var sky_mat: ProceduralSkyMaterial
+var cockpit: Cockpit
 
 var score := 0
 var wave := 0
@@ -68,8 +70,17 @@ func _ready() -> void:
 	world.add_child(cam)
 	cam.mode = Save.cam_mode as GameCamera.Mode
 	env = Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("6a9fd8")
+	sky_mat = ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color("2f74d6")
+	sky_mat.sky_horizon_color = Color("bfe2ff")
+	sky_mat.ground_horizon_color = Color("bfe2ff")
+	sky_mat.ground_bottom_color = Color("2f74d6")
+	sky_mat.sun_angle_max = 0.0
+	sky_mat.sky_curve = 0.12
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	env.sky = sky
+	env.background_mode = Environment.BG_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	cam.environment = env
 
@@ -109,6 +120,7 @@ func _ready() -> void:
 	daynight = DayNight.new()
 	daynight.name = "DayNight"
 	daynight.env = env
+	daynight.sky_mat = sky_mat
 	daynight.cycle = Save.day_cycle
 	world.add_child(daynight)
 	clouds = Clouds.new()
@@ -117,6 +129,9 @@ func _ready() -> void:
 	world.add_child(clouds)
 	speed_lines = SpeedLines.new()
 	pv.overlay.add_child(speed_lines)
+	cockpit = Cockpit.new()
+	cockpit.game = self
+	pv.overlay.add_child(cockpit)
 
 	controls = Controls.new()
 	controls.name = "Controls"
@@ -155,9 +170,8 @@ func _ready() -> void:
 	jet.damaged.connect(func(a: float) -> void: flash = minf(0.8, flash + 0.25 + a * 0.02))
 
 	jet.reset(SPAWN, 0.0)
-	cam.view_h = pv.low.y
-	cam.update_cam(0.016, jet.position, jet.yaw, 0.0)
-	chunks.focus = cam.focus
+	cam.update_cam(0.016, jet, 0.0)
+	chunks.focus = cam.ground_point()
 	chunks.load_all_now()
 	_to_title()
 	_parse_args()
@@ -173,6 +187,8 @@ func _parse_args() -> void:
 			start_game()
 		elif a.begins_with("--cam="):
 			cam.mode = int(a.substr(6)) as GameCamera.Mode
+		elif a == "--nofog":
+			cam.fog_enabled = false
 		elif a == "--nodebug":
 			show_debug = false
 		elif a == "--auto":
@@ -203,13 +219,16 @@ func _process(delta: float) -> void:
 		return
 	delta = minf(delta, 0.05)
 	jet.step(delta)
-	cam.view_h = pv.low.y
-	cam.update_cam(delta, jet.position, jet.yaw, jet.speed_ratio())
+	cam.update_cam(delta, jet, jet.speed_ratio())
+	jet.visible = jet.alive and cam.cockpit_blend < 0.6
+	cockpit.size = Vector2(pv.low)
+	cockpit.alpha = cam.cockpit_blend if state != State.TITLE else 0.0
+	chunks.radius = 2 if cam.mode == GameCamera.Mode.OVERHEAD else 3
 	var gf := ground_focus()
 	chunks.focus = gf
 	traffic.focus = gf
 	terrain.position = Vector3(snappedf(gf.x, 64.0), 0.0, snappedf(gf.z, 64.0))
-	jet.flight_mode = cam.mode == GameCamera.Mode.CHASE
+	jet.flight_mode = cam.mode != GameCamera.Mode.OVERHEAD
 	controls.show_alt_buttons = not jet.flight_mode
 	fx.clear_columns_far(cam.focus, 900.0)
 	daynight.focus = gf
@@ -365,12 +384,7 @@ func show_banner(t: String, sub: String = "", time: float = 2.5) -> void:
 
 ## Point on the ground the camera is looking at (for streaming).
 func ground_focus() -> Vector3:
-	var f := cam.global_transform.basis.z * -1.0
-	if f.y < -0.05:
-		var t := -cam.focus.y / f.y
-		var p := cam.focus + f * minf(t, 900.0)
-		return Vector3(p.x, 0.0, p.z)
-	return Vector3(cam.focus.x, 0.0, cam.focus.z)
+	return cam.ground_point()
 
 
 func enemies_left() -> int:
@@ -378,7 +392,7 @@ func enemies_left() -> int:
 
 
 func debug_extra() -> String:
-	return "T %.2f N %.1f  CARS %d  FX %d  BULLETS %d  ENEMIES %d | JET %d,%d  SPD %d  NEAR %d  CAM %s pitch %d" % [daynight.t, daynight.night, traffic.active_cars, fx.n, combat.n, enemies.count_active(), jet.position.x, jet.position.z, jet.speed, jet.near_tall, GameCamera.MODE_NAMES[cam.mode], rad_to_deg(cam.pitch)]
+	return "VIS %s BL %.2f T %.2f N %.1f  CARS %d  FX %d  BULLETS %d  ENEMIES %d | JET %d,%d  SPD %d  NEAR %d  CAM %s FOV %d" % [jet.visible, cam.cockpit_blend, daynight.t, daynight.night, traffic.active_cars, fx.n, combat.n, enemies.count_active(), jet.position.x, jet.position.z, jet.speed, jet.near_tall, GameCamera.MODE_NAMES[cam.mode], cam.fov]
 
 
 func _on_cam() -> void:
@@ -480,5 +494,12 @@ func test_hook(t: Node) -> Array:
 			break
 	if kills != before + 1:
 		errs.append("enemy kill not registered")
+	# cockpit view: camera locks into the canopy, jet hidden, overlay shown
+	cam.mode = GameCamera.Mode.COCKPIT
+	cam._since_switch = 0.0
+	await t.get_tree().create_timer(2.5).timeout
+	if jet.visible or cam.cockpit_blend < 0.9:
+		errs.append("cockpit view did not engage (blend %.2f, jet visible %s)" % [cam.cockpit_blend, jet.visible])
+	cam.mode = GameCamera.Mode.CHASE
 	print("    enemies=%d cars=%d fx=%d score=%d" % [enemies.count_active(), traffic.active_cars, fx.n, score])
 	return errs

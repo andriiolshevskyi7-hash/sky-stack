@@ -165,7 +165,7 @@ func _process(delta: float) -> void:
 				col.a = 1.0 - t * 0.6
 				s *= 1.0 - t * 0.5
 			TRAIL:
-				col = Color(1, 1, 1, 1.0 - t)
+				col = Color(1, 1, 1, 1.0 if t < 0.6 else (1.0 - t) * 2.5)
 				s *= 1.0 + t * 0.8
 			_:
 				v.y -= 120.0 * delta

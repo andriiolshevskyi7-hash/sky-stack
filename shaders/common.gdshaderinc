@@ -73,7 +73,7 @@ vec3 lit(vec3 col, vec3 w) {
 vec3 fogged(vec3 col, vec3 w) {
 	if (fog_far <= 0.0) return col;
 	float d = distance(w, cam_pos);
-	return mix(col, fog_color, smoothstep(fog_far * 0.4, fog_far, d));
+	return mix(col, fog_color, smoothstep(fog_far * 0.55, fog_far, d));
 }
 
 // Island height (manual bilinear, matches CityGen.island_h on the CPU).

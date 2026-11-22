@@ -30,42 +30,63 @@ first if Android refuses to update it (`adb uninstall com.skystack.game`).
 
 | Touch | Keyboard / mouse (desktop testing) |
 | --- | --- |
-| Left half: floating joystick (steer, screen-relative) | WASD / arrow keys |
+| Left half: floating joystick | WASD / arrow keys |
 | **BOOST** button | Shift (or K) |
 | **FIRE** button | Space, J or left mouse button |
-| **CAM** button (top right): chase → iso → top | C |
+| **UP / DOWN** buttons (overhead view only): climb / dive | E / Q (any view) |
+| **CAM** button (top right): overhead → chase → cockpit | C |
 | **II** button: pause menu | Esc / P |
+
+On the title screen, tap anywhere to start.
+
+Joystick behaviour depends on the view:
+
+* **OVERHEAD** (top-down, north up, jet in the centre): push the stick in the
+  direction you want to fly; UP/DOWN buttons change altitude.
+* **CHASE** (behind the jet, perspective ground plane to the horizon) and
+  **COCKPIT** (first person with canopy, HUD and dashboard): stick left/right
+  banks and turns, stick up/down pitches (up = climb; can be inverted in the
+  pause menu).
 
 ## Gameplay
 
-Defend the city in waves: enemy jets, drones and bombers attack the districts —
-shoot them before they wreck the buildings (CITY bar). From wave 4 rooftop
-anti-air guns join in. The jet flies low: skyscrapers taller than you are
-obstacles. **Threading between them builds a score multiplier (up to x4)**,
-but clipping a building costs health. High score is saved to `user://save.cfg`.
+The world is a bright ocean with islands; the city sits on the main island
+(dense downtown, sparser residential, parks, forests and beaches) with small
+towns on other islands. You cruise at 125 m, high above the rooftops: **dive
+below 75 m and thread between skyscrapers to build a score multiplier (up to
+x4)**, but clipping a building or the ground costs health.
+
+Defend the city in waves: enemy jets, drones and bombers attack the buildings
+(CITY bar). From wave 4 rooftop anti-air guns join in. High score is saved to
+`user://save.cfg`. Pause menu: camera, sprite turn smooth/64 steps,
+day/night cycle (off by default — the game starts in full day), pitch
+inversion, debug overlay.
 
 ## Tech overview
 
 | Feature | Where |
 | --- | --- |
-| Low-res pixel view (180–224 px tall, integer scale, nearest) + bloom + palette | `scripts/pixel_view.gd`, `shaders/post.gdshader` |
+| Low-res pixel view (280–400 px tall, integer scale 3–4×, nearest) + bloom | `scripts/pixel_view.gd`, `shaders/post.gdshader` |
 | Sprite-stack node, GPU rotation, 64-step angle snapping | `scripts/sprite_stack.gd`, `scripts/stack_batch.gd`, `shaders/stack.gdshader` |
 | Procedural slice sheets + PNG overrides | `scripts/sheet_gen.gd`, `scripts/stack_lib.gd`, [`assets/stacks/README.md`](assets/stacks/README.md) |
 | Collapsed stacks for tall buildings | `shaders/building.gdshader`, `CityGen._box` |
-| Infinite city (districts, river + bridges, coast + harbour, airport, stadiums) | `scripts/city_gen.gd` |
+| Islands heightmap shared by CPU and GPU, infinite terrain shader (ocean, surf, beaches, forest) | `scripts/stack_lib.gd`, `shaders/terrain.gdshader` |
+| City on the islands (districts, parks, port, stadiums, forests) | `scripts/city_gen.gd` |
 | Threaded chunk streaming, ~4 draw calls per chunk | `scripts/chunk_manager.gd` |
-| Camera blending chase / iso / top, auto zoom, shake, dither fade | `scripts/game_camera.gd`, `shaders/common.gdshaderinc` |
+| Perspective camera blending overhead / chase / cockpit, horizon fog, shake, dither fade | `scripts/game_camera.gd`, `shaders/common.gdshaderinc` |
+| Pixel-art cockpit (canopy, HUD pitch ladder + heading, radar, attitude, gauges) | `scripts/cockpit.gd` |
 
 The pixel view: the world renders into a `SubViewport` whose height is
-180–224 px and whose width follows the screen aspect, chosen so it scales to the
-screen by a whole number (Pixel 9 Pro XL 2992×1344 → 499×224 at 6×). The
+280–400 px and whose width follows the screen aspect, chosen so it scales to the
+screen by a whole number (Pixel 9 Pro XL 2992×1344 → 748×336 at 4×). The
 project stretch mode stays *disabled*: only the world is pixelated, the HUD and
 menus are drawn at full resolution on top.
 
 Sprite stacking: each slice is a flat textured quad at its height, rendered by
-an orthographic camera with a depth buffer — the camera pitch shifts each slice
-"up the screen" by `height·cos(pitch)` and the depth test removes all manual
-sorting. Dynamic stacks are GPU-instanced (`MultiMesh`, one draw call per sheet)
+a perspective camera with a depth buffer — the camera shifts each slice "up the
+screen" according to its height and scales stacks by distance, and the depth
+test removes all manual sorting. Dynamic stacks draw each slice 2–4 times
+between slice heights so no gaps appear when the camera is close. Dynamic stacks are GPU-instanced (`MultiMesh`, one draw call per sheet)
 and rotated in the vertex shader; static stacks are baked per chunk.
 
 ## Running locally
@@ -98,5 +119,5 @@ artifact (retention 3 days). No keystores or secrets are committed.
 ### Debug command-line flags (desktop)
 
 `godot --path . -- --play --auto --cam=1 --time=0.0 --wave=4 --shot=out.png --frames=200`
-starts a game on autopilot in ISO view at midnight on wave 4 and saves a
-screenshot after 200 frames.
+starts a game on autopilot in chase view (0 overhead, 1 chase, 2 cockpit) at
+midnight on wave 4 and saves a screenshot after 200 frames.

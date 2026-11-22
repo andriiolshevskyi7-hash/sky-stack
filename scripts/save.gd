@@ -4,7 +4,7 @@ extends Node
 const PATH := "user://save.cfg"
 var high_score := 0
 var sprite_snap := false
-var cam_mode := 0
+var cam_mode := 1
 var day_cycle := false
 var invert_pitch := false
 
@@ -14,7 +14,7 @@ func _ready() -> void:
 	if cf.load(PATH) == OK:
 		high_score = cf.get_value("game", "high_score", 0)
 		sprite_snap = cf.get_value("settings", "sprite_snap", false)
-		cam_mode = cf.get_value("settings", "cam_mode", 0)
+		cam_mode = cf.get_value("settings", "cam_mode", 1)
 		day_cycle = cf.get_value("settings", "day_cycle", false)
 		invert_pitch = cf.get_value("settings", "invert_pitch", false)
 	apply()

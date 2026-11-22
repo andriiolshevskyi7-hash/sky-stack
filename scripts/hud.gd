@@ -60,8 +60,10 @@ func _draw() -> void:
 	s = clampf(vs.y / 720.0, 0.6, 3.0)
 	var c: Controls = game.controls
 	var playing: bool = game.state == game.State.PLAY
-	if playing or game.state == game.State.PAUSE:
+	if (playing or game.state == game.State.PAUSE) and game.cam.cockpit_blend < 0.5:
 		_draw_status(vs)
+	elif playing:
+		ctext(vs.x * 0.5, 44 * s, "%07d" % game.score, 30)
 	if c != null and c.touch_seen and game.state == game.State.PLAY:
 		_draw_touch(c)
 	if game.state == game.State.PLAY:
@@ -163,10 +165,13 @@ func _draw_arrows(vs: Vector2) -> void:
 	for e in game.enemies.pool:
 		if not e.active:
 			continue
+		var behind := cam.is_position_behind(e.pos)
 		var sp: Vector2 = cam.unproject_position(e.pos) * pv.pixel_scale + pv.display.position
-		if Rect2(Vector2.ZERO, vs).grow(-10.0).has_point(sp):
+		if not behind and Rect2(Vector2.ZERO, vs).grow(-10.0).has_point(sp):
 			continue
 		var d := (sp - center).normalized()
+		if behind:
+			d = -d
 		var ext := center - Vector2(margin, margin)
 		var k := minf(absf(ext.x / maxf(0.001, absf(d.x))), absf(ext.y / maxf(0.001, absf(d.y))))
 		var p := center + d * k

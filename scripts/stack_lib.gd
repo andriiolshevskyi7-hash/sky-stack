@@ -217,10 +217,12 @@ func slice_uv(sh: Sheet, s: int, variant: int) -> Rect2:
 
 ## Builds a mesh with one horizontal quad per slice (variant 0 UVs). Used by
 ## dynamic StackBatch renderers; the shader rotates it and picks the variant.
-func make_stack_mesh(sheet_name: String) -> ArrayMesh:
+func make_stack_mesh(sheet_name: String, copies: int = 1) -> ArrayMesh:
 	var sh := get_sheet(sheet_name)
 	var mb := MeshBuf.new()
-	mb.add_stack(sh, 0, Vector3.ZERO, 0.0, 1.0, Color.WHITE)
+	# Each slice is drawn `copies` times between its height and the next one so
+	# no gaps open up when a perspective camera looks at a stack up close.
+	mb.add_stack(sh, 0, Vector3.ZERO, 0.0, 1.0, Color.WHITE, copies)
 	return mb.commit()
 
 
