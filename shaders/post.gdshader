@@ -35,7 +35,7 @@ void fragment() {
 	c += b * bloom;
 	float bay = bayer4(FRAGCOORD.xy);
 	if (fog > 0.0) {
-		c = mix(c, vec3(0.92, 0.94, 1.0) * max(ambient, vec3(0.35)), clamp(fog * (0.75 + 0.5 * bay), 0.0, 1.0));
+		c = mix(c, vec3(0.95, 0.97, 1.0) * max(ambient, vec3(0.35)), clamp(fog, 0.0, 1.0));
 	}
 	if (flash > 0.0) {
 		vec2 q = UV * 2.0 - 1.0;

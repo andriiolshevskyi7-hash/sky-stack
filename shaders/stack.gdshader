@@ -44,9 +44,8 @@ void fragment() {
 	if (dither_alpha < 0.999 && bayer4(FRAGCOORD.xy) > dither_alpha) discard;
 	if (fadeable && fade_hides(VERTEX, VIEW_MATRIX, FRAGCOORD.xy)) discard;
 	vec4 e = texture(emit_tex, UV);
-	vec3 col = a.rgb * COLOR.rgb * ambient;
-	if (receive_shadow) col *= shadow_at(wpos);
+	vec3 col = receive_shadow ? lit(a.rgb * COLOR.rgb, wpos) : a.rgb * COLOR.rgb * ambient;
 	col += e.rgb * emission_strength(e.a, TIME, wpos);
 	col = mix(col, vec3(1.0, 0.95, 0.85), clamp(flash, 0.0, 1.0));
-	ALBEDO = col;
+	ALBEDO = fogged(col, wpos);
 }

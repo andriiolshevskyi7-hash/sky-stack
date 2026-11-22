@@ -3,7 +3,7 @@ extends Node3D
 ## Pooled pixel particles: explosions, smoke trails, sparks, muzzle flashes,
 ## afterburner. Structure-of-arrays, swap-remove, zero per-frame allocations.
 
-enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS }
+enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL }
 const MAX := 1400
 
 var pos := PackedVector3Array()
@@ -84,8 +84,21 @@ func muzzle(p: Vector3) -> void:
 	spawn(p, Vector3.ZERO, 0.04, 3.0, FLASH)
 
 
-func afterburner(p: Vector3, fwd: Vector3) -> void:
-	spawn(p + _rv(1.0), -fwd * 40.0 + _rv(6.0), rng.randf_range(0.08, 0.18), 2.0, BURNER)
+func afterburner(p: Vector3, fwd: Vector3, boost: bool = false) -> void:
+	spawn(p + _rv(0.6), -fwd * 30.0 + _rv(4.0), rng.randf_range(0.05, 0.1), 2.0, BURNER)
+	if boost:
+		spawn(p + _rv(1.0), -fwd * 55.0 + _rv(6.0), rng.randf_range(0.1, 0.2), 3.0, BURNER)
+		spawn(p + _rv(1.0), -fwd * 45.0 + _rv(6.0), rng.randf_range(0.08, 0.16), 2.5, BURNER)
+
+
+## White foam wake behind boats.
+func wake(p: Vector3) -> void:
+	spawn(p + _rv(1.5), Vector3.ZERO, 1.6, 2.0, TRAIL)
+
+
+## White wingtip vapour trail (one puff per frame per wingtip).
+func contrail(p: Vector3) -> void:
+	spawn(p, Vector3.ZERO, 1.1, 2.0, TRAIL)
 
 
 func add_column(p: Vector3, rate: float) -> void:
@@ -148,8 +161,12 @@ func _process(delta: float) -> void:
 				col = Color(1, 1, 0.9)
 				s *= 1.0 - t * 0.5
 			BURNER:
-				col = C_YELLOW.lerp(C_RED, t)
-				col.a = 1.0 - t
+				col = Color(1.0, 0.95, 0.6).lerp(Color(1.0, 0.45, 0.1), minf(1.0, t * 1.6))
+				col.a = 1.0 - t * 0.6
+				s *= 1.0 - t * 0.5
+			TRAIL:
+				col = Color(1, 1, 1, 1.0 - t)
+				s *= 1.0 + t * 0.8
 			_:
 				v.y -= 120.0 * delta
 				col = C_DARK

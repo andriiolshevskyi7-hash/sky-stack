@@ -137,7 +137,7 @@ func _process(delta: float) -> void:
 				if e.fire_cd <= 0.0:
 					e.fire_cd = rng.randf_range(1.2, 1.8)
 					if dj < 110.0 and jet.alive:
-						combat.enemy_bullet(e.pos, to_jet, 160.0, 4.0)
+						combat.enemy_bullet(e.pos, jp - e.pos, 160.0, 4.0)
 					elif e.target_id >= 0 and Vector2(e.pos.x - e.target_pos.x, e.pos.z - e.target_pos.z).length() < 60.0:
 						combat.lob(e.pos, e.target_pos + Vector3(rng.randf_range(-4, 4), -rng.randf_range(0, 8), rng.randf_range(-4, 4)), 150.0, 2.0, Combat.BLD_SHOT, e.target_id)
 			JET:
@@ -151,7 +151,7 @@ func _process(delta: float) -> void:
 						_pick_building(e, 20.0)
 					var fwd := _forward(e.yaw)
 					if jet.alive and dj < 260.0 and fwd.dot(to_jet / maxf(dj, 0.01)) > 0.96 and e.fire_cd <= 0.0:
-						combat.enemy_bullet(e.pos + fwd * 12.0, fwd, 260.0, 5.0)
+						combat.enemy_bullet(e.pos + fwd * 12.0, (fwd * dj + Vector3(0, jp.y - e.pos.y, 0)), 260.0, 5.0)
 						e.burst += 1
 						e.fire_cd = 0.16
 						if e.burst >= 4:
@@ -212,10 +212,12 @@ func _process(delta: float) -> void:
 func _alt(e: E) -> float:
 	match e.type:
 		BOMBER:
-			return CityGen.JET_ALT + 22.0
+			return 160.0
 		DRONE:
-			return CityGen.JET_ALT - 4.0 + sin(e.t * 2.0 + e.orbit) * 3.0
-	return CityGen.JET_ALT + 2.0
+			var base := e.target_pos.y + 14.0 if e.target_id >= 0 else jet.position.y
+			return clampf(base, 25.0, 190.0) + sin(e.t * 2.0 + e.orbit) * 3.0
+	# fighters follow the player's altitude
+	return clampf(jet.position.y + sin(e.t * 0.7) * 10.0, 20.0, 210.0)
 
 
 
@@ -225,7 +227,7 @@ func hit_test(p: Vector3, d: float) -> bool:
 		if not e.active:
 			continue
 		var r: float = RADIUS[e.type]
-		if absf(p.x - e.pos.x) < r and absf(p.z - e.pos.z) < r and Vector2(p.x - e.pos.x, p.z - e.pos.z).length() < r:
+		if absf(p.x - e.pos.x) < r and absf(p.z - e.pos.z) < r and absf(p.y - e.pos.y) < r + 14.0 and Vector2(p.x - e.pos.x, p.z - e.pos.z).length() < r:
 			e.hp -= d
 			e.flash = 1.0
 			Sfx.play("hit", -10.0)

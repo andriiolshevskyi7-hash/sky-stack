@@ -12,11 +12,23 @@ const HALF_ST := 8.0
 const LOT := 48.0
 const CHUNK := 256.0
 const BPC := 4
-const JET_ALT := 48.0
-const RIVER_HALF := 34.0
+const JET_ALT := 125.0 # default cruise altitude (above almost every roof)
+const LOW_ALT := 75.0 # below this you are "low flying" between towers
 
-enum { D_DOWNTOWN, D_MIDTOWN, D_RESIDENTIAL, D_INDUSTRIAL, D_PARK, D_HARBOR, D_WATER, D_AIRPORT, D_STADIUM, D_RIVERSIDE }
-const DISTRICT_NAMES := ["DOWNTOWN", "MIDTOWN", "RESIDENTIAL", "INDUSTRIAL", "PARK", "HARBOR", "WATER", "AIRPORT", "STADIUM", "RIVERSIDE"]
+## Island heightmap: 256x256 bytes tiling every 256*24 world units. 0.5 = sea
+## level. Shared with the GPU (global "island_tex") so land/water always match.
+const ISL_N := 256
+const ISL_CELL := 24.0
+const SEA := 0.5
+const SAND_TOP := 0.525
+const URBAN_H := 0.565
+static var isl := PackedByteArray()
+static var forest := PackedByteArray() # 128x128 forest/cloud noise
+const FOREST_N := 128
+const FOREST_SCALE := 2200.0
+
+enum { D_DOWNTOWN, D_MIDTOWN, D_RESIDENTIAL, D_INDUSTRIAL, D_PARK, D_STADIUM, D_FOREST, D_MEADOW, D_WATER }
+const DISTRICT_NAMES := ["DOWNTOWN", "MIDTOWN", "RESIDENTIAL", "PORT", "PARK", "STADIUM", "FOREST", "MEADOW", "WATER"]
 
 # facade / roof / ground indices (mirrors Stacks constants; duplicated so this
 # file never touches nodes from worker threads)
@@ -113,109 +125,127 @@ static func vnoise(x: float, z: float, salt: int) -> float:
 
 # ------------------------------------------------------------------ geography
 
-static func river_z(x: float) -> float:
-	return 700.0 + 240.0 * sin(x * 0.0019) + 90.0 * sin(x * 0.0043 + 1.3)
+static func set_maps(island: Image, forest_img: Image) -> void:
+	var i := island.duplicate() as Image
+	i.convert(Image.FORMAT_L8)
+	isl = i.get_data()
+	var f := forest_img.duplicate() as Image
+	f.convert(Image.FORMAT_L8)
+	forest = f.get_data()
 
 
-static func river_dz(x: float) -> float:
-	return 240.0 * 0.0019 * cos(x * 0.0019) + 90.0 * 0.0043 * cos(x * 0.0043 + 1.3)
+## Island height at a world point (bilinear, identical to the terrain shader).
+static func island_h(x: float, z: float) -> float:
+	if isl.is_empty():
+		return 0.8
+	var u := x / ISL_CELL - 0.5
+	var v := z / ISL_CELL - 0.5
+	var ix := floori(u)
+	var iz := floori(v)
+	var fx := u - ix
+	var fz := v - iz
+	var x0 := posmod(ix, ISL_N)
+	var x1 := posmod(ix + 1, ISL_N)
+	var z0 := posmod(iz, ISL_N) * ISL_N
+	var z1 := posmod(iz + 1, ISL_N) * ISL_N
+	var a := lerpf(isl[z0 + x0], isl[z0 + x1], fx)
+	var b := lerpf(isl[z1 + x0], isl[z1 + x1], fx)
+	return lerpf(a, b, fz) / 255.0
 
 
-static func in_river(x: float, z: float, margin: float = 0.0) -> bool:
-	return absf(z - river_z(x)) < RIVER_HALF + margin
-
-
-static func coast_x(z: float) -> float:
-	return 2000.0 + 260.0 * sin(z * 0.0011) + 90.0 * sin(z * 0.0037 + 0.7)
-
-
-static func in_sea(x: float, z: float, margin: float = 0.0) -> bool:
-	return x > coast_x(z) - margin
+static func is_land(x: float, z: float, margin: float = 0.0) -> bool:
+	return island_h(x, z) > SAND_TOP + margin
 
 
 static func is_water(x: float, z: float) -> bool:
-	return in_sea(x, z) or (in_river(x, z) and not is_airport(x, z))
+	return island_h(x, z) < SEA
 
 
-## Airport occupies 3x2 chunks, repeating every 28 chunks. Returns the local
-## chunk index inside the airport or (-1,-1).
-static func airport_local(cx: int, cz: int) -> Vector2i:
-	var ax := posmod(cx + 10, 28)
-	var az := posmod(cz + 6, 28)
-	if ax < 3 and az < 2:
-		return Vector2i(ax, az)
-	return Vector2i(-1, -1)
+static func forest_v(x: float, z: float) -> float:
+	if forest.is_empty():
+		return 0.0
+	var u := posmod(floori(fposmod(x / FOREST_SCALE + 0.37, 1.0) * FOREST_N), FOREST_N)
+	var v := posmod(floori(fposmod(z / FOREST_SCALE + 0.61, 1.0) * FOREST_N), FOREST_N)
+	return forest[v * FOREST_N + u] / 255.0
 
 
-static func is_airport(x: float, z: float) -> bool:
-	return airport_local(floori(x / CHUNK), floori(z / CHUNK)).x >= 0
+## 0..1 "how much city": main city around the origin plus small towns.
+static func city_val(x: float, z: float) -> float:
+	var v := exp(-(x * x + z * z) / (1150.0 * 1150.0))
+	var g := 2600.0
+	var gx := floori(x / g)
+	var gz := floori(z / g)
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var cx := gx + dx
+			var cz := gz + dz
+			if (absi(cx) <= 1 and absi(cz) <= 1) or hashf(cx, cz, 41) > 0.55:
+				continue
+			var tx := (cx + 0.25 + hashf(cx, cz, 42) * 0.5) * g
+			var tz := (cz + 0.25 + hashf(cx, cz, 43) * 0.5) * g
+			if island_h(tx, tz) < 0.62:
+				continue
+			var d2 := (x - tx) * (x - tx) + (z - tz) * (z - tz)
+			v = maxf(v, 0.62 * exp(-d2 / (520.0 * 520.0)))
+	return v
 
 
-static func is_rail_row(row: int) -> bool:
-	return posmod(row, 11) == 4
-
-
-static func block_hits_river(bx: int, bz: int) -> bool:
-	var lx0 := bx * BLOCK + HALF_ST
-	var lz0 := bz * BLOCK + HALF_ST
-	for k in 4:
-		var x := lx0 + LOT * k / 3.0
-		var rz := river_z(x)
-		if rz + RIVER_HALF + 3.0 > lz0 and rz - RIVER_HALF - 3.0 < lz0 + LOT:
-			return true
-	return false
-
-
-static func downtown_value(x: float, z: float) -> float:
-	return vnoise(x / 700.0, z / 700.0, 1) * 0.85 + 0.42 * exp(-(x * x + z * z) / (800.0 * 800.0))
+static func is_urban(bx: int, bz: int) -> bool:
+	var cxw := (bx + 0.5) * BLOCK
+	var czw := (bz + 0.5) * BLOCK
+	var cv := city_val(cxw, czw)
+	if cv < 0.22:
+		return false
+	# whole block incl. surrounding streets must be solid land
+	var x0 := bx * BLOCK - HALF_ST
+	var z0 := bz * BLOCK - HALF_ST
+	var x1 := x0 + BLOCK + 2.0 * HALF_ST
+	var z1 := z0 + BLOCK + 2.0 * HALF_ST
+	if island_h(cxw, czw) < URBAN_H:
+		return false
+	for p in [Vector2(x0, z0), Vector2(x1, z0), Vector2(x0, z1), Vector2(x1, z1)]:
+		if island_h(p.x, p.y) < URBAN_H - 0.02:
+			return false
+	# sparse outskirts: leave green gaps between blocks
+	if cv < 0.45 and hashf(bx, bz, 19) < 0.3:
+		return false
+	return true
 
 
 static func district(bx: int, bz: int) -> int:
 	var cxw := (bx + 0.5) * BLOCK
 	var czw := (bz + 0.5) * BLOCK
-	if is_airport(cxw, czw):
-		return D_AIRPORT
-	var coast := coast_x(czw)
-	if cxw + 30.0 > coast:
-		return D_WATER
-	if block_hits_river(bx, bz):
-		return D_RIVERSIDE
-	if cxw > coast - 260.0:
-		return D_HARBOR
-	var d := downtown_value(cxw, czw)
-	var ind := vnoise(cxw / 900.0 + 30.0, czw / 900.0 - 20.0, 2)
+	var hc := island_h(cxw, czw)
+	if not is_urban(bx, bz):
+		if hc < SAND_TOP + 0.01:
+			return D_WATER
+		return D_FOREST if forest_v(cxw, czw) > 0.55 else D_MEADOW
+	var cv := city_val(cxw, czw)
 	var h := hashf(bx, bz, 3)
-	if d > 0.86:
-		if h < 0.07:
+	if cv > 0.86:
+		return D_PARK if h < 0.1 else D_DOWNTOWN
+	if cv > 0.62:
+		if h < 0.16:
 			return D_PARK
-		return D_DOWNTOWN
-	if d > 0.66:
-		if h < 0.035:
+		if h < 0.19:
 			return D_STADIUM
-		if h < 0.08:
-			return D_PARK
 		return D_MIDTOWN
-	if ind > 0.64:
+	if hc < 0.6 and h < 0.6:
 		return D_INDUSTRIAL
-	if h < 0.09:
+	if h < 0.25:
 		return D_PARK
-	if h < 0.1:
-		return D_STADIUM
 	return D_RESIDENTIAL
 
 
-## Can a car be here? along_x = car drives along the X axis (horizontal street).
+## Is there a street here? along_x = car drives along X (horizontal street).
 static func is_drivable(x: float, z: float, along_x: bool) -> bool:
-	if x > coast_x(z) - 10.0:
-		return false
-	if is_airport(x, z):
-		return false
 	if along_x:
-		if in_river(x, z, 6.0):
-			return false
-		if is_rail_row(roundi(z / BLOCK)):
-			return false
-	return true
+		var row := roundi(z / BLOCK)
+		var bx := floori(x / BLOCK)
+		return is_urban(bx, row - 1) or is_urban(bx, row)
+	var col := roundi(x / BLOCK)
+	var bz := floori(z / BLOCK)
+	return is_urban(col - 1, bz) or is_urban(col, bz)
 
 
 static func building_id(bx: int, bz: int, i: int) -> int:
@@ -230,21 +260,14 @@ static func generate_chunk(cx: int, cz: int, sheets: Dictionary, destroyed: Dict
 	cb.destroyed = destroyed
 	cb.cx = cx
 	cb.cz = cz
-	var x0 := cx * CHUNK
-	var z0 := cz * CHUNK
-	var ap := airport_local(cx, cz)
-	if ap.x >= 0:
-		_airport(cb, cx, cz, ap)
-	else:
-		var all_sea := in_sea(x0, z0, -4.0) and in_sea(x0, z0 + CHUNK, -4.0) and in_sea(x0, z0 + CHUNK * 0.5, -4.0)
-		if not all_sea:
-			cb.g.ground_rect(x0, z0, x0 + CHUNK, z0 + CHUNK, 0.0, G_ASPHALT)
-			for bz in range(cz * BPC, cz * BPC + BPC):
-				for bx in range(cx * BPC, cx * BPC + BPC):
-					_block(cb, bx, bz)
-			_markings(cb, cx, cz)
-			_river(cb, cx, cz)
-	_sea(cb, cx, cz)
+	var urban := {}
+	for bz in range(cz * BPC - 1, cz * BPC + BPC + 1):
+		for bx in range(cx * BPC - 1, cx * BPC + BPC + 1):
+			urban[Vector2i(bx, bz)] = is_urban(bx, bz)
+	for bz in range(cz * BPC, cz * BPC + BPC):
+		for bx in range(cx * BPC, cx * BPC + BPC):
+			_block(cb, bx, bz, urban[Vector2i(bx, bz)])
+	_markings(cb, cx, cz, urban)
 	return {
 		"key": Vector2i(cx, cz),
 		"ground": cb.g.to_arrays() if not cb.g.is_empty() else [],
@@ -352,7 +375,7 @@ static func _building(cb: Build, rng: RandomNumberGenerator, id: int, x0: float,
 	else:
 		_box(cb, x0, z0, x1, z1, 0.0, h, style, roof, seed, true)
 	_reg(cb, id, x0, z0, x1, z1, h)
-	if h > JET_ALT + 8.0:
+	if h > LOW_ALT - 15.0:
 		cb.roofs.append(t.get_center().x)
 		cb.roofs.append(t.get_center().y)
 		cb.roofs.append(h)
@@ -443,7 +466,7 @@ static func _trees(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, avoi
 			if a.grow(4.0).has_point(Vector2(x, z)):
 				ok = false
 				break
-		if not ok or in_river(x, z, 6.0):
+		if not ok or island_h(x, z) < URBAN_H - 0.03:
 			continue
 		var v := 1 if rng.randf() < pine_bias else (2 if rng.randf() < 0.12 else 0)
 		_stack(cb, "tree", v, Vector3(x, 0.2, z), rng.randf() * TAU, rng.randf_range(0.8, 1.25))
@@ -451,7 +474,7 @@ static func _trees(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, avoi
 
 # ------------------------------------------------------------------ blocks
 
-static func _block(cb: Build, bx: int, bz: int) -> void:
+static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 	var d := district(bx, bz)
 	var lx0 := bx * BLOCK + HALF_ST
 	var lz0 := bz * BLOCK + HALF_ST
@@ -459,135 +482,122 @@ static func _block(cb: Build, bx: int, bz: int) -> void:
 	var lz1 := lz0 + LOT
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hashi(bx, bz, 11)
-	if d == D_WATER:
-		var coast := coast_x(lz0 + LOT * 0.5)
-		if lx0 < coast:
-			cb.g.ground_rect(lx0 - HALF_ST, lz0 - HALF_ST, minf(lx1 + HALF_ST, coast), lz1 + HALF_ST, 0.2, G_SLABS)
+	if not urban:
+		_nature(cb, rng, bx, bz, d)
 		return
-	cb.g.ground_rect(lx0, lz0, lx1, lz1, 0.15, G_SIDEWALK)
+	# streets around the block (adjacent urban blocks overlap seamlessly)
+	cb.g.ground_rect(bx * BLOCK - HALF_ST, bz * BLOCK - HALF_ST, (bx + 1) * BLOCK + HALF_ST, (bz + 1) * BLOCK + HALF_ST, 0.1, G_ASPHALT)
+	cb.g.ground_rect(lx0, lz0, lx1, lz1, 0.2, G_SIDEWALK)
 	var inner := Rect2(lx0 + 3.0, lz0 + 3.0, LOT - 6.0, LOT - 6.0)
 	var tile := G_GRASS
 	match d:
 		D_DOWNTOWN:
 			tile = G_PLAZA
-		D_MIDTOWN, D_HARBOR:
+		D_MIDTOWN, D_INDUSTRIAL:
 			tile = G_SLABS
-		D_INDUSTRIAL:
-			tile = G_DIRT
-	cb.g.ground_rect(inner.position.x, inner.position.y, inner.end.x, inner.end.y, 0.2, tile)
-	var dens := clampf(downtown_value((bx + 0.5) * BLOCK, (bz + 0.5) * BLOCK), 0.6, 1.3)
+	cb.g.ground_rect(inner.position.x, inner.position.y, inner.end.x, inner.end.y, 0.25, tile)
+	var cv := city_val((bx + 0.5) * BLOCK, (bz + 0.5) * BLOCK)
 	match d:
 		D_DOWNTOWN:
 			var parts := _split(rng, inner, rng.randi_range(0, 2))
 			for i in parts.size():
-				var r: Rect2 = parts[i].grow(-rng.randf_range(1.0, 2.5))
-				var h := 54.0 + pow(rng.randf(), 1.7) * 115.0 * dens
+				var r: Rect2 = parts[i].grow(-rng.randf_range(1.5, 3.0))
+				var h := 40.0 + pow(rng.randf(), 1.5) * 115.0 * clampf((cv - 0.8) * 4.0, 0.4, 1.0)
 				var styles := [F_GLASS, F_GLASS_DARK, F_OFFICE, F_LUX, F_MODERN, F_GREEN]
 				var roofs := [R_TAR, R_GRAVEL, R_METAL]
 				_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y, h,
 					styles[rng.randi() % styles.size()], roofs[rng.randi() % roofs.size()], PK_TOWER)
 			_lamps(cb, lx0, lz0, lx1, lz1)
 		D_MIDTOWN:
-			var parts := _split(rng, inner, rng.randi_range(1, 2))
+			var parts := _split(rng, inner, rng.randi_range(0, 1))
 			for i in parts.size():
-				var r: Rect2 = parts[i].grow(-rng.randf_range(1.0, 3.0))
-				var h := 16.0 + rng.randf() * 40.0 * dens
+				var r: Rect2 = parts[i].grow(-rng.randf_range(2.0, 5.0))
+				var h := 14.0 + rng.randf() * 36.0
 				var styles := [F_OFFICE, F_BRICK, F_BEIGE, F_MODERN, F_WHITE]
 				var roofs := [R_GRAVEL, R_TAR, R_GREEN]
 				_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y, h,
 					styles[rng.randi() % styles.size()], roofs[rng.randi() % roofs.size()], PK_MID)
+			_trees(cb, rng, inner, rng.randi_range(0, 3), [])
 			_lamps(cb, lx0, lz0, lx1, lz1)
 		D_RESIDENTIAL:
-			var nx := rng.randi_range(2, 3)
 			var houses: Array[Rect2] = []
-			var cw := inner.size.x / nx
-			var ch := inner.size.y / 2.0
-			var i := 0
-			for gz in 2:
-				for gx in nx:
-					if rng.randf() < 0.15:
-						continue
-					var hw := rng.randf_range(10.0, minf(cw - 3.0, 17.0))
-					var hd := rng.randf_range(10.0, ch - 5.0)
-					var hx := inner.position.x + gx * cw + rng.randf_range(1.5, cw - hw - 1.5)
-					var hz := inner.position.y + gz * ch + (2.0 if gz == 0 else ch - hd - 2.0)
-					var r := Rect2(hx, hz, hw, hd)
-					houses.append(r)
-					var styles := [F_WHITE, F_WOOD, F_BRICK, F_BEIGE]
-					var roofs := [R_TILES, R_TILES, R_GREEN, R_GRAVEL]
-					_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y,
-						rng.randf_range(7.0, 13.0), styles[rng.randi() % styles.size()], roofs[rng.randi() % roofs.size()], PK_HOUSE)
-					i += 1
-			_trees(cb, rng, inner, rng.randi_range(3, 7), houses)
-			for k in rng.randi_range(1, 3):
-				var p := inner.position + Vector2(rng.randf(), rng.randf()) * inner.size
-				var ok := true
-				for hr in houses:
-					if hr.grow(3.0).has_point(p):
-						ok = false
-				if ok:
-					_stack(cb, "bush", rng.randi() % 2, Vector3(p.x, 0.2, p.y), rng.randf() * TAU)
-			_lamps(cb, lx0, lz0, lx1, lz1)
+			var n := rng.randi_range(2, 4)
+			var cells := [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1), Vector2(1, 1)]
+			cells.shuffle()
+			var cw := inner.size.x / 2.0
+			for i in n:
+				var c: Vector2 = cells[i]
+				var hw := rng.randf_range(9.0, 14.0)
+				var hd := rng.randf_range(9.0, 13.0)
+				var hx := inner.position.x + c.x * cw + rng.randf_range(1.5, cw - hw - 1.5)
+				var hz := inner.position.y + c.y * cw + rng.randf_range(1.5, cw - hd - 1.5)
+				var r := Rect2(hx, hz, hw, hd)
+				houses.append(r)
+				var styles := [F_WHITE, F_WOOD, F_BRICK, F_BEIGE]
+				var roofs := [R_TILES, R_TILES, R_GREEN, R_TILES]
+				_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y,
+					rng.randf_range(6.0, 11.0), styles[rng.randi() % styles.size()], roofs[rng.randi() % roofs.size()], PK_HOUSE)
+			_trees(cb, rng, inner, rng.randi_range(4, 8), houses)
 		D_INDUSTRIAL:
-			var wd := rng.randf_range(16.0, 22.0)
-			_building(cb, rng, building_id(bx, bz, 0), inner.position.x + 1.0, inner.position.y + 1.0, inner.end.x - 1.0, inner.position.y + wd,
-				rng.randf_range(11.0, 18.0), F_WAREHOUSE, R_METAL, PK_FLAT)
-			var fz0 := inner.position.y + wd + 4.0
-			var fx1 := inner.position.x + rng.randf_range(18.0, 24.0)
-			_building(cb, rng, building_id(bx, bz, 1), inner.position.x + 1.0, fz0, fx1, inner.end.y - 1.0,
-				rng.randf_range(14.0, 24.0), F_FACTORY, R_TAR, PK_FLAT)
-			var chx := inner.end.x - 7.0
-			var chz := inner.end.y - 7.0
-			_stack(cb, "chimney", 0, Vector3(chx, 0.2, chz), 0.0)
-			cb.chimneys.append(chx)
-			cb.chimneys.append(36.0)
-			cb.chimneys.append(chz)
-			for k in rng.randi_range(1, 4):
-				var p := Vector3(rng.randf_range(fx1 + 6.0, inner.end.x - 14.0), 0.2, rng.randf_range(fz0 + 4.0, inner.end.y - 4.0))
-				if p.x < fx1 + 4.0:
-					continue
-				_stack(cb, "container", rng.randi() % 4, p, PI * 0.5 * (rng.randi() % 2))
-			if rng.randf() < 0.18:
-				_stack(cb, "crane", 0, Vector3(inner.end.x - 16.0, 0.2, fz0 + 6.0), rng.randf() * TAU)
-			_lamps(cb, lx0, lz0, lx1, lz1)
-		D_HARBOR:
-			if rng.randf() < 0.5:
-				_building(cb, rng, building_id(bx, bz, 0), inner.position.x + 1.0, inner.position.y + 1.0, inner.end.x - 1.0, inner.position.y + 18.0,
-					rng.randf_range(10.0, 16.0), F_WAREHOUSE, R_METAL, PK_FLAT)
-				for k in 6:
-					var p := Vector3(inner.position.x + 5.0 + (k % 3) * 13.0, 0.2, inner.position.y + 26.0 + (k / 3) * 9.0)
+			_building(cb, rng, building_id(bx, bz, 0), inner.position.x + 1.0, inner.position.y + 1.0, inner.end.x - 1.0, inner.position.y + 18.0,
+				rng.randf_range(10.0, 16.0), F_WAREHOUSE, R_METAL, PK_FLAT)
+			for row in 2:
+				for k in 3:
+					if rng.randf() < 0.3:
+						continue
+					var p := Vector3(inner.position.x + 6.0 + k * 13.0, 0.25, inner.position.y + 27.0 + row * 9.0)
 					_stack(cb, "container", rng.randi() % 4, p, PI * 0.5)
-			else:
-				for row in 2:
-					for k in 4:
-						var p := Vector3(inner.position.x + 5.0 + k * 10.0, 0.2, inner.position.y + 10.0 + row * 22.0)
-						_stack(cb, "container", rng.randi() % 4, p, 0.0)
-						if rng.randf() < 0.5:
-							_stack(cb, "container", rng.randi() % 4, p + Vector3(0, 8, 0), 0.0)
-				if rng.randf() < 0.4:
-					_stack(cb, "crane", 0, Vector3(inner.get_center().x, 0.2, inner.get_center().y), rng.randf() * TAU)
-			_lamps(cb, lx0, lz0, lx1, lz1)
-		D_PARK, D_RIVERSIDE:
+			if rng.randf() < 0.35:
+				_stack(cb, "crane", 0, Vector3(inner.end.x - 8.0, 0.25, inner.end.y - 8.0), rng.randf() * TAU)
+			elif rng.randf() < 0.4:
+				var chx := inner.end.x - 6.0
+				var chz := inner.end.y - 6.0
+				_stack(cb, "chimney", 0, Vector3(chx, 0.25, chz), 0.0)
+				cb.chimneys.append(chx)
+				cb.chimneys.append(36.0)
+				cb.chimneys.append(chz)
+		D_PARK:
 			var avoid: Array[Rect2] = []
-			if d == D_PARK:
-				var c := inner.get_center()
-				cb.g.ground_rect(c.x - 2.0, inner.position.y, c.x + 2.0, inner.end.y, 0.24, G_PATH)
-				cb.g.ground_rect(inner.position.x, c.y - 2.0, inner.end.x, c.y + 2.0, 0.24, G_PATH)
-				avoid.append(Rect2(c.x - 2.0, inner.position.y, 4.0, inner.size.y))
-				avoid.append(Rect2(inner.position.x, c.y - 2.0, inner.size.x, 4.0))
-				if rng.randf() < 0.5:
-					_stack(cb, "fountain", 0, Vector3(c.x, 0.25, c.y), 0.0)
-					avoid.append(Rect2(c.x - 9.0, c.y - 9.0, 18.0, 18.0))
-			_trees(cb, rng, inner, rng.randi_range(9, 16), avoid, 0.35)
+			var c := inner.get_center()
+			cb.g.ground_rect(c.x - 2.0, inner.position.y, c.x + 2.0, inner.end.y, 0.28, G_PATH)
+			cb.g.ground_rect(inner.position.x, c.y - 2.0, inner.end.x, c.y + 2.0, 0.28, G_PATH)
+			avoid.append(Rect2(c.x - 2.0, inner.position.y, 4.0, inner.size.y))
+			avoid.append(Rect2(inner.position.x, c.y - 2.0, inner.size.x, 4.0))
+			if rng.randf() < 0.6:
+				_stack(cb, "fountain", 0, Vector3(c.x, 0.3, c.y), 0.0)
+				avoid.append(Rect2(c.x - 9.0, c.y - 9.0, 18.0, 18.0))
+			_trees(cb, rng, inner, rng.randi_range(7, 12), avoid, 0.2)
 			for k in rng.randi_range(2, 5):
 				var p := inner.position + Vector2(rng.randf(), rng.randf()) * inner.size
-				if not in_river(p.x, p.y, 4.0):
-					_stack(cb, "bush", rng.randi() % 2, Vector3(p.x, 0.2, p.y), rng.randf() * TAU)
-			if d == D_PARK:
-				_lamps(cb, lx0, lz0, lx1, lz1)
+				_stack(cb, "bush", rng.randi() % 2, Vector3(p.x, 0.25, p.y), rng.randf() * TAU)
 		D_STADIUM:
 			_stadium(cb, inner)
-			_lamps(cb, lx0, lz0, lx1, lz1)
+
+
+## Forests, meadows and beaches outside the city (no roads).
+static func _nature(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, d: int) -> void:
+	if d == D_WATER:
+		return
+	var r := Rect2(bx * BLOCK, bz * BLOCK, BLOCK, BLOCK)
+	var n := 0
+	match d:
+		D_FOREST:
+			n = rng.randi_range(9, 15)
+		D_MEADOW:
+			n = rng.randi_range(0, 3)
+	for i in n:
+		var x := r.position.x + rng.randf() * BLOCK
+		var z := r.position.y + rng.randf() * BLOCK
+		if island_h(x, z) < SAND_TOP + 0.012:
+			continue
+		var v := 1 if (d == D_FOREST and rng.randf() < 0.55) else 0
+		_stack(cb, "tree", v, Vector3(x, 0.0, z), rng.randf() * TAU, rng.randf_range(0.9, 1.4))
+	if d == D_MEADOW:
+		for i in rng.randi_range(0, 3):
+			var x := r.position.x + rng.randf() * BLOCK
+			var z := r.position.y + rng.randf() * BLOCK
+			if island_h(x, z) > SAND_TOP + 0.01:
+				_stack(cb, "bush", rng.randi() % 2, Vector3(x, 0.0, z), rng.randf() * TAU)
 
 
 static func _stadium(cb: Build, r: Rect2) -> void:
@@ -623,197 +633,24 @@ static func _stadium(cb: Build, r: Rect2) -> void:
 
 # ------------------------------------------------------------------ roads, river, sea
 
-static func _markings(cb: Build, cx: int, cz: int) -> void:
-	var x0 := cx * CHUNK
-	var z0 := cz * CHUNK
+static func _markings(cb: Build, cx: int, cz: int, urban: Dictionary) -> void:
 	# horizontal streets (run along X) at z = row * 64
 	for row in range(cz * BPC, cz * BPC + BPC):
 		var z := row * BLOCK
-		if is_rail_row(row):
-			cb.g.ground_rect(x0, z - 6.0, x0 + CHUNK, z + 6.0, 0.06, G_RAILS)
-			continue
 		for bx in range(cx * BPC, cx * BPC + BPC):
-			var sx := bx * BLOCK + HALF_ST
-			var mx := sx + LOT * 0.5
-			if in_sea(mx, z, 8.0) or in_river(mx, z, 4.0):
+			if not (urban[Vector2i(bx, row - 1)] or urban[Vector2i(bx, row)]):
 				continue
-			cb.g.ground_rect(sx + 5.0, z - 0.75, sx + LOT - 5.0, z + 0.75, 0.05, G_DASH)
-			cb.g.ground_rect(sx + 1.0, z - 7.0, sx + 4.0, z + 7.0, 0.05, G_CROSS, Color.WHITE, 16.0, true)
-			cb.g.ground_rect(sx + LOT - 4.0, z - 7.0, sx + LOT - 1.0, z + 7.0, 0.05, G_CROSS, Color.WHITE, 16.0, true)
+			var sx := bx * BLOCK + HALF_ST
+			cb.g.ground_rect(sx + 5.0, z - 0.75, sx + LOT - 5.0, z + 0.75, 0.15, G_DASH)
+			cb.g.ground_rect(sx + 1.0, z - 7.0, sx + 4.0, z + 7.0, 0.15, G_CROSS, Color.WHITE, 16.0, true)
+			cb.g.ground_rect(sx + LOT - 4.0, z - 7.0, sx + LOT - 1.0, z + 7.0, 0.15, G_CROSS, Color.WHITE, 16.0, true)
 	# vertical streets (run along Z) at x = col * 64
 	for col in range(cx * BPC, cx * BPC + BPC):
 		var x := col * BLOCK
 		for bz in range(cz * BPC, cz * BPC + BPC):
-			var sz := bz * BLOCK + HALF_ST
-			var mz := sz + LOT * 0.5
-			if in_sea(x, mz, 8.0) or in_river(x, mz, 4.0):
+			if not (urban[Vector2i(col - 1, bz)] or urban[Vector2i(col, bz)]):
 				continue
-			if is_rail_row(bz) or is_rail_row(bz + 1):
-				pass
-			cb.g.ground_rect(x - 0.75, sz + 5.0, x + 0.75, sz + LOT - 5.0, 0.05, G_DASH, Color.WHITE, 16.0, true)
-			cb.g.ground_rect(x - 7.0, sz + 1.0, x + 7.0, sz + 4.0, 0.05, G_CROSS)
-			cb.g.ground_rect(x - 7.0, sz + LOT - 4.0, x + 7.0, sz + LOT - 1.0, 0.05, G_CROSS)
-
-
-static func _river(cb: Build, cx: int, cz: int) -> void:
-	var x0 := cx * CHUNK
-	var z0 := cz * CHUNK
-	var x1 := x0 + CHUNK
-	var z1 := z0 + CHUNK
-	var near := false
-	for k in 9:
-		var rz := river_z(x0 + CHUNK * k / 8.0)
-		if rz + RIVER_HALF + 6.0 > z0 and rz - RIVER_HALF - 6.0 < z1:
-			near = true
-			break
-	if not near:
-		return
-	var stp := 8.0
-	var x := x0
-	var H := RIVER_HALF
-	while x < x1 - 0.01:
-		var xa := x
-		var xb := x + stp
-		var za := river_z(xa)
-		var zb := river_z(xb)
-		if maxf(za, zb) + H + 6.0 > z0 and minf(za, zb) - H - 6.0 < z1:
-			_gquad(cb.g, Vector2(xa, za - H), Vector2(xb, zb - H), Vector2(xb, zb + H), Vector2(xa, za + H), 0.35, G_WATER)
-			_gquad(cb.g, Vector2(xa, za - H - 3.0), Vector2(xb, zb - H - 3.0), Vector2(xb, zb - H), Vector2(xa, za - H), 0.4, G_SLABS)
-			_gquad(cb.g, Vector2(xa, za + H), Vector2(xb, zb + H), Vector2(xb, zb + H + 3.0), Vector2(xa, za + H + 3.0), 0.4, G_SLABS)
-		x += stp
-	# road bridges for streets that run along Z
-	for col in range(cx * BPC, cx * BPC + BPC):
-		var bxw := col * BLOCK
-		var rz := river_z(bxw)
-		if rz < z0 or rz >= z1:
-			continue
-		var za := rz - H - 6.0
-		var zb := rz + H + 6.0
-		var y := 1.6
-		cb.g.ground_rect(bxw - 8.0, za, bxw + 8.0, zb, y, G_ASPHALT)
-		cb.g.ground_rect(bxw - 0.75, za, bxw + 0.75, zb, y + 0.05, G_DASH, Color.WHITE, 16.0, true)
-		cb.g.ground_rect(bxw - 8.0, za, bxw - 6.5, zb, y + 0.08, G_SIDEWALK)
-		cb.g.ground_rect(bxw + 6.5, za, bxw + 8.0, zb, y + 0.08, G_SIDEWALK)
-		# ramps
-		_gquad(cb.g, Vector2(bxw - 8.0, za - 8.0), Vector2(bxw + 8.0, za - 8.0), Vector2(bxw + 8.0, za), Vector2(bxw - 8.0, za), 0.0, G_ASPHALT)
-		cb.g.quad(Vector3(bxw - 8.0, 0.02, za - 8.0), Vector3(bxw + 8.0, 0.02, za - 8.0), Vector3(bxw + 8.0, y, za), Vector3(bxw - 8.0, y, za),
-			Vector2(0, 0), Vector2(1, 0), Vector2(1, 0.5), Vector2(0, 0.5), Color(0.9, 0.9, 0.9, 0.5 / 16.0))
-		cb.g.quad(Vector3(bxw - 8.0, y, zb), Vector3(bxw + 8.0, y, zb), Vector3(bxw + 8.0, 0.02, zb + 8.0), Vector3(bxw - 8.0, 0.02, zb + 8.0),
-			Vector2(0, 0), Vector2(1, 0), Vector2(1, 0.5), Vector2(0, 0.5), Color(0.9, 0.9, 0.9, 0.5 / 16.0))
-		_gwall(cb.g, Vector3(bxw - 8.0, y, za), Vector3(bxw - 8.0, y, zb), 1.4, G_SIDEWALK, 1.0)
-		_gwall(cb.g, Vector3(bxw + 8.0, y, za), Vector3(bxw + 8.0, y, zb), 1.4, G_SIDEWALK, 0.7)
-		for k in 3:
-			var lz := za + 6.0 + k * (zb - za - 12.0) / 2.0
-			_stack(cb, "lamp", 0, Vector3(bxw - 7.0, y, lz), PI)
-			_glow(cb, bxw - 3.0, lz, 18.0, LAMP_GLOW)
-	# rail bridges for rail rows crossing the river
-	for row in range(cz * BPC, cz * BPC + BPC):
-		if not is_rail_row(row):
-			continue
-		var zr := row * BLOCK
-		x = x0
-		while x < x1 - 0.01:
-			if absf(zr - river_z(x + 4.0)) < H + 6.0:
-				cb.g.ground_rect(x, zr - 7.0, x + stp, zr + 7.0, 1.6, G_RAILS)
-				_gwall(cb.g, Vector3(x, 1.6, zr - 7.0), Vector3(x + stp, 1.6, zr - 7.0), 1.0, G_SIDEWALK, 0.8)
-				_gwall(cb.g, Vector3(x, 1.6, zr + 7.0), Vector3(x + stp, 1.6, zr + 7.0), 1.0, G_SIDEWALK, 0.8)
-			x += stp
-
-
-static func _sea(cb: Build, cx: int, cz: int) -> void:
-	var x0 := cx * CHUNK
-	var z0 := cz * CHUNK
-	var x1 := x0 + CHUNK
-	var z1 := z0 + CHUNK
-	var minc := 1e9
-	for k in 5:
-		minc = minf(minc, coast_x(z0 + CHUNK * k / 4.0))
-	if minc - 20.0 > x1:
-		return
-	var stp := 8.0
-	var z := z0
-	while z < z1 - 0.01:
-		var ca := coast_x(z)
-		var cbx := coast_x(z + stp)
-		if minf(ca, cbx) < x1:
-			var xa := maxf(ca, x0)
-			var xb := maxf(cbx, x0)
-			var deep := ca + 320.0 < x0
-			_gquad(cb.g, Vector2(xa, z), Vector2(x1, z), Vector2(x1, z + stp), Vector2(xb, z + stp), 0.35, G_DEEP if deep else G_WATER)
-			if ca > x0 - 3.0 and ca < x1:
-				_gquad(cb.g, Vector2(ca - 4.0, z), Vector2(ca, z), Vector2(cbx, z + stp), Vector2(cbx - 4.0, z + stp), 0.42, G_SLABS)
-		z += stp
-	# piers
-	var k0 := floori(z0 / 160.0)
-	for k in range(k0, k0 + 3):
-		var zp := k * 160.0 + 80.0
-		if zp < z0 or zp >= z1:
-			continue
-		var c := coast_x(zp)
-		if c < x0 or c >= x1:
-			continue
-		cb.g.ground_rect(c - 4.0, zp - 7.0, c + 76.0, zp + 7.0, 0.8, G_SLABS)
-		_gwall(cb.g, Vector3(c, 0.35, zp + 7.0), Vector3(c + 76.0, 0.35, zp + 7.0), 0.45, G_SLABS, 0.6)
-		for j in 3:
-			_stack(cb, "lamp", 0, Vector3(c + 14.0 + j * 26.0, 0.8, zp - 6.0), -PI * 0.5)
-			_glow(cb, c + 14.0 + j * 26.0, zp - 2.0, 16.0, LAMP_GLOW)
-
-
-# ------------------------------------------------------------------ airport
-
-static func _airport(cb: Build, cx: int, cz: int, ap: Vector2i) -> void:
-	var x0 := cx * CHUNK
-	var z0 := cz * CHUNK
-	var x1 := x0 + CHUNK
-	var z1 := z0 + CHUNK
-	var ax0 := (cx - ap.x) * CHUNK
-	var az0 := (cz - ap.y) * CHUNK
-	var chunk := Rect2(x0, z0, CHUNK, CHUNK)
-	cb.g.ground_rect(x0, z0, x1, z1, 0.0, G_GRASS)
-	var rz := az0 + 150.0
-	_clip_rect(cb, chunk, Rect2(ax0 + 60.0, rz - 20.0, 648.0, 40.0), 0.1, G_RUNWAY)
-	_clip_rect(cb, chunk, Rect2(ax0 + 60.0, rz - 18.0, 18.0, 36.0), 0.14, G_CROSS, true)
-	_clip_rect(cb, chunk, Rect2(ax0 + 690.0, rz - 18.0, 18.0, 36.0), 0.14, G_CROSS, true)
-	_clip_rect(cb, chunk, Rect2(ax0 + 40.0, rz + 62.0, 688.0, 18.0), 0.1, G_ASPHALT)
-	_clip_rect(cb, chunk, Rect2(ax0 + 40.0, rz + 70.25, 688.0, 1.5), 0.13, G_DASH)
-	for k in 4:
-		_clip_rect(cb, chunk, Rect2(ax0 + 100.0 + k * 180.0, rz + 20.0, 16.0, 42.0), 0.1, G_ASPHALT)
-	_clip_rect(cb, chunk, Rect2(ax0 + 40.0, az0 + 300.0, 688.0, 86.0), 0.1, G_SLABS)
-	_clip_rect(cb, chunk, Rect2(ax0 + 250.0, az0 + 440.0, 300.0, 56.0), 0.1, G_PARKING)
-	# runway edge lights
-	var lx := ax0 + 70.0
-	while lx < ax0 + 700.0:
-		for sz in [-21.0, 21.0]:
-			if chunk.has_point(Vector2(lx, rz + sz)):
-				_glow(cb, lx, rz + sz, 7.0, Color(1.0, 1.0, 0.85, 1.0))
-		lx += 30.0
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hashi(cx, cz, 99)
-	# terminal
-	_in_chunk_box(cb, rng, chunk, Rect2(ax0 + 260.0, az0 + 392.0, 260.0, 40.0), 16.0, F_TERMINAL, R_METAL, 0)
-	for k in 3:
-		_in_chunk_box(cb, rng, chunk, Rect2(ax0 + 50.0 + k * 62.0, az0 + 394.0, 52.0, 38.0), 18.0, F_HANGAR, R_METAL, 1 + k)
-	var tw := Vector2(ax0 + 640.0, az0 + 410.0)
-	if chunk.has_point(tw):
-		var id := building_id(cx * BPC, cz * BPC, 9)
-		_box(cb, tw.x - 5.0, tw.y - 5.0, tw.x + 5.0, tw.y + 5.0, 0.0, 34.0, F_OFFICE, R_TAR, 0.3, true)
-		_box(cb, tw.x - 8.0, tw.y - 8.0, tw.x + 8.0, tw.y + 8.0, 34.0, 40.0, F_TERMINAL, R_TAR, 0.3, false)
-		_reg(cb, id, tw.x - 8.0, tw.y - 8.0, tw.x + 8.0, tw.y + 8.0, 40.0)
-		_stack(cb, "antenna", 0, Vector3(tw.x, 40.3, tw.y), 0.0)
-	for k in 5:
-		var p := Vector2(ax0 + 290.0 + k * 66.0, az0 + 345.0)
-		if chunk.has_point(p):
-			_stack(cb, "airliner", 0, Vector3(p.x, 0.2, p.y), 0.0)
-
-
-static func _clip_rect(cb: Build, chunk: Rect2, r: Rect2, y: float, tile: int, rot: bool = false) -> void:
-	var c := chunk.intersection(r)
-	if c.size.x <= 0.0 or c.size.y <= 0.0:
-		return
-	cb.g.ground_rect(c.position.x, c.position.y, c.end.x, c.end.y, y, tile, Color.WHITE, 16.0, rot)
-
-
-static func _in_chunk_box(cb: Build, rng: RandomNumberGenerator, chunk: Rect2, r: Rect2, h: float, style: int, roof: int, idx: int) -> void:
-	if not chunk.has_point(r.get_center()):
-		return
-	_building(cb, rng, building_id(cb.cx * BPC, cb.cz * BPC, idx), r.position.x, r.position.y, r.end.x, r.end.y, h, style, roof, PK_FLAT)
+			var sz := bz * BLOCK + HALF_ST
+			cb.g.ground_rect(x - 0.75, sz + 5.0, x + 0.75, sz + LOT - 5.0, 0.15, G_DASH, Color.WHITE, 16.0, true)
+			cb.g.ground_rect(x - 7.0, sz + 1.0, x + 7.0, sz + 4.0, 0.15, G_CROSS)
+			cb.g.ground_rect(x - 7.0, sz + LOT - 4.0, x + 7.0, sz + LOT - 1.0, 0.15, G_CROSS)

@@ -134,6 +134,36 @@ func set_slot(i: int, pos: Vector3, yaw: float, variant: int, tint: Color, bank:
 	_dirty = true
 
 
+## Full rotation in the instance basis (pitch/roll), yaw in the shader = 0.
+func set_slot_basis(i: int, pos: Vector3, b: Basis, variant: int, tint: Color, flash: float) -> void:
+	if i < 0:
+		return
+	_write(i, pos, 0.0, variant, tint, 0.0, flash, 1.0)
+	_set_basis(i, b)
+	_dirty = true
+
+
+func push_basis(pos: Vector3, b: Basis, variant: int = 0, tint: Color = Color.WHITE, flash: float = 0.0) -> void:
+	if count >= capacity:
+		return
+	_write(count, pos, 0.0, variant, tint, 0.0, flash, 1.0)
+	_set_basis(count, b)
+	count += 1
+
+
+func _set_basis(i: int, b: Basis) -> void:
+	var o := i * STRIDE
+	buf[o] = b.x.x
+	buf[o + 1] = b.y.x
+	buf[o + 2] = b.z.x
+	buf[o + 4] = b.x.y
+	buf[o + 5] = b.y.y
+	buf[o + 6] = b.z.y
+	buf[o + 8] = b.x.z
+	buf[o + 9] = b.y.z
+	buf[o + 10] = b.z.z
+
+
 func _process(_delta: float) -> void:
 	if _slot_mode and _dirty:
 		_dirty = false

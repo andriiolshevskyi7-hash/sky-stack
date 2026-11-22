@@ -13,6 +13,8 @@ extends Node3D
 var bank := 0.0
 ## 0..1 white hit flash.
 var flash := 0.0
+## Use the node's full rotation (pitch + roll) instead of yaw-only GPU rotation.
+@export var full_rotation := true
 
 var _batch: StackBatch
 var _slot := -1
@@ -35,5 +37,9 @@ func _exit_tree() -> void:
 func _process(_delta: float) -> void:
 	if _slot < 0:
 		return
-	var vis := is_visible_in_tree()
-	_batch.set_slot(_slot, global_position, global_rotation.y, variant, tint, bank, flash, stack_scale if vis else 0.0)
+	if not is_visible_in_tree():
+		_batch.set_slot(_slot, global_position, 0.0, variant, tint, 0.0, 0.0, 0.0)
+	elif full_rotation:
+		_batch.set_slot_basis(_slot, global_position, global_basis.scaled(Vector3.ONE * stack_scale), variant, tint, flash)
+	else:
+		_batch.set_slot(_slot, global_position, global_rotation.y, variant, tint, bank, flash, stack_scale)

@@ -43,6 +43,8 @@ var ground_tex: ImageTexture
 var jet_shadow_tex: ImageTexture
 var cloud_tex: ImageTexture
 var cloud_img: Image
+var island_img: Image
+var island_tex: ImageTexture
 
 var static_mat: ShaderMaterial
 var building_mat: ShaderMaterial
@@ -396,16 +398,16 @@ func _build_ground() -> void:
 		var speck: Array = []
 		match t:
 			G_ASPHALT, G_DASH, G_CROSS, G_PARKING:
-				base = Pal.c(Pal.CHAR)
+				base = Color("6b6e7a")
 				speck = [Pal.DGRAY, Pal.BLACK]
 			G_SIDEWALK:
-				base = Pal.c(Pal.GRAY)
+				base = Color("c9cbd2")
 				speck = [Pal.LGRAY, Pal.DGRAY]
 			G_GRASS:
-				base = Pal.c(Pal.GREEN)
+				base = Color("63c34e")
 				speck = [Pal.GREEN_L, Pal.GREEN_D]
 			G_PLAZA:
-				base = Pal.c(Pal.BEIGE)
+				base = Color("efe3c4")
 				speck = [Pal.TAN]
 			G_WATER:
 				base = Pal.c(Pal.OCEAN)
@@ -426,33 +428,33 @@ func _build_ground() -> void:
 				base = Pal.c(Pal.GREEN)
 				speck = []
 			G_PATH:
-				base = Pal.c(Pal.TAN)
+				base = Color("e6cf96")
 				speck = [Pal.BEIGE, Pal.BROWN]
 			G_DEEP:
 				base = Pal.c(Pal.DEEP)
 				speck = [Pal.OCEAN, Pal.NAVY]
 			G_SLABS:
-				base = Pal.c(Pal.GRAY)
+				base = Color("aeb2bc")
 				speck = [Pal.DGRAY]
 		img.fill_rect(Rect2i(ox, oy, 16, 16), base)
-		for i in 14:
+		for i in 0:
 			if speck.is_empty():
 				break
 			img.set_pixel(ox + rng.randi_range(0, 15), oy + rng.randi_range(0, 15), Pal.c(speck[i % speck.size()]))
 		match t:
 			G_DASH:
-				img.fill_rect(Rect2i(ox, oy + 7, 8, 2), Pal.c(Pal.YELLOW))
+				img.fill_rect(Rect2i(ox, oy + 7, 8, 2), Color("f5f5f5"))
 			G_SIDEWALK:
-				img.fill_rect(Rect2i(ox, oy + 7, 16, 1), Pal.c(Pal.DGRAY))
-				img.fill_rect(Rect2i(ox + 7, oy, 1, 16), Pal.c(Pal.DGRAY))
+				img.fill_rect(Rect2i(ox, oy + 7, 16, 1), Color("b3b6bf"))
+				img.fill_rect(Rect2i(ox + 7, oy, 1, 16), Color("b3b6bf"))
 			G_PLAZA:
-				img.fill_rect(Rect2i(ox, oy, 8, 8), Pal.c(Pal.LGRAY))
-				img.fill_rect(Rect2i(ox + 8, oy + 8, 8, 8), Pal.c(Pal.LGRAY))
+				img.fill_rect(Rect2i(ox, oy, 8, 8), Color("e2d3ad"))
+				img.fill_rect(Rect2i(ox + 8, oy + 8, 8, 8), Color("e2d3ad"))
 			G_RUNWAY:
 				img.fill_rect(Rect2i(ox, oy + 7, 10, 2), Pal.c(Pal.WHITE))
 			G_CROSS:
-				img.fill_rect(Rect2i(ox + 1, oy, 2, 16), Pal.c(Pal.LGRAY))
-				img.fill_rect(Rect2i(ox + 9, oy, 2, 16), Pal.c(Pal.LGRAY))
+				img.fill_rect(Rect2i(ox + 1, oy, 2, 16), Color("f2f2f2"))
+				img.fill_rect(Rect2i(ox + 9, oy, 2, 16), Color("f2f2f2"))
 			G_RAILS:
 				for x in range(1, 16, 4):
 					img.fill_rect(Rect2i(ox + x, oy + 2, 2, 12), Pal.c(Pal.BROWN))
@@ -483,6 +485,47 @@ func _build_globals() -> void:
 	RenderingServer.global_shader_parameter_set("jet_shadow_tex", jet_shadow_tex)
 	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(get_sheet("jet").w))
 	RenderingServer.global_shader_parameter_set("cloud_tex", cloud_tex)
+	_build_islands()
+	CityGen.set_maps(island_img, cloud_img)
+	RenderingServer.global_shader_parameter_set("island_tex", island_tex)
+
+
+## Tiling island heightmap: mostly ocean, a big main island at the origin and
+## scattered smaller islands. ~30% land. Stored as L8, 0.5 = sea level.
+func _build_islands() -> void:
+	var n := CityGen.ISL_N
+	var noise := FastNoiseLite.new()
+	noise.seed = 31
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = 0.022
+	noise.fractal_octaves = 4
+	var img := noise.get_seamless_image(n, n)
+	img.convert(Image.FORMAT_L8)
+	var data := img.get_data()
+	var vals := PackedFloat32Array()
+	vals.resize(n * n)
+	var sigma := 22.0
+	for y in n:
+		for x in n:
+			var dx := minf(x, n - x)
+			var dy := minf(y, n - y)
+			var bump := exp(-(dx * dx + dy * dy) / (2.0 * sigma * sigma))
+			vals[y * n + x] = data[y * n + x] / 255.0 * (1.0 - 0.45 * bump) + bump * 0.75
+	var sorted := vals.duplicate()
+	sorted.sort()
+	var sea_v := sorted[int(n * n * 0.70)] # 70% of the map is ocean
+	var hi := sorted[n * n - 1]
+	var lo := sorted[0]
+	for i in n * n:
+		var v := vals[i]
+		var o: float
+		if v < sea_v:
+			o = 0.5 * (v - lo) / maxf(0.001, sea_v - lo)
+		else:
+			o = 0.5 + 0.5 * (v - sea_v) / maxf(0.001, hi - sea_v)
+		data[i] = clampi(int(o * 255.0), 0, 255)
+	island_img = Image.create_from_data(n, n, false, Image.FORMAT_L8, data)
+	island_tex = ImageTexture.create_from_image(island_img)
 
 
 func _build_materials() -> void:

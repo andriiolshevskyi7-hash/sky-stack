@@ -57,9 +57,10 @@ func _spawn(p: Vector3, v: Vector3, l: float, d: float, enemy: bool, k: int, t: 
 func player_shoot(p: Vector3, dir: Vector3, base_speed: float) -> void:
 	var d := dir
 	if enemies != null:
-		var aim: Vector3 = enemies.aim_target(p, dir, 0.22, 400.0)
+		var flat := Vector3(dir.x, 0.0, dir.z).normalized()
+		var aim: Vector3 = enemies.aim_target(p, flat, 0.22, 420.0)
 		if aim != Vector3.INF:
-			d = Vector3(aim.x - p.x, 0.0, aim.z - p.z).normalized()
+			d = (aim - p).normalized()
 	_spawn(p, d * (PLAYER_SPEED + base_speed), 0.9, 1.0, false, BULLET)
 	if fx != null:
 		fx.muzzle(p)
@@ -88,7 +89,7 @@ func _trigger(i: int) -> void:
 		FLAK:
 			fx.explosion(p, 0.45)
 			Sfx.play("flak", -4.0)
-			if jet.alive and Vector2(p.x - jet.position.x, p.z - jet.position.z).length() < 18.0 and jet.invuln <= 0.0:
+			if jet.alive and p.distance_to(jet.position) < 20.0 and jet.invuln <= 0.0:
 				jet.damage(dmg[i])
 		BOMB, BLD_SHOT:
 			if kind[i] == BOMB:
@@ -120,7 +121,7 @@ func _process(delta: float) -> void:
 				fx.sparks(p, 3)
 				remove = true
 		elif kind[i] == BULLET and jet.alive:
-			if Vector2(p.x - jet.position.x, p.z - jet.position.z).length() < 7.0:
+			if absf(p.y - jet.position.y) < 10.0 and Vector2(p.x - jet.position.x, p.z - jet.position.z).length() < 7.0:
 				if jet.invuln <= 0.0:
 					jet.damage(dmg[i])
 				fx.hit(p)

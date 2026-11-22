@@ -103,6 +103,22 @@ sprite_snap={
 "type": "float",
 "value": 0.0
 }
+island_tex={
+"type": "sampler2D",
+"value": ""
+}
+cam_pos={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+fog_far={
+"type": "float",
+"value": 0.0
+}
+fog_color={
+"type": "vec3",
+"value": Vector3(0.7, 0.85, 1)
+}
 fade_radius={
 "type": "float",
 "value": 26.0

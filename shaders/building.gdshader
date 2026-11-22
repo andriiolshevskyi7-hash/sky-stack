@@ -22,7 +22,7 @@ void fragment() {
 	bool roof = UV2.y > 0.37;
 	vec2 tile = roof ? vec2(32.0 / 256.0, 32.0 / 128.0) : vec2(32.0 / 256.0, 24.0 / 128.0);
 	vec2 uv = UV2 + fract(UV) * tile;
-	vec3 col = texture(facade_tex, uv).rgb * COLOR.rgb * ambient * shadow_at(wpos);
+	vec3 col = lit(texture(facade_tex, uv).rgb * COLOR.rgb, wpos);
 	if (!roof && night > 0.02) {
 		float win = texture(facade_emit, uv).r;
 		if (win > 0.5) {
@@ -33,5 +33,5 @@ void fragment() {
 			col = mix(col, wc, lit);
 		}
 	}
-	ALBEDO = col;
+	ALBEDO = fogged(col, wpos);
 }

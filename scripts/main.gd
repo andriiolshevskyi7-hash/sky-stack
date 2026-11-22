@@ -16,6 +16,7 @@ var combat: Combat
 var enemies: Enemies
 var traffic: Traffic
 var daynight: DayNight
+var terrain: MeshInstance3D
 var clouds: Clouds
 var speed_lines: SpeedLines
 var flash := 0.0
@@ -41,6 +42,7 @@ var wave_queue: Array[int] = []
 var spawn_cd := 0.0
 var between_t := 0.0
 var kills := 0
+var _aa_fail := 0
 var rng := RandomNumberGenerator.new()
 # --shot=<file.png> --frames=<n> [--play] [--cam=0..2] [--time=0..1]: debug screenshots
 var _shot_path := ""
@@ -71,6 +73,18 @@ func _ready() -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	cam.environment = env
 
+	terrain = MeshInstance3D.new()
+	terrain.name = "Terrain"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(9000, 9000)
+	terrain.mesh = plane
+	var tmat := ShaderMaterial.new()
+	tmat.shader = preload("res://shaders/terrain.gdshader")
+	terrain.material_override = tmat
+	terrain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	terrain.custom_aabb = AABB(Vector3(-4500, -10, -4500), Vector3(9000, 20, 9000))
+	world.add_child(terrain)
+
 	chunks = ChunkManager.new()
 	chunks.name = "Chunks"
 	world.add_child(chunks)
@@ -95,6 +109,7 @@ func _ready() -> void:
 	daynight = DayNight.new()
 	daynight.name = "DayNight"
 	daynight.env = env
+	daynight.cycle = Save.day_cycle
 	world.add_child(daynight)
 	clouds = Clouds.new()
 	clouds.name = "Clouds"
@@ -121,6 +136,8 @@ func _ready() -> void:
 	enemies.chunks = chunks
 	enemies.combat = combat
 	enemies.fx = fx
+	traffic.fx = fx
+	jet.invert_pitch = Save.invert_pitch
 	rng.randomize()
 
 	var layer := CanvasLayer.new()
@@ -162,6 +179,8 @@ func _parse_args() -> void:
 			jet.autopilot = true
 		elif a.begins_with("--time="):
 			daynight.t = float(a.substr(7))
+		elif a.begins_with("--alt="):
+			jet.position.y = float(a.substr(6))
 		elif a.begins_with("--wave="):
 			between_t = 0.0
 			_start_wave(int(a.substr(7)))
@@ -186,11 +205,15 @@ func _process(delta: float) -> void:
 	jet.step(delta)
 	cam.view_h = pv.low.y
 	cam.update_cam(delta, jet.position, jet.yaw, jet.speed_ratio())
-	chunks.focus = cam.focus
-	traffic.focus = cam.focus
+	var gf := ground_focus()
+	chunks.focus = gf
+	traffic.focus = gf
+	terrain.position = Vector3(snappedf(gf.x, 64.0), 0.0, snappedf(gf.z, 64.0))
+	jet.flight_mode = cam.mode == GameCamera.Mode.CHASE
+	controls.show_alt_buttons = not jet.flight_mode
 	fx.clear_columns_far(cam.focus, 900.0)
-	daynight.focus = cam.focus
-	clouds.focus = cam.focus
+	daynight.focus = gf
+	clouds.focus = gf
 	_chim_t -= delta
 	if _chim_t <= 0.0:
 		_chim_t = 1.0
@@ -286,12 +309,18 @@ func _update_waves(delta: float) -> void:
 		var t: int = wave_queue[0]
 		var ok := false
 		if t == Enemies.AAGUN:
-			var p := chunks.roof_spot(jet.position, 180.0, 420.0, rng)
+			var p := chunks.roof_spot(jet.position, 120.0, 520.0, rng)
 			if p != Vector3.INF:
 				ok = enemies.spawn(t, p + Vector3(0, 0.3, 0))
+			else:
+				_aa_fail += 1
+				if _aa_fail > 20:
+					_aa_fail = 0
+					wave_queue.pop_front() # no towers around (over the ocean): skip
 		else:
 			var a := rng.randf() * TAU
 			var p := jet.position + Vector3(cos(a), 0, sin(a)) * rng.randf_range(420.0, 520.0)
+			p.y = clampf(jet.position.y, 40.0, 200.0)
 			ok = enemies.spawn(t, p)
 		if ok:
 			wave_queue.pop_front()
@@ -334,6 +363,16 @@ func show_banner(t: String, sub: String = "", time: float = 2.5) -> void:
 	banner_time = time
 
 
+## Point on the ground the camera is looking at (for streaming).
+func ground_focus() -> Vector3:
+	var f := cam.global_transform.basis.z * -1.0
+	if f.y < -0.05:
+		var t := -cam.focus.y / f.y
+		var p := cam.focus + f * minf(t, 900.0)
+		return Vector3(p.x, 0.0, p.z)
+	return Vector3(cam.focus.x, 0.0, cam.focus.z)
+
+
 func enemies_left() -> int:
 	return wave_queue.size() + enemies.count_active()
 
@@ -366,6 +405,8 @@ func _open_pause() -> void:
 		["RESUME", _resume],
 		[func() -> String: return "CAMERA: " + GameCamera.MODE_NAMES[cam.mode], _on_cam],
 		[func() -> String: return "SPRITE TURN: " + ("64 STEPS" if Save.sprite_snap else "SMOOTH"), _toggle_snap],
+		[func() -> String: return "DAY/NIGHT CYCLE: " + ("ON" if daynight.cycle else "OFF"), _toggle_cycle],
+		[func() -> String: return "PITCH: " + ("INVERTED" if jet.invert_pitch else "NORMAL"), _toggle_invert],
 		[func() -> String: return "DEBUG OVERLAY: " + ("ON" if show_debug else "OFF"), func() -> void: show_debug = not show_debug],
 		["QUIT TO TITLE", _to_title],
 	])
@@ -377,6 +418,20 @@ func _resume() -> void:
 	controls.enabled = true
 	state = State.PLAY
 	get_tree().paused = false
+
+
+func _toggle_cycle() -> void:
+	daynight.cycle = not daynight.cycle
+	if not daynight.cycle:
+		daynight.t = 0.42
+	Save.day_cycle = daynight.cycle
+	Save.store()
+
+
+func _toggle_invert() -> void:
+	jet.invert_pitch = not jet.invert_pitch
+	Save.invert_pitch = jet.invert_pitch
+	Save.store()
 
 
 func _toggle_snap() -> void:

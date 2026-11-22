@@ -1,13 +1,13 @@
 class_name PixelView
 extends Node
-## Renders the 3D world into a low-res SubViewport (height 180..224 px),
+## Renders the 3D world into a low-res SubViewport (height 280..400 px),
 ## post-processes it at that same low resolution (bloom + palette), then
 ## shows it on screen scaled by a WHOLE number with nearest filtering, so
 ## every world pixel is the same size. HUD/menus are drawn on top at full
 ## resolution (project stretch mode stays "disabled").
 
-const MAX_H := 224
-const MIN_H := 180
+const MAX_H := 400
+const MIN_H := 280
 
 var world_vp: SubViewport
 var post_vp: SubViewport
@@ -25,6 +25,8 @@ static func compute(screen: Vector2i) -> Array:
 	while h < MIN_H and s > 1:
 		s -= 1
 		h = mini(MAX_H, screen.y / s)
+	if s == 1:
+		h = screen.y
 	var w := int(ceil(float(screen.x) / s))
 	return [s, Vector2i(w, h)]
 
@@ -53,6 +55,11 @@ func _ready() -> void:
 	post_mat.set_shader_parameter("src", world_vp.get_texture())
 	post_mat.set_shader_parameter("src_lin", world_vp.get_texture())
 	post_mat.set_shader_parameter("palette", Pal.make_texture())
+	# bright clean look: no palette snapping / ordered dither, soft bloom
+	post_mat.set_shader_parameter("palette_mix", 0.0)
+	post_mat.set_shader_parameter("dither_amount", 0.0)
+	post_mat.set_shader_parameter("bloom", 0.4)
+	post_mat.set_shader_parameter("threshold", 0.975)
 	post_rect.material = post_mat
 	post_vp.add_child(post_rect)
 	overlay = Node2D.new()

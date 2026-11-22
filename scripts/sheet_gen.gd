@@ -28,7 +28,7 @@ const DEFS := {
 	"crane": [50, 50, 42, 1, "_crane"],
 	"container": [8, 20, 8, 4, "_container"],
 	"fountain": [18, 18, 4, 1, "_fountain"],
-	"cloud": [48, 48, 6, 3, "_cloud"],
+	"cloud": [64, 64, 14, 3, "_cloud"],
 }
 
 
@@ -559,12 +559,23 @@ static func _fountain(p: Painter, s: int, v: int) -> void:
 
 
 static func _cloud(p: Painter, s: int, v: int) -> void:
+	# a cluster of spheres: each slice is the cross-section at that height
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1000 + v * 77
-	var shrink: float = [0.65, 0.9, 1.0, 0.92, 0.75, 0.5][s]
-	var col := P(Pal.WHITE) if s >= 3 else (P(Pal.LGRAY) if s >= 1 else P(Pal.GRAY))
-	for i in 7:
-		var cx := rng.randf_range(14.0, 34.0)
-		var cy := rng.randf_range(14.0, 34.0)
-		var r: float = rng.randf_range(7.0, 12.0) * shrink
-		p.ell(cx, cy, r, r * 0.9, col)
+	var y := float(s) + 0.5
+	var top := Color("f4f8fd")
+	var mid := Color("e3ecf7")
+	var low := Color("bccfe8")
+	var col := low if s < 3 else (mid if s < 7 else top)
+	for i in 9:
+		var cx := rng.randf_range(18.0, 46.0)
+		var cy := rng.randf_range(18.0, 46.0)
+		var r := rng.randf_range(9.0, 15.0)
+		var cz := rng.randf_range(r * 0.35, r * 0.7) # sphere centre height (flat-ish bottom)
+		var dz := y - cz
+		if absf(dz) >= r or y < 1.0 and r < 11.0:
+			continue
+		var rr := sqrt(r * r - dz * dz)
+		p.ell(cx, cy, rr, rr * 0.92, col)
+		if s >= 7:
+			p.ell(cx - rr * 0.25, cy - rr * 0.25, rr * 0.55, rr * 0.5, top)

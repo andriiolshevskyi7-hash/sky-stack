@@ -11,6 +11,12 @@ signal pause_pressed
 var stick := Vector2.ZERO # screen space, y down, length <= 1
 var boost := false
 var fire := false
+var alt_axis := 0.0 # +1 climb, -1 dive (CLIMB/DIVE buttons, Q/E)
+var show_alt_buttons := false
+var climb_pos := Vector2.ZERO
+var dive_pos := Vector2.ZERO
+var _touch_climb := false
+var _touch_dive := false
 var touch_seen := false
 var ui_scale := 1.0
 
@@ -56,6 +62,8 @@ func _layout() -> void:
 	pause_pos = Vector2(s.x - 60.0 * ui_scale, 56.0 * ui_scale)
 	cam_pos = Vector2(s.x - 145.0 * ui_scale, 56.0 * ui_scale)
 	joy_center = Vector2(170.0 * ui_scale, s.y - 170.0 * ui_scale)
+	climb_pos = Vector2(s.x - 290.0 * ui_scale, s.y - 290.0 * ui_scale)
+	dive_pos = Vector2(s.x - 290.0 * ui_scale, s.y - 210.0 * ui_scale)
 	if not joy_active:
 		joy_knob = joy_center
 
@@ -85,7 +93,11 @@ func _input(event: InputEvent) -> void:
 			if e.position.distance_to(cam_pos) < small_radius * 1.4:
 				cam_pressed.emit()
 				return
-			if e.position.distance_to(fire_pos) < btn_radius * 1.3:
+			if show_alt_buttons and e.position.distance_to(climb_pos) < small_radius * 1.2:
+				_touch_role[e.index] = "climb"
+			elif show_alt_buttons and e.position.distance_to(dive_pos) < small_radius * 1.2:
+				_touch_role[e.index] = "dive"
+			elif e.position.distance_to(fire_pos) < btn_radius * 1.3:
 				_touch_role[e.index] = "fire"
 			elif e.position.distance_to(boost_pos) < btn_radius * 1.3:
 				_touch_role[e.index] = "boost"
@@ -143,8 +155,14 @@ func _input(event: InputEvent) -> void:
 func _refresh_buttons() -> void:
 	_touch_boost = false
 	_touch_fire = false
+	_touch_climb = false
+	_touch_dive = false
 	for i in _touch_role:
 		match _touch_role[i]:
+			"climb":
+				_touch_climb = true
+			"dive":
+				_touch_dive = true
 			"boost":
 				_touch_boost = true
 			"fire":
@@ -164,7 +182,13 @@ func _process(_delta: float) -> void:
 	stick = _touch_stick if k == Vector2.ZERO else k.normalized()
 	boost = _touch_boost or Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_physical_key_pressed(KEY_K)
 	fire = _touch_fire or _mouse_fire or Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_J)
+	alt_axis = 0.0
+	if _touch_climb or Input.is_physical_key_pressed(KEY_E):
+		alt_axis += 1.0
+	if _touch_dive or Input.is_physical_key_pressed(KEY_Q):
+		alt_axis -= 1.0
 	if not enabled:
+		alt_axis = 0.0
 		stick = Vector2.ZERO
 		boost = false
 		fire = false

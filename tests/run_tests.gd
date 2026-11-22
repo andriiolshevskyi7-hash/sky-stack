@@ -63,11 +63,11 @@ func test_stacks() -> void:
 func test_pixel_view() -> void:
 	print("[pixel view]")
 	var r: Array = PixelView.compute(Vector2i(2992, 1344))
-	check(r[0] == 6 and r[1] == Vector2i(499, 224), "Pixel 9 Pro XL 2992x1344 -> 499x224 @6x (got %s)" % [r])
+	check(r[0] == 4 and r[1] == Vector2i(748, 336), "Pixel 9 Pro XL 2992x1344 -> 748x336 @4x (got %s)" % [r])
 	for sz in [Vector2i(1920, 1080), Vector2i(2400, 1080), Vector2i(1280, 720), Vector2i(1344, 648), Vector2i(3200, 1440), Vector2i(800, 480)]:
 		r = PixelView.compute(sz)
 		var low: Vector2i = r[1]
-		var ok: bool = low.y <= 224 and (low.y >= 180 or sz.y < 360) and low.x * r[0] >= sz.x and low.x * r[0] - sz.x < r[0] and r[0] >= 1
+		var ok: bool = (low.y <= 400 or r[0] == 1) and low.y >= 280 and low.x * r[0] >= sz.x and low.x * r[0] - sz.x < r[0] and low.y * r[0] <= sz.y
 		check(ok, "%s -> %s @%dx" % [sz, low, r[0]])
 
 
@@ -86,33 +86,58 @@ func test_world_gen() -> void:
 			var bx: PackedFloat32Array = c["boxes"]
 			total_boxes += bx.size() / 5
 			for i in bx.size() / 5:
-				if bx[i * 5 + 4] > CityGen.JET_ALT:
+				if bx[i * 5 + 4] > CityGen.LOW_ALT:
 					tall += 1
 	var ms := Time.get_ticks_msec() - t0
-	check(total_boxes > 150, "5x5 chunks contain buildings (%d)" % total_boxes)
-	check(tall > 10, "skyline has skyscrapers taller than the jet (%d)" % tall)
+	check(total_boxes > 60, "5x5 chunks around the origin contain a city (%d buildings)" % total_boxes)
+	check(tall > 5, "downtown has skyscrapers to dive between (%d)" % tall)
 	print("    25 chunks generated in %d ms (%.1f ms/chunk)" % [ms, ms / 25.0])
 	# destroyed building becomes rubble
 	var ids: PackedInt64Array = a["ids"]
 	var d := CityGen.generate_chunk(0, 0, Stacks.sheets, {ids[0]: true})
 	check(d["boxes"][4] == 3.0, "destroyed building regenerates as rubble")
-	# special chunks
-	var air := CityGen.generate_chunk(-10, -6, Stacks.sheets, {})
-	check(CityGen.airport_local(-10, -6) == Vector2i(0, 0) and air["quads"] > 0, "airport chunk generates")
-	var sea_cx := int(floor(CityGen.coast_x(0.0) / CityGen.CHUNK)) + 2
-	var sea := CityGen.generate_chunk(sea_cx, 0, Stacks.sheets, {})
-	check(sea["boxes"].size() == 0 and sea["quads"] > 0, "open sea chunk has water and no buildings")
+	# open ocean chunk: find one and check it is empty
+	var found := false
+	for k in 40:
+		var cx := 6 + k
+		if CityGen.island_h(cx * 256.0 + 128.0, 128.0) < 0.3 and CityGen.island_h(cx * 256.0, 0.0) < 0.3 and CityGen.island_h(cx * 256.0 + 256.0, 256.0) < 0.3:
+			var sea := CityGen.generate_chunk(cx, 0, Stacks.sheets, {})
+			check(sea["boxes"].size() == 0 and sea["props"].is_empty(), "open ocean chunk %d has no buildings or props" % cx)
+			found = true
+			break
+	check(found, "deep ocean exists east of the main island")
 
 
 func test_city_layout() -> void:
-	print("[city layout]")
+	print("[world layout]")
+	check(CityGen.island_h(0, 0) > CityGen.URBAN_H, "main island at the origin")
+	# ocean dominates the map
+	var water := 0
+	var total := 0
+	for z in range(0, 6144, 96):
+		for x in range(0, 6144, 96):
+			total += 1
+			if CityGen.is_water(x, z):
+				water += 1
+	var wf := float(water) / total
+	check(wf > 0.55 and wf < 0.85, "map is mostly ocean (%.0f%% water)" % (wf * 100.0))
 	var hist := {}
-	for bz in range(-40, 40, 2):
-		for bx in range(-40, 30, 2):
+	for bz in range(-50, 50, 2):
+		for bx in range(-50, 50, 2):
 			var dd := CityGen.district(bx, bz)
 			hist[dd] = hist.get(dd, 0) + 1
-	for dd in [CityGen.D_DOWNTOWN, CityGen.D_MIDTOWN, CityGen.D_RESIDENTIAL, CityGen.D_INDUSTRIAL, CityGen.D_PARK, CityGen.D_RIVERSIDE]:
+	for dd in [CityGen.D_DOWNTOWN, CityGen.D_MIDTOWN, CityGen.D_RESIDENTIAL, CityGen.D_PARK, CityGen.D_FOREST, CityGen.D_WATER]:
 		check(hist.get(dd, 0) > 0, "district %s present (%d blocks)" % [CityGen.DISTRICT_NAMES[dd], hist.get(dd, 0)])
+	# even around downtown at least half the ground is not covered by buildings
+	var area := 0.0
+	for cz in range(-1, 1):
+		for cx in range(-1, 1):
+			var c := CityGen.generate_chunk(cx, cz, Stacks.sheets, {})
+			var bx: PackedFloat32Array = c["boxes"]
+			for i in bx.size() / 5:
+				area += (bx[i * 5 + 2] - bx[i * 5]) * (bx[i * 5 + 3] - bx[i * 5 + 1])
+	var frac := area / (512.0 * 512.0)
+	check(frac < 0.4, "downtown core building coverage %.0f%% (<40%%)" % (frac * 100.0))
 	# no building may stand on a street
 	var bad := 0
 	for cz in range(-1, 2):
@@ -121,15 +146,13 @@ func test_city_layout() -> void:
 			var bx: PackedFloat32Array = c["boxes"]
 			for i in bx.size() / 5:
 				var o := i * 5
-				var mx := (bx[o] + bx[o + 2]) * 0.5
-				var mz := (bx[o + 1] + bx[o + 3]) * 0.5
-				var lx := fposmod(mx, 64.0)
-				var lz := fposmod(mz, 64.0)
+				var lx := fposmod((bx[o] + bx[o + 2]) * 0.5, 64.0)
+				var lz := fposmod((bx[o + 1] + bx[o + 3]) * 0.5, 64.0)
 				if lx < 8.0 or lx > 56.0 or lz < 8.0 or lz > 56.0:
 					bad += 1
 	check(bad == 0, "no buildings on streets (%d bad)" % bad)
-	check(CityGen.is_drivable(0.0, 0.0, true), "origin street is drivable")
-	check(not CityGen.is_drivable(CityGen.coast_x(0.0) + 50.0, 0.0, true), "sea is not drivable")
+	check(CityGen.is_drivable(0.0, 32.0, false), "downtown street is drivable")
+	check(not CityGen.is_drivable(4000.0 * 1.0, 32.0, false) or CityGen.island_h(4000.0, 32.0) > 0.5, "open water is not drivable")
 
 
 func _touch(pos: Vector2, pressed: bool, index: int = 0) -> void:

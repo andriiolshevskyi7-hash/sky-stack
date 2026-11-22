@@ -95,6 +95,8 @@ func _draw_status(vs: Vector2) -> void:
 	if game.wave > 0:
 		text(Vector2(vs.x - 380 * s, 40 * s), "WAVE %d" % game.wave, 26)
 		text(Vector2(vs.x - 380 * s, 64 * s), "ENEMIES %d" % game.enemies_left(), 16, Color(1, 0.8, 0.8))
+	text(Vector2(x, y + 92 * s), "ALT %d" % int(jet.position.y), 20, Color(0.8, 0.95, 1.0) if jet.position.y > CityGen.LOW_ALT else Color(1, 0.85, 0.3))
+	text(Vector2(x, y + 116 * s), "SPD %d   AMMO %d" % [int(jet.speed * 3.6), int(jet.ammo)], 16, Color(1, 1, 1, 0.8))
 	if jet.multiplier > 1:
 		var pulse := 0.75 + 0.25 * sin(_t * 10.0)
 		ctext(vs.x * 0.5, vs.y - 40 * s, "LOW FLYING  x%d" % jet.multiplier, 28, Color(1, 0.85, 0.3, pulse))
@@ -108,6 +110,9 @@ func _draw_touch(c: Controls) -> void:
 	# buttons
 	_btn(c.fire_pos, c.btn_radius, "FIRE", c.fire, Color(1.0, 0.35, 0.3))
 	_btn(c.boost_pos, c.btn_radius * 0.85, "BOOST", c.boost, Color(1.0, 0.75, 0.25))
+	if c.show_alt_buttons:
+		_btn(c.climb_pos, c.small_radius, "UP", c.alt_axis > 0.0, Color(0.5, 0.85, 1.0))
+		_btn(c.dive_pos, c.small_radius, "DOWN", c.alt_axis < 0.0, Color(0.5, 0.85, 1.0))
 
 
 func _btn(p: Vector2, r: float, label: String, pressed: bool, col: Color) -> void:

@@ -4,14 +4,16 @@ extends Node3D
 ## factor for windows/street lights/neon, shadow length, cloud drift) and the
 ## sweeping searchlights at night.
 
-const CYCLE := 240.0 # seconds per full day
+const CYCLE := 360.0 # seconds per full day
 const DAY := Color(1.0, 1.0, 1.0)
 const DUSK := Color(1.0, 0.72, 0.58)
 const NIGHT := Color(0.2, 0.23, 0.42)
 const SKY_DAY := Color("6a9fd8")
 const SKY_NIGHT := Color("1a1c2c")
 
-var t := 0.62
+var t := 0.42
+## Day/night cycle is optional (pause menu); the game starts in full day.
+var cycle := false
 var night := 0.0
 var paused := false
 var focus := Vector3.ZERO
@@ -53,7 +55,7 @@ func sun_elevation() -> float:
 
 
 func _process(delta: float) -> void:
-	if not paused:
+	if cycle and not paused:
 		t = fposmod(t + delta / CYCLE, 1.0)
 	var e := sun_elevation()
 	night = 1.0 - smoothstep(-0.15, 0.1, e)
