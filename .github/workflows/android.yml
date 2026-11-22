@@ -1,0 +1,68 @@
+name: Android APK
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install export templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates
+          if [ -d /root/.local/share/godot/export_templates/4.3.stable ] && [ ! -d ~/.local/share/godot/export_templates/4.3.stable ]; then
+            cp -r /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/
+          fi
+          ls ~/.local/share/godot/export_templates/4.3.stable | head
+
+      - name: Import project
+        run: godot --headless --import 2>&1 | tail -n 5 || true
+
+      - name: Headless tests (launch + world generation)
+        run: |
+          set -o pipefail
+          godot --headless res://tests/test_runner.tscn 2>&1 | grep -v -E 'Parameter "m" is null|mesh_storage.h' | tee test.log
+          if grep -E "SCRIPT ERROR|Parse Error" test.log; then echo "Script errors found"; exit 1; fi
+          grep -q "ALL TESTS PASSED" test.log
+
+      - name: Generate debug keystore (never committed)
+        run: |
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/debug.keystore" -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Configure Android SDK for Godot
+        run: |
+          JAVA_DIR=$(dirname "$(dirname "$(readlink -f "$(which java)")")")
+          SDK_DIR=${ANDROID_HOME:-/usr/lib/android-sdk}
+          mkdir -p ~/.config/godot
+          for f in editor_settings-4.tres editor_settings-4.3.tres; do
+            printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$SDK_DIR" "$JAVA_DIR" > ~/.config/godot/$f
+          done
+          cat ~/.config/godot/editor_settings-4.3.tres
+
+      - name: Export debug APK
+        run: |
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$RUNNER_TEMP/debug.keystore"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android
+          mkdir -p build
+          godot --headless --verbose --export-debug "Android" build/sky-stack-debug.apk 2>&1 | tail -n 40
+          ls -la build
+          test -s build/sky-stack-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sky-stack-debug-apk
+          path: build/sky-stack-debug.apk
+          retention-days: 3
