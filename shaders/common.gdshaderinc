@@ -46,7 +46,7 @@ float shadow_at(vec3 w) {
 			s *= 1.0 - 0.5 * texture(jet_shadow_tex, uv).a;
 		}
 	}
-	vec2 cp = (w.xz + sun_shift * (CLOUD_SHADOW_H - w.y) + cloud_offset) / 1400.0;
+	vec2 cp = (w.xz - sun_shift * (CLOUD_SHADOW_H - w.y) + cloud_offset) / 1400.0;
 	float n = texture(cloud_tex, fract(cp)).r;
 	s *= 1.0 - cloud_shadow * step(0.62, n);
 	return s;

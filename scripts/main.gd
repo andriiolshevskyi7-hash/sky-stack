@@ -15,6 +15,11 @@ var fx: Fx
 var combat: Combat
 var enemies: Enemies
 var traffic: Traffic
+var daynight: DayNight
+var clouds: Clouds
+var speed_lines: SpeedLines
+var flash := 0.0
+var _chim_t := 0.0
 var controls: Controls
 var hud: Hud
 var menu: Menu
@@ -87,6 +92,17 @@ func _ready() -> void:
 	traffic.name = "Traffic"
 	world.add_child(traffic)
 
+	daynight = DayNight.new()
+	daynight.name = "DayNight"
+	daynight.env = env
+	world.add_child(daynight)
+	clouds = Clouds.new()
+	clouds.name = "Clouds"
+	clouds.daynight = daynight
+	world.add_child(clouds)
+	speed_lines = SpeedLines.new()
+	pv.overlay.add_child(speed_lines)
+
 	controls = Controls.new()
 	controls.name = "Controls"
 	add_child(controls)
@@ -119,6 +135,7 @@ func _ready() -> void:
 	controls.cam_pressed.connect(_on_cam)
 	controls.pause_pressed.connect(_on_pause)
 	jet.died.connect(_on_jet_died)
+	jet.damaged.connect(func(a: float) -> void: flash = minf(0.8, flash + 0.25 + a * 0.02))
 
 	jet.reset(SPAWN, 0.0)
 	cam.view_h = pv.low.y
@@ -143,6 +160,8 @@ func _parse_args() -> void:
 			show_debug = false
 		elif a == "--auto":
 			jet.autopilot = true
+		elif a.begins_with("--time="):
+			daynight.t = float(a.substr(7))
 		elif a.begins_with("--wave="):
 			between_t = 0.0
 			_start_wave(int(a.substr(7)))
@@ -170,6 +189,18 @@ func _process(delta: float) -> void:
 	chunks.focus = cam.focus
 	traffic.focus = cam.focus
 	fx.clear_columns_far(cam.focus, 900.0)
+	daynight.focus = cam.focus
+	clouds.focus = cam.focus
+	_chim_t -= delta
+	if _chim_t <= 0.0:
+		_chim_t = 1.0
+		chunks.chimney_tops(cam.focus, 450.0, fx.chimneys)
+	# post effects: cloud fog, hit flash, speed lines
+	pv.set_post("fog", clouds.fog_at(jet.position, delta) if jet.alive else 0.0)
+	flash = maxf(0.0, flash - delta * 2.0)
+	pv.set_post("flash", flash)
+	speed_lines.size = Vector2(pv.low)
+	speed_lines.strength = lerpf(speed_lines.strength, 1.0 if jet.boosting else 0.0, 1.0 - exp(-delta * 6.0))
 	if state == State.PLAY:
 		_update_waves(delta)
 	RenderingServer.global_shader_parameter_set("jet_pos", jet.global_position if jet.alive else Vector3(0, -1000, 0))
@@ -307,7 +338,7 @@ func enemies_left() -> int:
 
 
 func debug_extra() -> String:
-	return "CARS %d  FX %d  BULLETS %d  ENEMIES %d | JET %d,%d  SPD %d  NEAR %d  CAM %s pitch %d" % [traffic.active_cars, fx.n, combat.n, enemies.count_active(), jet.position.x, jet.position.z, jet.speed, jet.near_tall, GameCamera.MODE_NAMES[cam.mode], rad_to_deg(cam.pitch)]
+	return "T %.2f N %.1f  CARS %d  FX %d  BULLETS %d  ENEMIES %d | JET %d,%d  SPD %d  NEAR %d  CAM %s pitch %d" % [daynight.t, daynight.night, traffic.active_cars, fx.n, combat.n, enemies.count_active(), jet.position.x, jet.position.z, jet.speed, jet.near_tall, GameCamera.MODE_NAMES[cam.mode], rad_to_deg(cam.pitch)]
 
 
 func _on_cam() -> void:

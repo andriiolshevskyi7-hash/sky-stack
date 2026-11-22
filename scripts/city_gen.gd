@@ -63,7 +63,7 @@ const G_SLABS := 15
 
 enum { PK_TOWER, PK_MID, PK_HOUSE, PK_FLAT }
 
-const LAMP_GLOW := Color(1.0, 0.78, 0.42, 0.9)
+const LAMP_GLOW := Color(1.0, 0.8, 0.5, 0.55)
 
 
 class Build:
@@ -431,7 +431,7 @@ static func _lamps(cb: Build, lx0: float, lz0: float, lx1: float, lz1: float) ->
 		for s in spots:
 			var yaw := atan2(-s[3], s[2])
 			cb.p.add_stack(lamp, 0, Vector3(s[0], 0.2, s[1]), yaw, 1.0, Color.WHITE)
-			_glow(cb, s[0] + s[2] * 4.0, s[1] + s[3] * 4.0, 22.0, LAMP_GLOW)
+			_glow(cb, s[0] + s[2] * 3.5, s[1] + s[3] * 3.5, 15.0, LAMP_GLOW)
 
 
 static func _trees(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, avoid: Array[Rect2], pine_bias: float = 0.25) -> void:

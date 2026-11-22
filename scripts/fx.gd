@@ -17,6 +17,7 @@ var batch: PointBatch
 var rng := RandomNumberGenerator.new()
 # persistent smoke columns (burning buildings / chimneys): Vector4(x,y,z,rate)
 var columns: Array[Vector4] = []
+var chimneys := PackedVector3Array()
 var _col_t := 0.0
 
 const C_YELLOW := Color(1.0, 0.95, 0.55)
@@ -104,6 +105,9 @@ func _process(delta: float) -> void:
 	_col_t += delta
 	if _col_t > 0.12:
 		_col_t = 0.0
+		for c in chimneys:
+			if rng.randf() < 0.35:
+				spawn(c + _rv(1.5), Vector3(5, 12, 3) + _rv(2.0), rng.randf_range(1.8, 3.0), rng.randf_range(2.0, 3.0), SMOKE)
 		for q in columns:
 			if rng.randf() < q.w:
 				spawn(Vector3(q.x, q.y, q.z) + _rv(3.0), Vector3(6, 14, 4) + _rv(3.0), rng.randf_range(1.5, 2.6), rng.randf_range(2.0, 3.5), SMOKE)

@@ -83,3 +83,20 @@ godot --headless res://tests/test_runner.tscn    # run the tests
 (`barichello/godot-ci:4.3`) → install export templates → headless tests →
 generate a throw-away debug keystore → headless debug export → upload the APK
 artifact (retention 3 days). No keystores or secrets are committed.
+
+## Development steps
+
+1. **Step 1** – SpriteStack node, pixel view, chase camera, jet, streamed city
+   chunks, CI producing the APK.
+2. **Step 2** – infinite city traffic (cars, buses, trains, boats, ships),
+   enemies (drones, jets, bombers, rooftop AA guns) and waves, combat, building
+   damage/destruction.
+3. **Step 3** – day/night cycle (lit windows, street-light pools, neon,
+   sweeping searchlights), layered clouds with matching drifting shadows and
+   fly-through fog, speed lines, hit flash, chimney smoke, synthesized sound.
+
+### Debug command-line flags (desktop)
+
+`godot --path . -- --play --auto --cam=1 --time=0.0 --wave=4 --shot=out.png --frames=200`
+starts a game on autopilot in ISO view at midnight on wave 4 and saves a
+screenshot after 200 frames.

@@ -42,6 +42,7 @@ var facade_emit_tex: ImageTexture
 var ground_tex: ImageTexture
 var jet_shadow_tex: ImageTexture
 var cloud_tex: ImageTexture
+var cloud_img: Image
 
 var static_mat: ShaderMaterial
 var building_mat: ShaderMaterial
@@ -476,7 +477,8 @@ func _build_globals() -> void:
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	noise.frequency = 0.035
 	noise.fractal_octaves = 3
-	var nimg := noise.get_seamless_image(128, 128)
+	cloud_img = noise.get_seamless_image(128, 128)
+	var nimg := cloud_img
 	cloud_tex = ImageTexture.create_from_image(nimg)
 	RenderingServer.global_shader_parameter_set("jet_shadow_tex", jet_shadow_tex)
 	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(get_sheet("jet").w))

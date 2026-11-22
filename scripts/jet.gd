@@ -6,6 +6,7 @@ extends Node3D
 
 signal hit_building(amount: float)
 signal died
+signal damaged(amount: float)
 
 const ALT := CityGen.JET_ALT
 const BASE_SPEED := 88.0
@@ -187,6 +188,7 @@ func damage(amount: float) -> void:
 	if not alive:
 		return
 	health -= amount
+	damaged.emit(amount)
 	Sfx.play("hurt", -2.0)
 	if cam != null:
 		cam.add_shake(4.0 + amount * 0.25)
