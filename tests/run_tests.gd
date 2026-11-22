@@ -132,6 +132,94 @@ func test_city_layout() -> void:
 	check(not CityGen.is_drivable(CityGen.coast_x(0.0) + 50.0, 0.0, true), "sea is not drivable")
 
 
+func _touch(pos: Vector2, pressed: bool, index: int = 0) -> void:
+	var ev := InputEventScreenTouch.new()
+	ev.index = index
+	ev.position = pos
+	ev.pressed = pressed
+	Input.parse_input_event(ev)
+
+
+func _drag(pos: Vector2, index: int = 0) -> void:
+	var ev := InputEventScreenDrag.new()
+	ev.index = index
+	ev.position = pos
+	Input.parse_input_event(ev)
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+## Simulated touches on every piece of touch UI.
+func test_touch(main: Node) -> void:
+	print("[touch]")
+	get_tree().root.size = Vector2i(1344, 648)
+	await _frames(2)
+	print("    viewport %s" % main.get_viewport().get_visible_rect().size)
+	check(main.state == main.State.TITLE and main.menu.visible, "title menu shown")
+	var start: Vector2 = main.menu.button_center(0)
+	_touch(start, true)
+	await _frames(3)
+	_touch(start, false)
+	await _frames(3)
+	check(main.state == main.State.PLAY, "touch on START starts the game")
+	check(not main.menu.visible, "menu closed after START")
+	var c: Controls = main.controls
+	# joystick: touch left half, drag right
+	var vs := c.get_viewport().get_visible_rect().size
+	var jp := Vector2(vs.x * 0.15, vs.y * 0.75)
+	_touch(jp, true, 1)
+	await _frames(1)
+	_drag(jp + Vector2(60, 0), 1)
+	await _frames(2)
+	print("    dbg vs=%s joy=%s roles=%s en=%s" % [c.get_viewport().get_visible_rect().size, c.joy_active, c._touch_role, c.enabled])
+	check(c.stick.x > 0.5, "joystick drag steers (stick=%s)" % c.stick)
+	# FIRE + BOOST with two more fingers
+	_touch(c.fire_pos, true, 2)
+	_touch(c.boost_pos, true, 3)
+	await _frames(2)
+	check(c.fire, "FIRE button held")
+	check(c.boost, "BOOST button held")
+	_touch(c.fire_pos, false, 2)
+	_touch(c.boost_pos, false, 3)
+	_touch(jp, false, 1)
+	await _frames(2)
+	check(not c.fire and not c.boost and c.stick == Vector2.ZERO, "buttons released")
+	# CAM
+	var mode_before: int = main.cam.mode
+	_touch(c.cam_pos, true)
+	await _frames(2)
+	_touch(c.cam_pos, false)
+	await _frames(2)
+	check(main.cam.mode != mode_before, "CAM button cycles the view")
+	main.cam.mode = mode_before
+	# PAUSE -> RESUME
+	_touch(c.pause_pos, true)
+	await _frames(2)
+	_touch(c.pause_pos, false)
+	await _frames(2)
+	check(main.state == main.State.PAUSE and get_tree().paused, "pause button pauses")
+	var resume: Vector2 = main.menu.button_center(0)
+	_touch(resume, true)
+	await _frames(3)
+	_touch(resume, false)
+	await _frames(2)
+	check(main.state == main.State.PLAY and not get_tree().paused, "RESUME button resumes")
+	# game over -> RETRY
+	main.jet.damage(9999.0)
+	main._over_t = 10.0
+	await _frames(3)
+	check(main.state == main.State.OVER and main.menu.visible, "game over menu shown")
+	var retry: Vector2 = main.menu.button_center(0)
+	_touch(retry, true)
+	await _frames(3)
+	_touch(retry, false)
+	await _frames(2)
+	check(main.state == main.State.PLAY and main.jet.alive, "RETRY button restarts")
+
+
 func test_launch() -> void:
 	print("[launch]")
 	var scene: PackedScene = load("res://main.tscn")
@@ -145,7 +233,7 @@ func test_launch() -> void:
 	get_tree().root.add_child(main)
 	await get_tree().process_frame
 	check(main.chunks.chunks.size() >= 9, "chunks streamed at start (%d)" % main.chunks.chunks.size())
-	main.start_game()
+	await test_touch(main)
 	main.jet.autopilot = true
 	var start: Vector3 = main.jet.position
 	await get_tree().create_timer(3.0).timeout

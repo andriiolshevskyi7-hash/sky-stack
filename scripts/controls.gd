@@ -32,6 +32,10 @@ var _touch_boost := false
 var _touch_fire := false
 var _mouse_fire := false
 var enabled := true
+# diagnostics (shown in the debug overlay)
+var last_touch := Vector2(-1, -1)
+var touch_count := 0
+var last_touch_ms := 0
 
 
 func _ready() -> void:
@@ -70,6 +74,9 @@ func _input(event: InputEvent) -> void:
 		touch_seen = true
 		var e := event as InputEventScreenTouch
 		if e.pressed:
+			last_touch = e.position
+			touch_count += 1
+			last_touch_ms = Time.get_ticks_msec()
 			if e.position.distance_to(pause_pos) < small_radius * 1.4:
 				pause_pressed.emit()
 				return

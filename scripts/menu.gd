@@ -12,17 +12,20 @@ var s := 1.0
 var _rects: Array[Rect2] = []
 var _hover := -1
 var dim := 0.55
+## If set, a tap anywhere outside the buttons triggers item 0 (title screen).
+var tap_anywhere := false
 
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	font = ThemeDB.fallback_font
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
 
 
-func open(p_title: String, p_sub: String, p_items: Array, p_lines: Array = [], p_dim: float = 0.55) -> void:
+func open(p_title: String, p_sub: String, p_items: Array, p_lines: Array = [], p_dim: float = 0.55, p_tap_anywhere: bool = false) -> void:
+	tap_anywhere = p_tap_anywhere
 	title = p_title
 	subtitle = p_sub
 	items = p_items
@@ -60,17 +63,34 @@ func _draw() -> void:
 	for l in lines:
 		_ctext(vs.x * 0.5, y, _str(l), 20, Color(0.8, 0.95, 1.0))
 		y += 28 * s
-	y += 14 * s
+	layout()
+	for i in _rects.size():
+		var r := _rects[i]
+		draw_rect(r, Color(0.1, 0.14, 0.28, 0.9) if i != _hover else Color(0.2, 0.3, 0.55, 0.95))
+		draw_rect(r, Color(0.6, 0.8, 1.0, 0.8), false, 2.0 * s)
+		_ctext(vs.x * 0.5, r.position.y + r.size.y * 0.68, _str(items[i][0]), 24, Color.WHITE)
+
+
+## Button rects in screen pixels. Computed independently of drawing so input
+## works even before the first frame is drawn.
+func layout() -> void:
+	var vs := get_viewport_rect().size
+	s = clampf(vs.y / 720.0, 0.6, 3.0)
+	var y := vs.y * 0.2 + 46 * s
+	if subtitle != "":
+		y += 34 * s
+	y += 28 * s * lines.size() + 14 * s
 	_rects.clear()
 	var bw := 420.0 * s
 	var bh := 54.0 * s
 	for i in items.size():
-		var r := Rect2(Vector2(vs.x * 0.5 - bw * 0.5, y), Vector2(bw, bh))
-		_rects.append(r)
-		draw_rect(r, Color(0.1, 0.14, 0.28, 0.9) if i != _hover else Color(0.2, 0.3, 0.55, 0.95))
-		draw_rect(r, Color(0.6, 0.8, 1.0, 0.8), false, 2.0 * s)
-		_ctext(vs.x * 0.5, y + bh * 0.68, _str(items[i][0]), 24, Color.WHITE)
+		_rects.append(Rect2(Vector2(vs.x * 0.5 - bw * 0.5, y), Vector2(bw, bh)))
 		y += bh + 12 * s
+
+
+func button_center(i: int) -> Vector2:
+	layout()
+	return _rects[i].get_center() if i < _rects.size() else Vector2.ZERO
 
 
 func _ctext(cx: float, y: float, t: String, size: float, col: Color) -> void:
@@ -80,16 +100,32 @@ func _ctext(cx: float, y: float, t: String, size: float, col: Color) -> void:
 	draw_string(font, Vector2(cx - w * 0.5, y), t, HORIZONTAL_ALIGNMENT_CENTER, w, fs, col)
 
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		_hover = _hit(event.position)
+## Handles touch DIRECTLY (InputEventScreenTouch) so it never depends on
+## touch->mouse emulation or GUI picking. Real mouse clicks also work; mouse
+## events emulated from touch are ignored to avoid double activation.
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	var p := Vector2.INF
+	if event is InputEventScreenTouch and event.pressed:
+		p = event.position
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var i := _hit(event.position)
-		if i >= 0:
-			accept_event()
-			Sfx.play("ui")
-			(items[i][1] as Callable).call()
-			queue_redraw()
+		if event.device == InputEvent.DEVICE_ID_EMULATION:
+			return
+		p = event.position
+	elif event is InputEventMouseMotion:
+		_hover = _hit(event.position)
+		return
+	else:
+		return
+	var i := _hit(p)
+	if i < 0 and tap_anywhere and not items.is_empty():
+		i = 0
+	if i >= 0:
+		Sfx.play("ui")
+		var cb: Callable = items[i][1]
+		cb.call_deferred()
+		queue_redraw()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -100,6 +136,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _hit(p: Vector2) -> int:
+	layout()
 	for i in _rects.size():
 		if _rects[i].has_point(p):
 			return i

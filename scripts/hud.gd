@@ -75,6 +75,9 @@ func _draw() -> void:
 			ctext(vs.x * 0.5, vs.y * 0.36 + 44 * s, game.banner_sub, 22, Color(1, 1, 1, a))
 	if OS.is_debug_build() and game.show_debug:
 		_draw_debug(vs)
+		# touch diagnostics: marker where the last touch landed
+		if c != null and Time.get_ticks_msec() - c.last_touch_ms < 600:
+			draw_arc(c.last_touch, 30.0 * s, 0, TAU, 24, Color(1, 1, 0, 0.9), 3.0 * s)
 
 
 func _draw_status(vs: Vector2) -> void:
@@ -137,9 +140,10 @@ func _draw_debug(vs: Vector2) -> void:
 		"FPS %d   DRAW CALLS %d   OBJECTS %d" % [fps, dc, objs],
 		"VIEW %dx%d x%d   CHUNKS %d   QUADS %dk" % [game.pv.low.x, game.pv.low.y, game.pv.pixel_scale, game.chunks.chunks.size(), game.chunks.total_quads() / 1000],
 		game.debug_extra(),
+		"TOUCHES %d  LAST %s  SCREEN %s" % [game.controls.touch_count, game.controls.last_touch.round(), vs],
 	]
-	var y := vs.y - 70 * s
-	draw_rect(Rect2(Vector2(8 * s, y - 20 * s), Vector2(560 * s, 68 * s)), Color(0, 0, 0, 0.45))
+	var y := vs.y - 90 * s
+	draw_rect(Rect2(Vector2(8 * s, y - 20 * s), Vector2(620 * s, 88 * s)), Color(0, 0, 0, 0.45))
 	for l in lines:
 		text(Vector2(14 * s, y), l, 14, Color(0.7, 1.0, 0.7))
 		y += 20 * s

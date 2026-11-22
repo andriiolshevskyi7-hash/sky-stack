@@ -228,7 +228,8 @@ func _to_title() -> void:
 	menu.open("SKY STACK", "Defend the city.  Fly low between skyscrapers for a score multiplier.",
 		[["START", start_game]],
 		[func() -> String: return "HIGH SCORE  %d" % Save.high_score,
-		"Touch: stick left - BOOST / FIRE right      Keys: WASD  Shift  Space  C  Esc"], 0.25)
+		"TAP ANYWHERE TO START",
+		"Touch: stick left - BOOST / FIRE right      Keys: WASD  Shift  Space  C  Esc"], 0.25, true)
 
 
 func start_game() -> void:
@@ -359,6 +360,7 @@ func _open_pause() -> void:
 	state = State.PAUSE
 	get_tree().paused = true
 	controls.reset()
+	controls.enabled = false
 	Sfx.set_engine(false, 0.0)
 	menu.open("PAUSED", "", [
 		["RESUME", _resume],
@@ -371,6 +373,8 @@ func _open_pause() -> void:
 
 func _resume() -> void:
 	menu.close()
+	controls.reset()
+	controls.enabled = true
 	state = State.PLAY
 	get_tree().paused = false
 
