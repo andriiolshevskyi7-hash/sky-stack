@@ -65,6 +65,7 @@ func _draw() -> void:
 	if c != null and c.touch_seen and game.state == game.State.PLAY:
 		_draw_touch(c)
 	if game.state == game.State.PLAY:
+		_draw_arrows(vs)
 		_draw_small_buttons(c)
 	# banner
 	if game.banner_time > 0.0 and game.banner != "":
@@ -142,3 +143,25 @@ func _draw_debug(vs: Vector2) -> void:
 	for l in lines:
 		text(Vector2(14 * s, y), l, 14, Color(0.7, 1.0, 0.7))
 		y += 20 * s
+
+
+## Edge-of-screen arrows pointing to off-screen enemies.
+func _draw_arrows(vs: Vector2) -> void:
+	var cam: Camera3D = game.cam
+	var pv: PixelView = game.pv
+	var margin := 40.0 * s
+	var center := vs * 0.5
+	for e in game.enemies.pool:
+		if not e.active:
+			continue
+		var sp: Vector2 = cam.unproject_position(e.pos) * pv.pixel_scale + pv.display.position
+		if Rect2(Vector2.ZERO, vs).grow(-10.0).has_point(sp):
+			continue
+		var d := (sp - center).normalized()
+		var ext := center - Vector2(margin, margin)
+		var k := minf(absf(ext.x / maxf(0.001, absf(d.x))), absf(ext.y / maxf(0.001, absf(d.y))))
+		var p := center + d * k
+		var col := Color(1, 0.3, 0.25, 0.9) if e.type != 3 else Color(1, 0.7, 0.2, 0.9)
+		var sz := (16.0 if e.type == 2 else 11.0) * s
+		var perp := Vector2(-d.y, d.x)
+		draw_colored_polygon(PackedVector2Array([p + d * sz, p - d * sz * 0.6 + perp * sz * 0.7, p - d * sz * 0.6 - perp * sz * 0.7]), col)

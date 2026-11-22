@@ -136,7 +136,12 @@ func test_launch() -> void:
 	print("[launch]")
 	var scene: PackedScene = load("res://main.tscn")
 	check(scene != null, "main scene loads")
+	if scene == null:
+		return
 	var main := scene.instantiate()
+	check(main.has_method("start_game"), "main script compiled")
+	if not main.has_method("start_game"):
+		return
 	get_tree().root.add_child(main)
 	await get_tree().process_frame
 	check(main.chunks.chunks.size() >= 9, "chunks streamed at start (%d)" % main.chunks.chunks.size())
