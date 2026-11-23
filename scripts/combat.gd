@@ -4,7 +4,7 @@ extends Node3D
 ## enemy shots aimed at buildings. One draw call for all of them.
 
 enum { BULLET, FLAK, BOMB, BLD_SHOT }
-const MAX := 320
+const MAX := 400
 const PLAYER_SPEED := 430.0
 
 var pos := PackedVector3Array()
@@ -32,7 +32,7 @@ func _ready() -> void:
 	owner_enemy.resize(MAX)
 	kind.resize(MAX)
 	target.resize(MAX)
-	batch = PointBatch.new().setup(MAX)
+	batch = PointBatch.new().setup(MAX * 3)
 	batch.name = "BulletBatch"
 	add_child(batch)
 
@@ -139,8 +139,10 @@ func _process(delta: float) -> void:
 		match kind[i]:
 			BULLET:
 				if owner_enemy[i] == 0:
-					batch.push(p, 2.0, Color(1.0, 1.0, 0.6))
-					batch.push(p - vel[i] * 0.008, 1.5, Color(1.0, 0.8, 0.3))
+					# tracer streak
+					batch.push(p, 2.2, Color(1.0, 1.0, 0.7))
+					batch.push(p - vel[i] * 0.006, 1.8, Color(1.0, 0.85, 0.35))
+					batch.push(p - vel[i] * 0.012, 1.4, Color(1.0, 0.6, 0.2))
 				else:
 					batch.push(p, 2.5, Color(1.0, 0.25, 0.3))
 			FLAK:

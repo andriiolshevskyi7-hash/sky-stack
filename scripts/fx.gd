@@ -109,6 +109,12 @@ func afterburner(p: Vector3, fwd: Vector3, boost: bool = false) -> void:
 		spawn(p + _rv(1.0), -fwd * 45.0 + _rv(6.0), rng.randf_range(0.08, 0.16), 2.5, BURNER)
 
 
+## Burning wreckage that tumbles down to the ground trailing smoke.
+func debris(p: Vector3, count: int) -> void:
+	for i in count:
+		spawn(p + _rv(4.0), _rv(70.0) + Vector3(0, 25, 0), rng.randf_range(1.6, 3.0), rng.randf_range(1.5, 3.0), DEBRIS)
+
+
 ## Sea spray / wake when the jet skims the water.
 func spray(p: Vector3, k: float) -> void:
 	k *= spray_mult
@@ -199,8 +205,15 @@ func _process(delta: float) -> void:
 				col = Color(1, 1, 1, 1.0 if t < 0.6 else (1.0 - t) * 2.5)
 				s *= 1.0 + t * 0.8
 			_:
-				v.y -= 120.0 * delta
-				col = C_DARK
+				# debris: falls, smokes, stops on the ground
+				v.y -= 90.0 * delta
+				v *= 1.0 - 0.4 * delta
+				col = C_DARK if t > 0.15 else C_ORANGE
+				if pos[i].y < 1.0:
+					pos[i].y = 1.0
+					v = Vector3.ZERO
+				elif rng.randf() < 0.25:
+					spawn(pos[i], Vector3(0, 4, 0), rng.randf_range(0.5, 1.0), rng.randf_range(1.5, 2.5), SMOKE)
 		vel[i] = v
 		pos[i] += v * delta
 		batch.push(pos[i], s, col)

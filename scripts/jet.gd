@@ -150,7 +150,7 @@ func barrel_roll() -> void:
 	man_t = 0.0
 	man_dur = 0.6
 	man_dir = -1.0 if (controls != null and controls.stick.x > 0.2) else 1.0
-	dodge_window = 0.45
+	dodge_window = 0.8
 	Sfx.play("boost", -10.0, 1.6)
 	trick.emit("ROLL")
 

@@ -32,6 +32,9 @@ func _ready() -> void:
 	streams["bomb"] = _wav(_bomb())
 	streams["ui"] = _wav(_blip())
 	streams["engine"] = _wav(_engine(), true)
+	streams["beep"] = _wav(_beep(1400.0, 0.05))
+	streams["tone"] = _wav(_beep(2000.0, 0.12))
+	streams["warn"] = _wav(_beep(900.0, 0.09))
 	for i in 12:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
@@ -216,6 +219,14 @@ func _blip() -> PackedFloat32Array:
 	for i in b.size():
 		var t := float(i) / RATE
 		b[i] = _sq(t * 1000.0) * 0.15 * exp(-t * 50.0)
+	return b
+
+
+func _beep(f: float, sec: float) -> PackedFloat32Array:
+	var b := _buf(sec)
+	for i in b.size():
+		var t := float(i) / RATE
+		b[i] = _sq(t * f) * 0.14 * minf(1.0, (sec - t) * 40.0)
 	return b
 
 

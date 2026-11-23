@@ -133,6 +133,52 @@ func _draw_status(vs: Vector2) -> void:
 		text(Vector2(r.position.x, r.position.y + 31 * s), game.tutorial.text(), 20, Color(1, 0.95, 0.6), HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 	_draw_lock(vs)
 	_draw_rings(vs)
+	_draw_missile_arrow(vs)
+	_draw_popups()
+	_draw_boss(vs)
+
+
+## Red arrow around the screen centre pointing at the incoming missile.
+func _draw_missile_arrow(vs: Vector2) -> void:
+	var m: Missiles = game.missiles
+	if m.incoming_t > 3.5 or not game.jet.alive:
+		return
+	var c := vs * 0.5
+	var sp := _screen(m.incoming_pos)
+	var d := (sp - c).normalized()
+	if game.cam.is_position_behind(m.incoming_pos):
+		d = -d
+	if d == Vector2.ZERO:
+		d = Vector2.DOWN
+	var p := c + d * 150.0 * s
+	var perp := Vector2(-d.y, d.x)
+	var blink := int(Time.get_ticks_msec() / 150) % 2 == 0
+	var col := Color(1, 0.2, 0.15, 0.95 if blink else 0.55)
+	draw_colored_polygon(PackedVector2Array([p + d * 26.0 * s, p - d * 10.0 * s + perp * 18.0 * s, p - d * 10.0 * s - perp * 18.0 * s]), col)
+	ctext(c.x, c.y + 190.0 * s, "MISSILE", 18, col)
+
+
+## Floating "+150" kill popups.
+func _draw_popups() -> void:
+	for pp in game.popups:
+		var wp: Vector3 = pp[0]
+		if game.cam.is_position_behind(wp):
+			continue
+		var age: float = pp[2]
+		var sp := _screen(wp) - Vector2(0, age * 60.0 * s)
+		ctext(sp.x, sp.y, pp[1], 24, Color(1, 0.92, 0.4, clampf(1.6 - age * 1.4, 0.0, 1.0)))
+
+
+func _draw_boss(vs: Vector2) -> void:
+	var b = game.enemies.boss
+	if b == null or not b.active:
+		return
+	var w := 500.0 * s
+	var r := Rect2(Vector2(vs.x * 0.5 - w * 0.5, 84 * s), Vector2(w, 16 * s))
+	_panel(r.grow(6 * s))
+	draw_rect(r, Color(0.2, 0.05, 0.05))
+	draw_rect(Rect2(r.position, Vector2(w * clampf(b.hp / b.max_hp, 0.0, 1.0), r.size.y)), Color(1, 0.3, 0.2))
+	ctext(vs.x * 0.5, 80 * s, "BOSS BOMBER", 16, Color(1, 0.8, 0.7))
 
 
 func _screen(p: Vector3) -> Vector2:
@@ -167,8 +213,8 @@ func _draw_rings(_vs: Vector2) -> void:
 		return
 	var p := _screen(game.jet.position) if not game.cam.is_position_behind(game.jet.position) else get_viewport_rect().size * 0.5
 	var r0 := 46.0 * s
-	var r1 := r0 + maxf(0.0, m.incoming_t - 0.3) * 150.0 * s
-	var near := absf(r1 - r0) < 12.0 * s
+	var r1 := r0 + maxf(0.0, m.incoming_t - 0.4) * 130.0 * s
+	var near := absf(r1 - r0) < 22.0 * s
 	draw_arc(p, r0, 0, TAU, 48, Color(1, 1, 1, 0.9), maxf(2.0, 3.0 * s))
 	draw_arc(p, r1, 0, TAU, 64, Color(1, 0.25, 0.2) if near else Color(1, 0.85, 0.3), maxf(2.0, 3.0 * s))
 	if near:

@@ -39,6 +39,8 @@ var incoming_t := 99.0 # seconds until the nearest enemy missile hits
 var incoming_pos := Vector3.ZERO
 var dodges := 0
 var hits_taken := 0
+var _beep_t := 0.0
+var _warn_t := 0.0
 
 
 func _ready() -> void:
@@ -141,6 +143,21 @@ func _process(delta: float) -> void:
 		return
 	if jet.alive:
 		_update_lock(delta)
+	# lock-on audio: beeps speed up and rise while locking, steady tone when locked
+	_beep_t -= delta
+	if lock_target != null and jet.alive and _beep_t <= 0.0:
+		var k := clampf(lock_t / LOCK_TIME, 0.0, 1.0)
+		if locked:
+			Sfx.play("tone", -12.0, 1.0)
+			_beep_t = 0.18
+		else:
+			Sfx.play("beep", -14.0, 0.8 + k * 0.7)
+			_beep_t = lerpf(0.3, 0.08, k)
+	# incoming missile warning
+	_warn_t -= delta
+	if incoming_t < 3.0 and _warn_t <= 0.0:
+		Sfx.play("warn", -8.0)
+		_warn_t = clampf(incoming_t * 0.25, 0.08, 0.4)
 	incoming_t = 99.0
 	batch.begin()
 	for m in pool:
@@ -157,7 +174,8 @@ func _process(delta: float) -> void:
 		m.smoke_cd -= delta
 		if m.smoke_cd <= 0.0:
 			m.smoke_cd = 0.03
-			fx.spawn(m.pos, Vector3(0, 2, 0), 0.7, 1.5, Fx.TRAIL)
+			fx.spawn(m.pos, Vector3(0, 3, 0), 1.2, 2.2, Fx.SMOKE)
+			fx.spawn(m.pos, Vector3.ZERO, 0.08, 2.0, Fx.BURNER)
 		var done := m.life <= 0.0 or m.pos.y < 0.0
 		if m.enemy and jet.alive and not m.dodged:
 			var d := m.pos.distance_to(jet.position)

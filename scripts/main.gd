@@ -51,6 +51,9 @@ var wave_queue: Array[int] = []
 var spawn_cd := 0.0
 var between_t := 0.0
 var kills := 0
+const SWARM := 100
+var popups: Array = [] # [world pos, text, age]
+var _hitstop_until := 0
 var _aa_fail := 0
 var rng := RandomNumberGenerator.new()
 # --shot=<file.png> --frames=<n> [--play] [--cam=0..2] [--time=0..1]: debug screenshots
@@ -268,6 +271,13 @@ func _shot_tick() -> void:
 
 func _process(delta: float) -> void:
 	_shot_tick()
+	if _hitstop_until > 0 and Time.get_ticks_msec() > _hitstop_until:
+		_hitstop_until = 0
+		Engine.time_scale = 1.0
+	for pp in popups:
+		pp[2] += delta
+	while not popups.is_empty() and popups[0][2] > 1.2:
+		popups.pop_front()
 	if state == State.PAUSE:
 		return
 	delta = minf(delta, 0.05)
@@ -362,19 +372,30 @@ func start_game() -> void:
 func _start_wave(n: int) -> void:
 	wave = n
 	wave_queue.clear()
-	for i in 3 + n:
-		wave_queue.append(Enemies.DRONE)
-	for i in mini(12, enemy_jets + (n - 1) / 2):
+	# later waves mix the types: swarms, fighters, interceptors, bombers
+	for i in 1 + n / 2:
+		wave_queue.append(SWARM)
+	for i in mini(10, enemy_jets + (n - 1) / 2):
 		wave_queue.append(Enemies.JET)
 	if n >= 3:
-		for i in (n - 1) / 2:
+		for i in mini(6, (n - 1) / 2):
+			wave_queue.append(Enemies.INTERCEPTOR)
+	if n >= 2:
+		for i in mini(4, n / 2):
 			wave_queue.append(Enemies.BOMBER)
 	wave_queue.shuffle()
+	if n % 5 == 0:
+		wave_queue.append(Enemies.BOSS)
 	if n >= 4:
 		for i in mini(4, n - 3):
 			wave_queue.push_front(Enemies.AAGUN)
 	spawn_cd = 1.0
-	show_banner("WAVE %d" % n, "Rooftop anti-air guns detected!" if n == 4 else "Enemies inbound", 2.5)
+	var sub := "Enemies inbound"
+	if n == 4:
+		sub = "Rooftop anti-air guns detected!"
+	if n % 5 == 0:
+		sub = "BOSS BOMBER APPROACHING"
+	show_banner("WAVE %d" % n, sub, 2.5)
 	Sfx.play("alarm", -4.0)
 
 
@@ -401,9 +422,13 @@ func _update_waves(delta: float) -> void:
 					wave_queue.pop_front() # no towers around (over the ocean): skip
 		else:
 			var a := rng.randf() * TAU
-			var p := jet.position + Vector3(cos(a), 0, sin(a)) * rng.randf_range(420.0, 520.0)
-			p.y = clampf(jet.position.y, 40.0, 200.0)
-			ok = enemies.spawn(t, p)
+			var p := jet.position + Vector3(cos(a), 0, sin(a)) * rng.randf_range(800.0, 1000.0)
+			p.y = clampf(jet.position.y + rng.randf_range(-80, 80), 80.0, 700.0)
+			if t == SWARM:
+				enemies.spawn_swarm(p, 5)
+				ok = true
+			else:
+				ok = enemies.spawn(t, p)
 		if ok:
 			wave_queue.pop_front()
 		spawn_cd = rng.randf_range(0.6, 1.4)
@@ -418,8 +443,18 @@ func _update_waves(delta: float) -> void:
 
 func on_enemy_killed(type: int, at: Vector3, value: int) -> void:
 	kills += 1
-	score += value * jet.multiplier
-	if Vector2(at.x - jet.position.x, at.z - jet.position.z).length() < 160.0:
+	var pts := value * jet.multiplier
+	score += pts
+	popups.append([at, "+%d" % pts, 0.0])
+	if popups.size() > 12:
+		popups.pop_front()
+	# short hit-stop
+	if Engine.time_scale >= 0.99:
+		Engine.time_scale = 0.08
+		_hitstop_until = Time.get_ticks_msec() + (140 if type == Enemies.BOSS else 60)
+	if type == Enemies.BOSS:
+		show_banner("BOSS DOWN", "+%d" % pts, 2.5)
+	if at.distance_to(jet.position) < 450.0:
 		cam.add_shake(2.5 if type != Enemies.BOMBER else 5.0)
 
 
@@ -710,6 +745,19 @@ func test_hook(t: Node) -> Array:
 			break
 	if kills != before + 1:
 		errs.append("enemy kill not registered")
+	# --- wave 5 brings a boss bomber; swarms spawn as groups of drones
+	_start_wave(5)
+	if not wave_queue.has(Enemies.BOSS) or not wave_queue.has(SWARM):
+		errs.append("wave 5 has no boss / swarm")
+	enemies.clear()
+	var n0 := enemies.count_active()
+	enemies.spawn_swarm(jet.position + Vector3(400, 0, 0), 5)
+	if enemies.count_active() - n0 != 5:
+		errs.append("swarm did not spawn 5 drones")
+	enemies.spawn(Enemies.BOSS, jet.position + Vector3(0, 0, -600))
+	if enemies.boss == null:
+		errs.append("boss not tracked")
+	wave_queue.clear()
 	# --- combat: lock-on + missile kill (wingman held back so it can't steal the kill)
 	wingmen.process_mode = Node.PROCESS_MODE_DISABLED
 	wave_queue.clear()
