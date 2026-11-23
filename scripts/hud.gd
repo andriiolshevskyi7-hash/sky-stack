@@ -63,7 +63,12 @@ func _draw() -> void:
 	if (playing or game.state == game.State.PAUSE) and game.cam.cockpit_blend < 0.5:
 		_draw_status(vs)
 	elif playing:
-		ctext(vs.x * 0.5, 44 * s, "%07d" % game.score, 30)
+		ctext(vs.x * 0.5, 96 * s, "%07d" % game.score, 22, Color(1, 1, 1, 0.85))
+	if playing:
+		_draw_rings(vs)
+		_draw_missile_arrow(vs)
+		_draw_popups()
+		_draw_boss(vs)
 	if c != null and game.state == game.State.PLAY and game.touch_buttons_visible():
 		_draw_touch(c)
 	if game.state == game.State.PLAY:
@@ -132,10 +137,6 @@ func _draw_status(vs: Vector2) -> void:
 		_panel(r)
 		text(Vector2(r.position.x, r.position.y + 31 * s), game.tutorial.text(), 20, Color(1, 0.95, 0.6), HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 	_draw_lock(vs)
-	_draw_rings(vs)
-	_draw_missile_arrow(vs)
-	_draw_popups()
-	_draw_boss(vs)
 
 
 ## Red arrow around the screen centre pointing at the incoming missile.
