@@ -179,9 +179,9 @@ func _cars(delta: float) -> void:
 		c_pos[i] = p
 		active_cars += 1
 		if c_bus[i] == 1:
-			bus_batch.push(p, _yaw(axis, dir), c_var[i], Color.WHITE, 0.0, 0.0, CityGen.S)
+			bus_batch.push(p, _yaw(axis, dir), c_var[i], Color.WHITE, 0.0, 0.0, 1.0)
 		else:
-			car_batch.push(p, _yaw(axis, dir), c_var[i], Color.WHITE, 0.0, 0.0, CityGen.S)
+			car_batch.push(p, _yaw(axis, dir), c_var[i], Color.WHITE, 0.0, 0.0, 1.0)
 	car_batch.end()
 	bus_batch.end()
 
@@ -216,9 +216,9 @@ func _boats(delta: float) -> void:
 		b.y += fwd.y * b.w * delta
 		arr[k] = b
 		if big:
-			ship_batch.push(Vector3(b.x, 0.6, b.y), b.z, 0, Color.WHITE, 0.0, 0.0, CityGen.S)
+			ship_batch.push(Vector3(b.x, 0.6, b.y), b.z, 0, Color.WHITE, 0.0, 0.0, 1.0)
 		else:
-			boat_batch.push(Vector3(b.x, 0.6, b.y), b.z, k % 2, Color.WHITE, 0.0, 0.0, CityGen.S)
+			boat_batch.push(Vector3(b.x, 0.6, b.y), b.z, k % 2, Color.WHITE, 0.0, 0.0, 1.0)
 			if fx != null and Engine.get_process_frames() % 4 == 0:
 				fx.wake(Vector3(b.x, 0.5, b.y) - Vector3(fwd.x, 0, fwd.y) * 32.0)
 	boat_batch.end()

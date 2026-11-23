@@ -30,20 +30,23 @@ first if Android refuses to update it (`adb uninstall com.skystack.game`).
 
 | Touch | Keyboard / mouse (desktop testing) |
 | --- | --- |
-| Drag anywhere: left/right turns, **drag down climbs, drag up dives** | A/D or arrows turn, S/Down climbs, W/Up dives |
+| Floating invisible stick: touch anywhere (outside buttons), that point is the centre; drag left/right turns, **down climbs, up dives** | A/D or arrows turn, S/Down climbs, W/Up dives |
 | Quick tap: barrel roll | R |
 | **LOOP** (flown for you) | L |
 | **VIEW**: overhead → chase → cockpit | C or V |
 | **GUN** (hold; ammo counter, 5 s reload when empty) | Space, J or mouse button |
 | **MISSILE** (count bar) | M |
 | **BOOST** (hold) | Shift |
-| **INTEL** (all controls), **TUTORIAL**, **II** pause | I, Esc / P |
+| **INTEL** (all controls), **II** pause | I, Esc / P |
 
 Tricks: full climb + BOOST held = back flip; full dive + BOOST held (needs
 height) = front flip; holding a dive into the ground with BOOST off = eject
 (parachute + close-up on the pilot, then a new jet).
 
-Fight: keep an enemy ahead until the box turns red, then MISSILE. When an
+Fight: fighters dogfight (they get on your tail and break away when you get on
+theirs), interceptors are fast, drones come in swarms, bombers are tanky and a
+boss bomber arrives every 5 waves. Keep an enemy ahead until the box turns red
+(rising beeps, steady tone when locked), then MISSILE. When an
 enemy missile comes, two rings close in around your jet — roll exactly as
 they meet to dodge (short slow motion); a MISSILE straight after a dodge fires
 three for free. An AI wingman flies with you.

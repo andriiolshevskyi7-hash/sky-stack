@@ -8,9 +8,11 @@ const ATLAS_W := 1024
 const PAD := 1
 const OVERRIDE_DIR := "res://assets/stacks/"
 
-const FACADE_W := 256
-const FACADE_H := 128
-const ROOF_ROW := 48 # roofs start at this pixel row in the facade atlas
+const FACADE_W := 512
+const FACADE_H := 256
+const ROOF_ROW := 96 # roofs start at this pixel row in the facade atlas
+const FT := 64 # facade tile width (4 window bays x 16 px)
+const FH := 48 # facade tile height (4 floors x 12 px)
 
 class Sheet:
 	var name := ""
@@ -272,97 +274,135 @@ const R_RUBBLE := 7
 
 
 func facade_uv(style: int) -> Vector2:
-	return Vector2(float((style % 8) * 32) / FACADE_W, float((style / 8) * 24) / FACADE_H)
+	return Vector2(float((style % 8) * FT) / FACADE_W, float((style / 8) * FH) / FACADE_H)
 
 
 func roof_uv(style: int) -> Vector2:
-	return Vector2(float(style * 32) / FACADE_W, float(ROOF_ROW) / FACADE_H)
+	return Vector2(float(style * FT) / FACADE_W, float(ROOF_ROW) / FACADE_H)
 
 
 func _build_facades() -> void:
+	# 64x48 tiles = 4 window bays x 4 floors, 16x12 px per window cell:
+	# frames, sills, floor ledges, brick courses, corrugated sheet...
 	var img := Image.create(FACADE_W, FACADE_H, false, Image.FORMAT_RGBA8)
 	var em := Image.create(FACADE_W, FACADE_H, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
-	# [wall, window, win_x, win_y, win_w, win_h, frame]
+	# [wall, glass, win_x, win_y, win_w, win_h, frame, kind]  kind: 0 punched, 1 curtain wall, 2 brick
 	var styles := [
-		[Pal.STEEL, Pal.SKY, 1, 1, 6, 4, Pal.BLUE_GRAY],
-		[Pal.NAVY, Pal.OCEAN, 0, 1, 8, 4, Pal.NAVY_D],
-		[Pal.LGRAY, Pal.NAVY, 2, 1, 4, 3, Pal.GRAY],
-		[Pal.BROWN, Pal.BLUE_GRAY, 2, 1, 3, 3, Pal.TAN],
-		[Pal.BEIGE, Pal.STEEL, 2, 2, 3, 2, Pal.WHITE],
-		[Pal.GRAY, -1, 0, 0, 0, 0, Pal.DGRAY],
-		[Pal.RED_D, Pal.NAVY, 1, 1, 6, 2, Pal.BROWN_D],
-		[Pal.TAN, Pal.CHAR, 2, 1, 4, 3, Pal.BEIGE],
-		[Pal.LGRAY, -1, 0, 0, 0, 0, Pal.GRAY],
-		[Pal.DGRAY, -1, 0, 0, 0, 0, Pal.CHAR],
-		[Pal.LGRAY, Pal.PALE, 0, 1, 8, 4, Pal.GRAY],
-		[Pal.BROWN, Pal.STEEL, 3, 2, 2, 2, Pal.TAN],
-		[Pal.CHAR, Pal.BROWN, 1, 1, 6, 4, Pal.AMBER],
-		[Pal.BLUE_GRAY, Pal.PALE, 1, 1, 6, 4, Pal.STEEL],
-		[Pal.DGRAY, -1, 0, 0, 0, 0, Pal.BROWN_D],
-		[Pal.GREEN_D, Pal.GREEN_L, 1, 1, 6, 4, Pal.GREEN],
+		[Pal.STEEL, Pal.SKY, 1, 1, 14, 9, Pal.BLUE_GRAY, 1],
+		[Pal.NAVY, Pal.OCEAN, 0, 1, 16, 9, Pal.NAVY_D, 1],
+		[Pal.LGRAY, Pal.NAVY, 3, 2, 10, 7, Pal.GRAY, 0],
+		[Pal.BROWN, Pal.BLUE_GRAY, 4, 2, 8, 7, Pal.TAN, 2],
+		[Pal.BEIGE, Pal.STEEL, 4, 3, 8, 6, Pal.WHITE, 0],
+		[Pal.GRAY, -1, 0, 0, 0, 0, Pal.DGRAY, 3],
+		[Pal.RED_D, Pal.NAVY, 2, 2, 12, 5, Pal.BROWN_D, 2],
+		[Pal.TAN, Pal.CHAR, 3, 2, 10, 7, Pal.BEIGE, 0],
+		[Pal.LGRAY, -1, 0, 0, 0, 0, Pal.GRAY, 4],
+		[Pal.DGRAY, -1, 0, 0, 0, 0, Pal.CHAR, 3],
+		[Pal.LGRAY, Pal.PALE, 0, 1, 16, 10, Pal.GRAY, 1],
+		[Pal.BROWN, Pal.STEEL, 5, 3, 6, 6, Pal.TAN, 0],
+		[Pal.CHAR, Pal.BROWN, 1, 1, 14, 9, Pal.AMBER, 1],
+		[Pal.BLUE_GRAY, Pal.PALE, 2, 1, 12, 9, Pal.STEEL, 1],
+		[Pal.DGRAY, -1, 0, 0, 0, 0, Pal.BROWN_D, 5],
+		[Pal.GREEN_D, Pal.GREEN_L, 1, 1, 14, 9, Pal.GREEN, 1],
 	]
 	for si in styles.size():
 		var st: Array = styles[si]
-		var ox := (si % 8) * 32
-		var oy := (si / 8) * 24
-		img.fill_rect(Rect2i(ox, oy, 32, 24), Pal.c(st[0]))
-		match si:
-			F_WAREHOUSE, F_HANGAR:
-				for x in range(0, 32, 2):
-					img.fill_rect(Rect2i(ox + x, oy, 1, 24), Pal.c(st[6]))
-				if si == F_WAREHOUSE:
-					for x in range(2, 32, 8):
-						img.fill_rect(Rect2i(ox + x, oy + 1, 4, 2), Pal.c(Pal.STEEL))
-						em.fill_rect(Rect2i(ox + x, oy + 1, 4, 2), Color(1, 0, 0, 1))
-			F_STADIUM:
-				for x in range(0, 32, 8):
-					img.fill_rect(Rect2i(ox + x, oy, 2, 24), Pal.c(Pal.GRAY))
-				img.fill_rect(Rect2i(ox, oy, 32, 2), Pal.c(Pal.RED))
-				img.fill_rect(Rect2i(ox, oy + 12, 32, 1), Pal.c(Pal.GRAY))
-			F_RUBBLE:
-				for i in 90:
-					img.set_pixel(ox + rng.randi_range(0, 31), oy + rng.randi_range(0, 23), Pal.c([Pal.BROWN_D, Pal.CHAR, Pal.GRAY][i % 3]))
-			_:
-				for fy in 4:
-					for bx in 4:
-						var cx := ox + bx * 8
-						var cy := oy + fy * 6
-						img.fill_rect(Rect2i(cx + st[2], cy + st[3], st[4], st[5]), Pal.c(st[1]))
-						em.fill_rect(Rect2i(cx + st[2], cy + st[3], st[4], st[5]), Color(1, 0, 0, 1))
-						# reflection highlight
-						img.set_pixel(cx + st[2], cy + st[3], Pal.c(st[1]).lightened(0.25))
-					img.fill_rect(Rect2i(ox, oy + fy * 6 + 5, 32, 1), Pal.c(st[6]))
-		# small noise for texture
-		for i in 12:
-			var x := ox + rng.randi_range(0, 31)
-			var y := oy + rng.randi_range(0, 23)
-			img.set_pixel(x, y, img.get_pixel(x, y).darkened(0.12))
-	# roofs (32x32 each) starting at ROOF_ROW
+		var ox := (si % 8) * FT
+		var oy := (si / 8) * FH
+		var wall := Pal.c(st[0])
+		var frame := Pal.c(st[6])
+		img.fill_rect(Rect2i(ox, oy, FT, FH), wall)
+		var kind: int = st[7]
+		match kind:
+			2:
+				# brick courses
+				for y in range(0, FH, 3):
+					img.fill_rect(Rect2i(ox, oy + y, FT, 1), wall.darkened(0.15))
+					var sh := 0 if (y / 3) % 2 == 0 else 3
+					for x in range(sh, FT, 6):
+						img.set_pixel(ox + x, oy + y + 1, wall.darkened(0.15))
+			3:
+				# corrugated sheet
+				for x in range(0, FT, 4):
+					img.fill_rect(Rect2i(ox + x, oy, 1, FH), frame)
+					img.fill_rect(Rect2i(ox + x + 1, oy, 1, FH), wall.lightened(0.12))
+				if si == 5:
+					for x in range(4, FT, 16):
+						img.fill_rect(Rect2i(ox + x, oy + 2, 8, 4), Pal.c(Pal.STEEL))
+						em.fill_rect(Rect2i(ox + x, oy + 2, 8, 4), Color(1, 0, 0, 1))
+			4:
+				# stadium: pillars + red band
+				for x in range(0, FT, 16):
+					img.fill_rect(Rect2i(ox + x, oy, 4, FH), Pal.c(Pal.GRAY))
+					img.fill_rect(Rect2i(ox + x, oy, 1, FH), Pal.c(Pal.WHITE))
+				img.fill_rect(Rect2i(ox, oy, FT, 4), Pal.c(Pal.RED))
+				img.fill_rect(Rect2i(ox, oy + 24, FT, 2), Pal.c(Pal.GRAY))
+			5:
+				for i in 300:
+					img.set_pixel(ox + rng.randi_range(0, FT - 1), oy + rng.randi_range(0, FH - 1), Pal.c([Pal.BROWN_D, Pal.CHAR, Pal.GRAY][i % 3]))
+		if st[1] != -1:
+			var glass := Pal.c(st[1])
+			for fy in 4:
+				for bx in 4:
+					var cx := ox + bx * 16
+					var cy := oy + fy * 12
+					var r := Rect2i(cx + st[2], cy + st[3], st[4], st[5])
+					if kind != 1:
+						img.fill_rect(r.grow(1), frame)
+					img.fill_rect(r, glass)
+					em.fill_rect(r, Color(1, 0, 0, 1))
+					# reflection streak + mullion
+					for k in mini(r.size.y, 4):
+						img.set_pixel(r.position.x + 1 + k, r.position.y + r.size.y - 1 - k, glass.lightened(0.3))
+					if r.size.x >= 10:
+						img.fill_rect(Rect2i(r.position.x + r.size.x / 2, r.position.y, 1, r.size.y), glass.darkened(0.25))
+					if kind == 0 or kind == 2:
+						img.fill_rect(Rect2i(r.position.x - 1, r.end.y + 1, r.size.x + 2, 1), wall.lightened(0.25))
+				# floor ledge with highlight
+				img.fill_rect(Rect2i(ox, oy + fy * 12 + 11, FT, 1), frame.darkened(0.2))
+				if kind == 1:
+					img.fill_rect(Rect2i(ox, oy + fy * 12, FT, 1), frame)
+		for i in 24:
+			var x := ox + rng.randi_range(0, FT - 1)
+			var y := oy + rng.randi_range(0, FH - 1)
+			img.set_pixel(x, y, img.get_pixel(x, y).darkened(0.08))
+	# roofs (64x64): gravel, tar, green, tiles, metal, concrete, field, rubble
 	var roofs := [Pal.GRAY, Pal.CHAR, Pal.GREEN, Pal.RED_D, Pal.LGRAY, Pal.LGRAY, Pal.GREEN, Pal.DGRAY]
 	for ri in roofs.size():
-		var ox := ri * 32
+		var ox := ri * FT
 		var oy := ROOF_ROW
 		var base := Pal.c(roofs[ri])
-		img.fill_rect(Rect2i(ox, oy, 32, 32), base)
+		img.fill_rect(Rect2i(ox, oy, FT, FT), base)
 		match ri:
+			R_TAR:
+				for y in range(0, FT, 16):
+					img.fill_rect(Rect2i(ox, oy + y, FT, 1), base.lightened(0.12))
+			R_GREEN:
+				for i in 60:
+					img.fill_rect(Rect2i(ox + rng.randi_range(0, FT - 4), oy + rng.randi_range(0, FT - 4), 3, 3), Pal.c(Pal.GREEN_L) if i % 2 == 0 else Pal.c(Pal.GREEN_D))
 			R_TILES:
-				for y in range(0, 32, 3):
-					img.fill_rect(Rect2i(ox, oy + y, 32, 1), base.darkened(0.25))
+				for y in range(0, FT, 4):
+					img.fill_rect(Rect2i(ox, oy + y, FT, 1), base.darkened(0.3))
+					var sh := 0 if (y / 4) % 2 == 0 else 3
+					for x in range(sh, FT, 6):
+						img.fill_rect(Rect2i(ox + x, oy + y + 1, 1, 3), base.darkened(0.18))
 			R_METAL:
-				for x in range(0, 32, 3):
-					img.fill_rect(Rect2i(ox + x, oy, 1, 32), base.darkened(0.2))
+				for x in range(0, FT, 6):
+					img.fill_rect(Rect2i(ox + x, oy, 1, FT), base.darkened(0.2))
+					img.fill_rect(Rect2i(ox + x + 1, oy, 1, FT), base.lightened(0.1))
 			R_FIELD:
-				for x in range(0, 32, 8):
-					img.fill_rect(Rect2i(ox + x, oy, 4, 32), Pal.c(Pal.GREEN_L))
+				for x in range(0, FT, 16):
+					img.fill_rect(Rect2i(ox + x, oy, 8, FT), Pal.c(Pal.GREEN_L))
 			R_CONCRETE:
-				for x in range(0, 32, 16):
-					img.fill_rect(Rect2i(ox + x, oy, 1, 32), base.darkened(0.15))
-					img.fill_rect(Rect2i(ox, oy + x, 32, 1), base.darkened(0.15))
-		for i in 60:
-			var x := ox + rng.randi_range(0, 31)
-			var y := oy + rng.randi_range(0, 31)
+				for x in range(0, FT, 32):
+					img.fill_rect(Rect2i(ox + x, oy, 1, FT), base.darkened(0.15))
+					img.fill_rect(Rect2i(ox, oy + x, FT, 1), base.darkened(0.15))
+		var speck := 200 if ri == R_GRAVEL or ri == R_RUBBLE else 90
+		for i in speck:
+			var x := ox + rng.randi_range(0, FT - 1)
+			var y := oy + rng.randi_range(0, FT - 1)
 			var c := img.get_pixel(x, y)
 			img.set_pixel(x, y, c.darkened(0.15) if i % 2 == 0 else c.lightened(0.1))
 	facade_tex = ImageTexture.create_from_image(img)
@@ -390,12 +430,13 @@ const G_SLABS := 15
 
 
 func _build_ground() -> void:
-	var img := Image.create(128, 32, false, Image.FORMAT_RGBA8)
+	const F := 2 # 32 px tiles: 1 px = 1 world unit at world scale 2
+	var img := Image.create(128 * F, 32 * F, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 777
 	for t in 16:
-		var ox := (t % 8) * 16
-		var oy := (t / 8) * 16
+		var ox := (t % 8) * 16 * F
+		var oy := (t / 8) * 16 * F
 		var base: Color
 		var speck: Array = []
 		match t:
@@ -438,38 +479,38 @@ func _build_ground() -> void:
 			G_SLABS:
 				base = Color("aeb2bc")
 				speck = [Pal.DGRAY]
-		img.fill_rect(Rect2i(ox, oy, 16, 16), base)
+		img.fill_rect(Rect2i(ox, oy, 16 * F, 16 * F), base)
 		for i in 0:
 			if speck.is_empty():
 				break
 			img.set_pixel(ox + rng.randi_range(0, 15), oy + rng.randi_range(0, 15), Pal.c(speck[i % speck.size()]))
 		match t:
 			G_DASH:
-				img.fill_rect(Rect2i(ox, oy + 7, 8, 2), Color("f5f5f5"))
+				img.fill_rect(Rect2i(ox, oy + (7) * F, (8) * F, (2) * F), Color("f5f5f5"))
 			G_SIDEWALK:
-				img.fill_rect(Rect2i(ox, oy + 7, 16, 1), Color("b3b6bf"))
-				img.fill_rect(Rect2i(ox + 7, oy, 1, 16), Color("b3b6bf"))
+				img.fill_rect(Rect2i(ox, oy + (7) * F, (16) * F, (1) * F), Color("b3b6bf"))
+				img.fill_rect(Rect2i(ox + (7) * F, oy, (1) * F, (16) * F), Color("b3b6bf"))
 			G_PLAZA:
-				img.fill_rect(Rect2i(ox, oy, 8, 8), Color("e2d3ad"))
-				img.fill_rect(Rect2i(ox + 8, oy + 8, 8, 8), Color("e2d3ad"))
+				img.fill_rect(Rect2i(ox, oy, (8) * F, (8) * F), Color("e2d3ad"))
+				img.fill_rect(Rect2i(ox + (8) * F, oy + (8) * F, (8) * F, (8) * F), Color("e2d3ad"))
 			G_RUNWAY:
-				img.fill_rect(Rect2i(ox, oy + 7, 10, 2), Pal.c(Pal.WHITE))
+				img.fill_rect(Rect2i(ox, oy + (7) * F, (10) * F, (2) * F), Pal.c(Pal.WHITE))
 			G_CROSS:
-				img.fill_rect(Rect2i(ox + 1, oy, 2, 16), Color("f2f2f2"))
-				img.fill_rect(Rect2i(ox + 9, oy, 2, 16), Color("f2f2f2"))
+				img.fill_rect(Rect2i(ox + (1) * F, oy, (2) * F, (16) * F), Color("f2f2f2"))
+				img.fill_rect(Rect2i(ox + (9) * F, oy, (2) * F, (16) * F), Color("f2f2f2"))
 			G_RAILS:
 				for x in range(1, 16, 4):
-					img.fill_rect(Rect2i(ox + x, oy + 2, 2, 12), Pal.c(Pal.BROWN))
-				img.fill_rect(Rect2i(ox, oy + 4, 16, 1), Pal.c(Pal.LGRAY))
-				img.fill_rect(Rect2i(ox, oy + 11, 16, 1), Pal.c(Pal.LGRAY))
+					img.fill_rect(Rect2i(ox + (x) * F, oy + (2) * F, (2) * F, (12) * F), Pal.c(Pal.BROWN))
+				img.fill_rect(Rect2i(ox, oy + (4) * F, (16) * F, (1) * F), Pal.c(Pal.LGRAY))
+				img.fill_rect(Rect2i(ox, oy + (11) * F, (16) * F, (1) * F), Pal.c(Pal.LGRAY))
 			G_PARKING:
-				img.fill_rect(Rect2i(ox, oy, 1, 7), Pal.c(Pal.WHITE))
-				img.fill_rect(Rect2i(ox + 8, oy, 1, 7), Pal.c(Pal.WHITE))
+				img.fill_rect(Rect2i(ox, oy, (1) * F, (7) * F), Pal.c(Pal.WHITE))
+				img.fill_rect(Rect2i(ox + (8) * F, oy, (1) * F, (7) * F), Pal.c(Pal.WHITE))
 			G_FIELD:
-				img.fill_rect(Rect2i(ox, oy, 8, 16), Pal.c(Pal.GREEN_L))
+				img.fill_rect(Rect2i(ox, oy, (8) * F, (16) * F), Pal.c(Pal.GREEN_L))
 			G_SLABS:
-				img.fill_rect(Rect2i(ox, oy, 16, 1), Pal.c(Pal.DGRAY))
-				img.fill_rect(Rect2i(ox, oy, 1, 16), Pal.c(Pal.DGRAY))
+				img.fill_rect(Rect2i(ox, oy, (16) * F, (1) * F), Pal.c(Pal.DGRAY))
+				img.fill_rect(Rect2i(ox, oy, (1) * F, (16) * F), Pal.c(Pal.DGRAY))
 	ground_tex = ImageTexture.create_from_image(img)
 
 

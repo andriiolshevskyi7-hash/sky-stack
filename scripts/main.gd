@@ -721,7 +721,7 @@ func _open_game_over() -> void:
 	menu.open("GAME OVER", over_reason + ("   -   NEW HIGH SCORE!" if record else ""), [
 		["RETRY", start_game],
 		["TITLE", _to_title],
-	], ["SCORE  %d" % score, "WAVE  %d" % wave, "HIGH SCORE  %d" % Save.high_score])
+	], ["KILLS  %d      WAVES  %d" % [kills, wave], "SCORE  %d      BEST  %d" % [score, Save.high_score], "TAP ANYWHERE TO RETRY"], 0.55, true)
 
 
 ## Extra checks for the headless launch test (tests/run_tests.gd).

@@ -10,11 +10,11 @@ const DEFS := {
 	"drone": [18, 18, 4, 1, "_drone"],
 	"bomber": [52, 52, 9, 1, "_bomber"],
 	"aagun": [14, 14, 7, 1, "_aagun"],
-	"car": [8, 14, 5, 6, "_car"],
-	"bus": [10, 28, 7, 2, "_bus"],
+	"car": [16, 28, 7, 6, "_car"],
+	"bus": [20, 56, 10, 2, "_bus"],
 	"train": [12, 44, 8, 2, "_train"],
-	"boat": [14, 34, 6, 2, "_boat"],
-	"ship": [30, 96, 10, 1, "_ship"],
+	"boat": [28, 68, 9, 2, "_boat"],
+	"ship": [60, 192, 14, 1, "_ship"],
 	"airliner": [56, 56, 8, 1, "_airliner"],
 	"tree": [14, 14, 12, 3, "_tree"],
 	"bush": [8, 8, 4, 2, "_bush"],
@@ -197,70 +197,113 @@ const CAR_COLS := [Pal.RED, Pal.OCEAN, Pal.YELLOW, Pal.WHITE, Pal.GREEN, Pal.NAV
 
 
 static func _car(p: Painter, s: int, v: int) -> void:
+	# 16x28, 7 slices: tyres, bumpers, lights, glass, roof details
 	var col := P(CAR_COLS[v])
+	var dark := col.darkened(0.25)
+	var glass := Color("2c3e5a")
+	var glass_hi := Color("7fb0d8")
 	match s:
 		0:
-			p.rect(0, 2, 8, 3, P(Pal.BLACK))
-			p.rect(0, 9, 8, 3, P(Pal.BLACK))
-			p.rect(1, 1, 6, 12, P(Pal.CHAR))
+			for wy in [4, 19]:
+				p.rect(1, wy, 3, 6, P(Pal.BLACK))
+				p.rect(12, wy, 3, 6, P(Pal.BLACK))
+			p.rect(3, 2, 10, 24, P(Pal.CHAR))
 		1:
-			p.rect(1, 0, 6, 14, col.darkened(0.15))
-			p.epx(1, 0, P(Pal.WARM))
-			p.epx(6, 0, P(Pal.WARM))
-			p.epx(1, 13, P(Pal.RED))
-			p.epx(6, 13, P(Pal.RED))
+			for wy in [4, 19]:
+				p.rect(1, wy, 3, 6, P(Pal.CHAR))
+				p.rect(12, wy, 3, 6, P(Pal.CHAR))
+				p.rect(1, wy + 2, 3, 2, P(Pal.GRAY))
+				p.rect(12, wy + 2, 3, 2, P(Pal.GRAY))
+			p.rect(3, 1, 10, 26, dark)
 		2:
-			p.rect(1, 0, 6, 14, col)
+			p.rect(2, 0, 12, 28, dark)
+			p.rect(3, 0, 10, 1, P(Pal.LGRAY))
+			p.rect(3, 27, 10, 1, P(Pal.GRAY))
+			p.erect(3, 0, 3, 1, P(Pal.WARM))
+			p.erect(10, 0, 3, 1, P(Pal.WARM))
+			p.erect(3, 27, 3, 1, P(Pal.RED))
+			p.erect(10, 27, 3, 1, P(Pal.RED))
 		3:
-			p.rect(1, 3, 6, 8, col)
-			p.rect(2, 3, 4, 2, P(Pal.STEEL))
-			p.rect(2, 9, 4, 1, P(Pal.STEEL))
+			p.rect(2, 1, 12, 26, col)
+			p.rect(2, 9, 1, 10, dark)
+			p.rect(13, 9, 1, 10, dark)
+			p.rect(4, 2, 8, 1, col.lightened(0.2))
 		4:
-			p.rect(2, 5, 4, 4, col.lightened(0.2))
+			p.rect(2, 2, 12, 24, col)
+			p.rect(3, 8, 10, 3, glass)
+			p.rect(4, 8, 3, 1, glass_hi)
+			p.rect(3, 19, 10, 2, glass)
+			p.rect(2, 11, 1, 8, glass)
+			p.rect(13, 11, 1, 8, glass)
+		5:
+			p.rect(3, 10, 10, 10, col.lightened(0.08))
+			p.rect(3, 10, 10, 1, glass)
+		6:
+			p.rect(4, 11, 8, 8, col.lightened(0.18))
+			p.rect(4, 11, 8, 1, col.lightened(0.35))
 			if v == 2:
-				p.rect(3, 6, 2, 1, P(Pal.ORANGE))
+				p.rect(6, 13, 4, 3, P(Pal.ORANGE))
+				p.rect(7, 14, 2, 1, P(Pal.BLACK))
 			elif v == 5:
-				p.epx(2, 6, P(Pal.RED), Painter.EM_BLINK)
-				p.epx(5, 6, P(Pal.SKY), Painter.EM_BLINK)
+				p.erect(4, 14, 4, 2, P(Pal.RED), Painter.EM_BLINK)
+				p.erect(8, 14, 4, 2, P(Pal.SKY), Painter.EM_BLINK)
 
 
 static func _bus(p: Painter, s: int, v: int) -> void:
+	# 20x56, 10 slices: city bus (v0) / delivery truck (v1)
 	var col := P(Pal.AMBER) if v == 0 else P(Pal.WHITE)
 	var col2 := P(Pal.ORANGE) if v == 0 else P(Pal.RED)
+	var glass := Color("2c3e5a")
 	match s:
 		0:
-			p.rect(0, 3, 10, 4, P(Pal.BLACK))
-			p.rect(0, 20, 10, 4, P(Pal.BLACK))
-			p.rect(1, 1, 8, 26, P(Pal.CHAR))
+			for wy in [6, 40]:
+				p.rect(1, wy, 4, 9, P(Pal.BLACK))
+				p.rect(15, wy, 4, 9, P(Pal.BLACK))
+			p.rect(3, 2, 14, 52, P(Pal.CHAR))
 		1:
-			p.rect(1, 0, 8, 28, col2)
-			p.epx(1, 0, P(Pal.WARM))
-			p.epx(8, 0, P(Pal.WARM))
-			p.epx(1, 27, P(Pal.RED))
-			p.epx(8, 27, P(Pal.RED))
+			for wy in [6, 40]:
+				p.rect(1, wy + 3, 4, 3, P(Pal.GRAY))
+				p.rect(15, wy + 3, 4, 3, P(Pal.GRAY))
+			p.rect(2, 0, 16, 56, col2.darkened(0.2))
+			p.erect(3, 0, 3, 1, P(Pal.WARM))
+			p.erect(14, 0, 3, 1, P(Pal.WARM))
+			p.erect(3, 55, 3, 1, P(Pal.RED))
+			p.erect(14, 55, 3, 1, P(Pal.RED))
 		2, 3:
-			p.rect(1, 0, 8, 28, col)
+			p.rect(2, 0, 16, 56, col if v == 0 else (col if s == 2 else col2))
 			if v == 1:
-				p.rect(1, 8, 8, 20, col2)
-		4:
+				p.rect(2, 0, 16, 14, col)
+		4, 5, 6:
 			if v == 0:
-				p.rect(1, 0, 8, 28, P(Pal.STEEL))
-				p.epx(1, 10, P(Pal.WARM))
-				p.epx(8, 16, P(Pal.WARM))
+				p.rect(2, 0, 16, 56, col)
+				p.rect(3, 1, 14, 3, glass)
+				for wy in range(8, 54, 6):
+					p.rect(2, wy, 1, 4, glass)
+					p.rect(17, wy, 1, 4, glass)
+					p.erect(2, wy + 1, 1, 2, P(Pal.WARM))
+					p.erect(17, wy + 1, 1, 2, P(Pal.WARM))
 			else:
-				p.rect(1, 0, 8, 6, P(Pal.STEEL))
-				p.rect(1, 8, 8, 20, col2)
-		5:
+				p.rect(2, 1, 16, 12, col)
+				p.rect(3, 1, 14, 3, glass)
+				p.rect(2, 16, 16, 40, col2)
+				p.rect(2, 16 + (s - 4) * 12, 16, 1, col2.darkened(0.2))
+		7, 8:
 			if v == 0:
-				p.rect(1, 0, 8, 28, col)
+				p.rect(2, 0, 16, 56, col.lightened(0.05) if s == 7 else col)
+				p.rect(2, 0, 16, 1, col.lightened(0.25))
 			else:
-				p.rect(1, 1, 8, 4, col)
-				p.rect(1, 8, 8, 20, col2.darkened(0.1))
-		6:
+				p.rect(2, 16, 16, 40, col2.lightened(0.05))
+				if s == 8:
+					p.rect(4, 3, 12, 8, col.lightened(0.1))
+		9:
 			if v == 0:
-				p.rect(2, 2, 6, 24, col.lightened(0.15))
+				p.rect(6, 20, 8, 12, P(Pal.LGRAY))
+				p.rect(7, 22, 6, 1, P(Pal.GRAY))
+				p.rect(7, 26, 6, 1, P(Pal.GRAY))
 			else:
-				p.rect(1, 8, 8, 20, P(Pal.LGRAY))
+				p.rect(3, 17, 14, 38, P(Pal.LGRAY))
+				for x in range(4, 16, 3):
+					p.rect(x, 17, 1, 38, P(Pal.GRAY))
 
 
 static func _train(p: Painter, s: int, v: int) -> void:
@@ -291,51 +334,93 @@ static func _train(p: Painter, s: int, v: int) -> void:
 
 
 static func _boat(p: Painter, s: int, v: int) -> void:
+	# 28x68, 9 slices: white speedboat (v0) / red tug (v1)
 	var hull := P(Pal.WHITE) if v == 0 else P(Pal.RED)
-	var hull_pts := PackedVector2Array([Vector2(7, 0), Vector2(13, 8), Vector2(13, 33), Vector2(1, 33), Vector2(1, 8)])
+	var hull_d := hull.darkened(0.2)
+	var deck := P(Pal.TAN) if v == 0 else P(Pal.DGRAY)
+	var outline := PackedVector2Array([Vector2(14, 0), Vector2(26, 16), Vector2(26, 66), Vector2(2, 66), Vector2(2, 16)])
+	var inner := PackedVector2Array([Vector2(14, 4), Vector2(23, 17), Vector2(23, 63), Vector2(5, 63), Vector2(5, 17)])
 	match s:
 		0:
-			p.poly(PackedVector2Array([Vector2(7, 2), Vector2(12, 9), Vector2(12, 32), Vector2(2, 32), Vector2(2, 9)]), P(Pal.DGRAY))
+			p.poly(PackedVector2Array([Vector2(14, 4), Vector2(24, 18), Vector2(24, 64), Vector2(4, 64), Vector2(4, 18)]), P(Pal.DGRAY))
 		1, 2:
-			p.poly(hull_pts, hull)
+			p.poly(outline, hull_d if s == 1 else hull)
+			if s == 2:
+				p.rect(2, 40, 24, 2, P(Pal.NAVY) if v == 0 else P(Pal.WHITE))
 		3:
-			p.poly(hull_pts, hull.darkened(0.1))
-			p.poly(PackedVector2Array([Vector2(7, 3), Vector2(11, 9), Vector2(11, 31), Vector2(3, 31), Vector2(3, 9)]), P(Pal.TAN))
-		4:
-			p.rect(3, 14, 8, 12, P(Pal.WHITE) if v == 1 else P(Pal.STEEL))
-			p.erect(4, 14, 6, 1, P(Pal.WARM))
-		5:
-			p.rect(4, 15, 6, 9, P(Pal.LGRAY))
+			p.poly(outline, hull)
+			p.poly(inner, deck)
+			for y in range(20, 62, 4):
+				p.rect(6, y, 16, 1, deck.darkened(0.12))
 			if v == 1:
-				p.rect(6, 22, 2, 2, P(Pal.CHAR))
-			p.epx(7, 15, P(Pal.RED), Painter.EM_BLINK)
+				for y in range(18, 64, 8):
+					p.rect(2, y, 1, 4, P(Pal.CHAR))
+					p.rect(25, y, 1, 4, P(Pal.CHAR))
+		4, 5:
+			var cy := 26 if v == 0 else 22
+			p.rect(6, cy, 16, 20, P(Pal.WHITE) if v == 1 else P(Pal.LGRAY))
+			p.rect(7, cy, 14, 3, Color("2c3e5a"))
+			if s == 5:
+				p.erect(7, cy + 1, 14, 1, P(Pal.WARM))
+				p.rect(6, cy + 6, 1, 10, Color("2c3e5a"))
+				p.rect(21, cy + 6, 1, 10, Color("2c3e5a"))
+		6:
+			p.rect(7, (27 if v == 0 else 23), 14, 18, P(Pal.LGRAY))
+		7:
+			if v == 1:
+				p.rect(11, 30, 6, 6, P(Pal.CHAR))
+				p.rect(11, 30, 6, 2, P(Pal.RED))
+			else:
+				p.rect(9, 30, 10, 12, P(Pal.WHITE))
+		8:
+			p.rect(13, 32, 2, 2, P(Pal.GRAY))
+			p.epx(13, 31, P(Pal.RED), Painter.EM_BLINK)
 
 
 static func _ship(p: Painter, s: int, v: int) -> void:
-	var hull := PackedVector2Array([Vector2(15, 0), Vector2(29, 14), Vector2(29, 95), Vector2(1, 95), Vector2(1, 14)])
+	# 60x192, 14 slices: container ship with a stern superstructure
+	var hull := PackedVector2Array([Vector2(30, 0), Vector2(58, 26), Vector2(58, 190), Vector2(2, 190), Vector2(2, 26)])
+	var deck := PackedVector2Array([Vector2(30, 6), Vector2(54, 28), Vector2(54, 186), Vector2(6, 186), Vector2(6, 28)])
 	match s:
 		0:
-			p.poly(PackedVector2Array([Vector2(15, 3), Vector2(27, 15), Vector2(27, 94), Vector2(3, 94), Vector2(3, 15)]), P(Pal.RED_D))
-		1, 2, 3:
+			p.poly(PackedVector2Array([Vector2(30, 6), Vector2(55, 28), Vector2(55, 188), Vector2(5, 188), Vector2(5, 28)]), P(Pal.RED_D))
+		1, 2:
+			p.poly(hull, P(Pal.RED_D) if s == 1 else P(Pal.NAVY))
+		3, 4:
 			p.poly(hull, P(Pal.NAVY))
-		4:
+			if s == 4:
+				p.rect(2, 60, 56, 1, P(Pal.WHITE))
+		5:
 			p.poly(hull, P(Pal.DGRAY))
-			p.poly(PackedVector2Array([Vector2(15, 4), Vector2(27, 16), Vector2(27, 93), Vector2(3, 93), Vector2(3, 16)]), P(Pal.RED_D))
-		5, 6, 7:
-			var cols := [Pal.RED, Pal.OCEAN, Pal.GREEN, Pal.AMBER, Pal.LGRAY, Pal.ORANGE]
-			for row in range(4):
-				for k in range(3):
-					var ci: int = cols[(row * 3 + k + s) % cols.size()]
-					p.rect(4 + k * 8, 18 + row * 14, 7, 12, P(ci))
-			p.rect(4, 80, 22, 13, P(Pal.WHITE))
-		8:
-			p.rect(5, 80, 20, 12, P(Pal.WHITE))
-			for wx in range(6, 24, 3):
-				p.erect(wx, 80, 2, 1, P(Pal.WARM))
-		9:
-			p.rect(6, 82, 18, 8, P(Pal.LGRAY))
-			p.rect(13, 88, 4, 4, P(Pal.RED))
-			p.epx(15, 82, P(Pal.RED), Painter.EM_BLINK)
+			p.poly(deck, P(Pal.GRAY))
+			for y in range(30, 186, 10):
+				p.rect(6, y, 48, 1, P(Pal.DGRAY))
+		6, 7, 8, 9:
+			var cols := [Pal.RED, Pal.OCEAN, Pal.GREEN, Pal.AMBER, Pal.LGRAY, Pal.ORANGE, Pal.WHITE, Pal.STEEL]
+			var layer := s - 6
+			for row in 6:
+				for k in 4:
+					if layer >= 2 and CityGen.hashf(row, k, 31 + layer) < 0.35:
+						continue
+					var ci: int = cols[int(CityGen.hashf(row, k, 7 + layer) * cols.size()) % cols.size()]
+					var c := P(ci)
+					p.rect(8 + k * 11, 34 + row * 22, 10, 20, c)
+					if layer % 2 == 1:
+						for y in range(35 + row * 22, 53 + row * 22, 3):
+							p.rect(8 + k * 11, y, 10, 1, c.darkened(0.15))
+		10, 11:
+			p.rect(10, 160, 40, 24, P(Pal.WHITE))
+			for wx in range(12, 48, 4):
+				p.erect(wx, 160, 2, 1, P(Pal.WARM))
+				p.erect(wx, 183, 2, 1, P(Pal.WARM))
+		12:
+			p.rect(8, 162, 44, 10, P(Pal.LGRAY))
+			p.rect(9, 162, 42, 2, Color("2c3e5a"))
+			p.rect(24, 174, 10, 8, P(Pal.RED))
+		13:
+			p.rect(25, 175, 8, 6, P(Pal.CHAR))
+			p.rect(28, 163, 2, 4, P(Pal.GRAY))
+			p.epx(29, 162, P(Pal.RED), Painter.EM_BLINK)
 
 
 static func _airliner(p: Painter, s: int, v: int) -> void:

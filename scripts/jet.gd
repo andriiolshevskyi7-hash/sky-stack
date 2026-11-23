@@ -219,8 +219,8 @@ func step(delta: float) -> void:
 			pitch_in = stick.y * (-1.0 if invert_pitch else 1.0)
 			if absf(pitch_in) < 0.12:
 				pitch_in = 0.0
-		turn_rate = lerpf(turn_rate, target_rate, 1.0 - exp(-delta * 6.0))
-		pitch = lerpf(pitch, pitch_in * MAX_PITCH, 1.0 - exp(-delta * 3.0))
+		turn_rate = lerpf(turn_rate, target_rate, 1.0 - exp(-delta * 4.5))
+		pitch = lerpf(pitch, pitch_in * MAX_PITCH, 1.0 - exp(-delta * 2.6))
 		# back flip: full climb + boost held; front flip: full dive + boost held
 		if not autopilot and boosting and absf(pitch_in) > 0.9:
 			_flip_hold += delta
@@ -240,7 +240,9 @@ func step(delta: float) -> void:
 			_eject_hold = 0.0
 	yaw = wrapf(yaw + turn_rate * delta, -PI, PI)
 	var bank := deg_to_rad(float(cfg["bank"]))
-	roll = lerpf(roll, clampf(turn_rate / maxf(0.1, float(cfg["turn"])), -1.0, 1.0) * bank, 1.0 - exp(-delta * 5.0))
+	# smooth banking: roll leads into the turn and eases back out
+	var want_roll := clampf(turn_rate / maxf(0.1, float(cfg["turn"])), -1.0, 1.0) * bank
+	roll = lerpf(roll, want_roll, 1.0 - exp(-delta * 3.4))
 	position += forward3() * speed * delta
 	var ceiling := float(cfg["ceiling"])
 	if position.y > ceiling:
