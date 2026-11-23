@@ -9,10 +9,10 @@ extends Node3D
 ## see-through in the overhead view so they never hide the jet.
 
 const COUNT := 26
-const RANGE := 1400.0
-const BASE_Y := 280.0
-const SCALE := 3.2
-const PUFF_R := 85.0
+const RANGE := 2600.0
+const BASE_Y := 560.0
+const SCALE := 6.0
+const PUFF_R := 170.0
 
 var focus := Vector3.ZERO
 var daynight: DayNight
@@ -35,7 +35,7 @@ func _ready() -> void:
 	var m: ShaderMaterial = Stacks.batch_material("cloud").duplicate()
 	m.set_shader_parameter("receive_shadow", false)
 	m.set_shader_parameter("fadeable", true)
-	m.set_shader_parameter("near_fade", 140.0)
+	m.set_shader_parameter("near_fade", 260.0)
 	mat = m
 	batch = StackBatch.new().setup("cloud", COUNT * 3, m)
 	add_child(batch)
@@ -47,8 +47,8 @@ func _ready() -> void:
 func _noise(x: float, z: float, off: Vector2) -> float:
 	if _img == null:
 		return 0.0
-	var u := fposmod((x + off.x) / 1400.0, 1.0)
-	var v := fposmod((z + off.y) / 1400.0, 1.0)
+	var u := fposmod((x + off.x) / 2800.0, 1.0)
+	var v := fposmod((z + off.y) / 2800.0, 1.0)
 	return _img.get_pixel(int(u * 128.0) % 128, int(v * 128.0) % 128).r
 
 
@@ -79,8 +79,8 @@ func _process(_delta: float) -> void:
 		var v := variants[i]
 		var pos := Vector3(p.x, BASE_Y, p.y)
 		batch.push_scaled(pos, 0.0, v, Color.WHITE, SCALE, SCALE)
-		batch.push_scaled(pos + Vector3(60, -4, 26), 1.2, (v + 1) % 3, Color.WHITE, SCALE * 0.75, SCALE * 0.7)
-		batch.push_scaled(pos + Vector3(-52, -2, -34), 2.5, (v + 2) % 3, Color.WHITE, SCALE * 0.7, SCALE * 0.65)
+		batch.push_scaled(pos + Vector3(120, -8, 52), 1.2, (v + 1) % 3, Color.WHITE, SCALE * 0.75, SCALE * 0.7)
+		batch.push_scaled(pos + Vector3(-104, -4, -68), 2.5, (v + 2) % 3, Color.WHITE, SCALE * 0.7, SCALE * 0.65)
 	batch.end()
 
 

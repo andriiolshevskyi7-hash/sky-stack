@@ -2,6 +2,7 @@ extends Node
 ## Autoload "Save": high score + all settings in user://save.cfg
 
 const PATH := "user://save.cfg"
+const VERSION := 2
 var high_score := 0
 var settings := {}
 
@@ -33,9 +34,14 @@ func _ready() -> void:
 	if cf.load(PATH) == OK:
 		high_score = cf.get_value("game", "high_score", 0)
 		var saved: Dictionary = cf.get_value("settings", "values", {})
+		var ver: int = cf.get_value("settings", "version", 1)
 		for k in saved:
 			if settings.has(k):
 				settings[k] = saved[k]
+		if ver < VERSION:
+			# world became 2x bigger: altitudes/speed defaults changed
+			for k in ["speed", "cruise", "ceiling", "clearance"]:
+				settings[k] = SettingsScreen.defaults()[k]
 	apply()
 
 
@@ -47,6 +53,7 @@ func store() -> void:
 	var cf := ConfigFile.new()
 	cf.set_value("game", "high_score", high_score)
 	cf.set_value("settings", "values", settings)
+	cf.set_value("settings", "version", VERSION)
 	cf.save(PATH)
 
 

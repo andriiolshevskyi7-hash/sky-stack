@@ -89,13 +89,13 @@ func _ready() -> void:
 	terrain = MeshInstance3D.new()
 	terrain.name = "Terrain"
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(20000, 20000)
+	plane.size = Vector2(40000, 40000)
 	terrain.mesh = plane
 	var tmat := ShaderMaterial.new()
 	tmat.shader = preload("res://shaders/terrain.gdshader")
 	terrain.material_override = tmat
 	terrain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	terrain.custom_aabb = AABB(Vector3(-10000, -10, -10000), Vector3(20000, 20, 20000))
+	terrain.custom_aabb = AABB(Vector3(-20000, -10, -20000), Vector3(40000, 20, 40000))
 	world.add_child(terrain)
 
 	chunks = ChunkManager.new()
@@ -281,8 +281,10 @@ func _process(delta: float) -> void:
 	var gf := ground_focus()
 	chunks.focus = gf
 	traffic.focus = gf
-	terrain.position = Vector3(snappedf(gf.x, 64.0), 0.0, snappedf(gf.z, 64.0))
-	clouds.opacity = lerpf(clouds.opacity, 0.35 if cam.mode == GameCamera.Mode.OVERHEAD else 1.0, 1.0 - exp(-delta * 3.0))
+	terrain.position = Vector3(snappedf(gf.x, 256.0), 0.0, snappedf(gf.z, 256.0))
+	var over := cam.mode == GameCamera.Mode.OVERHEAD
+	clouds.opacity = lerpf(clouds.opacity, 0.5 if over else 1.0, 1.0 - exp(-delta * 3.0))
+	clouds.mat.set_shader_parameter("near_fade", 700.0 if over else 260.0)
 	fx.clear_columns_far(cam.focus, 900.0)
 	daynight.focus = gf
 	clouds.focus = gf
@@ -713,7 +715,7 @@ func test_hook(t: Node) -> Array:
 	tutorial.step = 99 # pause the wave director while testing
 	enemies.clear()
 	jet.autopilot = false
-	jet.position.y = 200.0
+	jet.position.y = 320.0
 	jet.pitch = 0.0
 	jet.turn_rate = 0.0
 	jet.man = Jet.M_NONE
@@ -738,7 +740,7 @@ func test_hook(t: Node) -> Array:
 	var d0 := missiles.dodges
 	missiles.fire_enemy(jet.position - jet.forward() * 200.0)
 	var rolled := false
-	for i in 300:
+	for i in 900:
 		await t.get_tree().process_frame
 		if not rolled and missiles.incoming_t < 0.35:
 			jet.barrel_roll()
@@ -777,7 +779,7 @@ func test_hook(t: Node) -> Array:
 	tutorial.stop()
 	# --- settings apply live (and defaults match the spec)
 	var d := SettingsScreen.defaults()
-	if d["speed"] != 92.0 or d["cruise"] != 110.0 or d["missiles"] != 6.0 or d["islands"] != 0.33 or d["glow"] != 0.8:
+	if d["speed"] != 130.0 or d["cruise"] != 220.0 or d["missiles"] != 6.0 or d["islands"] != 0.33 or d["glow"] != 0.8:
 		errs.append("settings defaults differ from the spec")
 	settings_ui.set_value("speed", 150.0)
 	if float(jet.cfg["speed"]) != 150.0:

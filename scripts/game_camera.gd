@@ -11,7 +11,7 @@ extends Camera3D
 enum Mode { OVERHEAD, CHASE, COCKPIT }
 const MODE_NAMES := ["OVERHEAD", "CHASE", "COCKPIT"]
 const FOV := [48.0, 62.0, 76.0]
-const FOG_FAR := [0.0, 3600.0, 3600.0]
+const FOG_FAR := [0.0, 7000.0, 7000.0]
 ## chase framing: jet width as a fraction of the screen height
 const CHASE_JET_FRAC := 0.19
 const CHASE_HEIGHT_DEG := 25.0
@@ -42,7 +42,7 @@ var shake_mult := 1.0
 func _ready() -> void:
 	projection = PROJECTION_PERSPECTIVE
 	near = 0.5
-	far = 9000.0
+	far = 16000.0
 	fov = 62.0
 	current = true
 
@@ -71,7 +71,7 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 		Mode.OVERHEAD:
 			var a: float = jet.yaw * overhead_follow
 			var up := Vector3(-sin(a), 0.0, -cos(a))
-			var p := jp + Vector3(0.0, 430.0, 0.0) - up * 40.0
+			var p := jp + Vector3(0.0, 560.0, 0.0) - up * 50.0
 			return Transform3D(Basis.IDENTITY, p).looking_at(jp + up * 6.0, up)
 		Mode.CHASE:
 			var f: Vector3 = jet.forward()
@@ -145,8 +145,8 @@ func ground_point() -> Vector3:
 	var f := -global_transform.basis.z
 	var o := global_position
 	if f.y < -0.08:
-		var t := minf(-o.y / f.y, 700.0)
+		var t := minf(-o.y / f.y, 1400.0)
 		var p := o + f * t
 		return Vector3(p.x, 0.0, p.z)
-	var p2 := o + Vector3(f.x, 0.0, f.z).normalized() * 450.0
+	var p2 := o + Vector3(f.x, 0.0, f.z).normalized() * 900.0
 	return Vector3(p2.x, 0.0, p2.z)

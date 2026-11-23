@@ -12,8 +12,14 @@ const HALF_ST := 8.0
 const LOT := 48.0
 const CHUNK := 256.0
 const BPC := 4
-const JET_ALT := 110.0 # default cruise altitude (above almost every roof)
-const LOW_ALT := 75.0 # below this you are "low flying" between towers
+## The city is generated in "virtual" units and every chunk is rendered at
+## scale S, so the whole world (buildings, roads, props, islands) is S times
+## bigger than the jet. Gameplay code works in world units (the *_w helpers).
+const S := 2.0
+const WBLOCK := 64.0 * S
+const WCHUNK := 256.0 * S
+const JET_ALT := 220.0 # world: default cruise altitude (above almost every roof)
+const LOW_ALT := 150.0 # world: below this you are "low flying" between towers
 
 ## Island heightmap: 256x256 bytes tiling every 256*24 world units. 0.5 = sea
 ## level. Shared with the GPU (global "island_tex") so land/water always match.
@@ -151,6 +157,15 @@ static func island_h(x: float, z: float) -> float:
 	var a := lerpf(isl[z0 + x0], isl[z0 + x1], fx)
 	var b := lerpf(isl[z1 + x0], isl[z1 + x1], fx)
 	return lerpf(a, b, fz) / 255.0
+
+
+## World-unit versions for gameplay code.
+static func island_hw(x: float, z: float) -> float:
+	return island_h(x / S, z / S)
+
+
+static func is_water_w(x: float, z: float) -> bool:
+	return island_h(x / S, z / S) < SEA
 
 
 static func is_land(x: float, z: float, margin: float = 0.0) -> bool:
@@ -297,7 +312,7 @@ static func _roof_uv(style: int) -> Vector2:
 
 
 static func _stack(cb: Build, sheet: String, variant: int, pos: Vector3, yaw: float, scale: float = 1.0, tint: Color = Color.WHITE) -> void:
-	cb.p.add_stack(cb.sheets[sheet], variant, pos, yaw, scale, tint)
+	cb.p.add_stack(cb.sheets[sheet], variant, pos, yaw, scale, tint, 2)
 
 
 static func _glow(cb: Build, x: float, z: float, size: float, col: Color) -> void:
@@ -457,7 +472,7 @@ static func _lamps(cb: Build, lx0: float, lz0: float, lx1: float, lz1: float) ->
 		]
 		for s in spots:
 			var yaw := atan2(-s[3], s[2])
-			cb.p.add_stack(lamp, 0, Vector3(s[0], 0.2, s[1]), yaw, 1.0, Color.WHITE)
+			cb.p.add_stack(lamp, 0, Vector3(s[0], 0.2, s[1]), yaw, 1.0, Color.WHITE, 2)
 			_glow(cb, s[0] + s[2] * 3.5, s[1] + s[3] * 3.5, 15.0, LAMP_GLOW)
 
 

@@ -6,7 +6,7 @@ extends Node3D
 const MAX := 40
 const LOCK_TIME := 0.8
 const LOCK_CONE := 0.25
-const LOCK_RANGE := 650.0
+const LOCK_RANGE := 900.0
 
 class M:
 	var active := false

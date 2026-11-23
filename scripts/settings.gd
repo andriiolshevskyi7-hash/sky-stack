@@ -10,13 +10,13 @@ signal changed(key: String)
 
 ## [section, key, label, type, default, a, b, step]  type: f = slider, b = toggle, c = choice (a = options)
 const SCHEMA := [
-	["FLIGHT", "speed", "Speed", "f", 92.0, 40.0, 200.0, 1.0],
+	["FLIGHT", "speed", "Speed", "f", 130.0, 40.0, 300.0, 1.0],
 	["FLIGHT", "boost", "Thruster boost (x speed while held)", "f", 1.8, 1.0, 3.0, 0.05],
 	["FLIGHT", "turn", "Turn rate", "f", 1.25, 0.5, 3.0, 0.05],
 	["FLIGHT", "bank", "Bank angle", "f", 52.0, 0.0, 85.0, 1.0],
-	["FLIGHT", "cruise", "Cruising altitude", "f", 110.0, 30.0, 400.0, 5.0],
-	["FLIGHT", "ceiling", "Ceiling (highest it climbs)", "f", 1500.0, 200.0, 3000.0, 50.0],
-	["FLIGHT", "clearance", "Ground clearance (lowest it skims)", "f", 7.0, 2.0, 40.0, 1.0],
+	["FLIGHT", "cruise", "Cruising altitude", "f", 220.0, 60.0, 800.0, 10.0],
+	["FLIGHT", "ceiling", "Ceiling (highest it climbs)", "f", 3000.0, 400.0, 6000.0, 100.0],
+	["FLIGHT", "clearance", "Ground clearance (lowest it skims)", "f", 14.0, 4.0, 80.0, 1.0],
 	["FLIGHT", "wingmen", "Wingmen", "f", 1.0, 0.0, 3.0, 1.0],
 	["FLIGHT", "invert", "Invert climb/dive (drag up climbs)", "b", false],
 	["FLIGHT", "crashes", "Crashes (dive into the ground to eject)", "b", true],

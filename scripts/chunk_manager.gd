@@ -23,7 +23,7 @@ var _regen := {} # keys to regenerate after destruction
 
 
 func _key_at(x: float, z: float) -> Vector2i:
-	return Vector2i(floori(x / CityGen.CHUNK), floori(z / CityGen.CHUNK))
+	return Vector2i(floori(x / CityGen.WCHUNK), floori(z / CityGen.WCHUNK))
 
 
 func wanted_keys() -> Array[Vector2i]:
@@ -109,7 +109,15 @@ func _mesh_node(arrays: Array, mat: Material, node_name: String) -> MeshInstance
 
 func _finish(data: Dictionary) -> void:
 	var k: Vector2i = data["key"]
+	# geometry is in virtual units: render the chunk at world scale and convert
+	# the gameplay data (boxes, roofs, chimneys) to world units
+	for arr_name in ["boxes", "roofs", "chimneys"]:
+		var a: PackedFloat32Array = data[arr_name]
+		for i in a.size():
+			a[i] *= CityGen.S
+		data[arr_name] = a
 	var node := Node3D.new()
+	node.scale = Vector3.ONE * CityGen.S
 	node.name = "Chunk_%d_%d" % [k.x, k.y]
 	if not data["ground"].is_empty():
 		node.add_child(_mesh_node(data["ground"], Stacks.ground_mat, "Ground"))
@@ -140,9 +148,9 @@ func collide(x: float, z: float, r: float, min_h: float) -> Vector2:
 			var kk := k + Vector2i(dx, dz)
 			if not chunks.has(kk):
 				continue
-			var cx0 := kk.x * CityGen.CHUNK
-			var cz0 := kk.y * CityGen.CHUNK
-			if x + r + 2.0 < cx0 or x - r - 2.0 > cx0 + CityGen.CHUNK or z + r + 2.0 < cz0 or z - r - 2.0 > cz0 + CityGen.CHUNK:
+			var cx0 := kk.x * CityGen.WCHUNK
+			var cz0 := kk.y * CityGen.WCHUNK
+			if x + r + 2.0 < cx0 or x - r - 2.0 > cx0 + CityGen.WCHUNK or z + r + 2.0 < cz0 or z - r - 2.0 > cz0 + CityGen.WCHUNK:
 				continue
 			var b: PackedFloat32Array = chunks[kk]["data"]["boxes"]
 			var ids: PackedInt64Array = chunks[kk]["data"]["ids"]

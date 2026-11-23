@@ -5,8 +5,8 @@ extends Node3D
 ## boats/ships cruising the ocean between the islands. Pooled + instanced.
 
 const CARS := 150
-const RADIUS := 430.0
-const LANE := 4.0
+const RADIUS := 760.0
+const LANE := 4.0 * CityGen.S
 
 var focus := Vector3.ZERO
 var rng := RandomNumberGenerator.new()
@@ -70,11 +70,11 @@ func _is_urban(bx: int, bz: int) -> bool:
 ## Cached version of CityGen.is_drivable (main thread only).
 func _drivable(x: float, z: float, along_x: bool) -> bool:
 	if along_x:
-		var row := roundi(z / CityGen.BLOCK)
-		var bx := floori(x / CityGen.BLOCK)
+		var row := roundi(z / CityGen.WBLOCK)
+		var bx := floori(x / CityGen.WBLOCK)
 		return _is_urban(bx, row - 1) or _is_urban(bx, row)
-	var col := roundi(x / CityGen.BLOCK)
-	var bz := floori(z / CityGen.BLOCK)
+	var col := roundi(x / CityGen.WBLOCK)
+	var bz := floori(z / CityGen.WBLOCK)
 	return _is_urban(col - 1, bz) or _is_urban(col, bz)
 
 
@@ -92,21 +92,21 @@ func _respawn_car(i: int) -> void:
 		var across := rng.randf_range(-RADIUS, RADIUS)
 		var p: Vector3
 		if axis == 0:
-			var row := roundi((focus.z + across) / CityGen.BLOCK)
-			p = Vector3(focus.x + along, 0.0, row * CityGen.BLOCK + LANE * dir)
+			var row := roundi((focus.z + across) / CityGen.WBLOCK)
+			p = Vector3(focus.x + along, 0.0, row * CityGen.WBLOCK + LANE * dir)
 		else:
-			var col := roundi((focus.x + across) / CityGen.BLOCK)
-			p = Vector3(col * CityGen.BLOCK - LANE * dir, 0.0, focus.z + along)
+			var col := roundi((focus.x + across) / CityGen.WBLOCK)
+			p = Vector3(col * CityGen.WBLOCK - LANE * dir, 0.0, focus.z + along)
 		if not _drivable(p.x, p.z, axis == 0):
 			continue
 		c_pos[i] = p
 		c_axis[i] = axis
 		c_dir[i] = dir
 		c_bus[i] = 1 if rng.randf() < 0.12 else 0
-		c_speed[i] = rng.randf_range(16.0, 30.0) * (0.75 if c_bus[i] == 1 else 1.0)
+		c_speed[i] = rng.randf_range(32.0, 60.0) * (0.75 if c_bus[i] == 1 else 1.0)
 		c_var[i] = rng.randi() % (2 if c_bus[i] == 1 else 6)
 		var a := p.x if axis == 0 else p.z
-		c_next[i] = (floorf(a / CityGen.BLOCK) + (1.0 if dir > 0.0 else 0.0)) * CityGen.BLOCK
+		c_next[i] = (floorf(a / CityGen.WBLOCK) + (1.0 if dir > 0.0 else 0.0)) * CityGen.WBLOCK
 		return
 	c_speed[i] = 0.0
 	c_pos[i] = Vector3(0, -999, 0)
@@ -137,7 +137,7 @@ func _cars(delta: float) -> void:
 		var crossed := (dir > 0.0 and na >= c_next[i]) or (dir < 0.0 and na <= c_next[i])
 		if crossed:
 			var inter := c_next[i]
-			c_next[i] += CityGen.BLOCK * dir
+			c_next[i] += CityGen.WBLOCK * dir
 			var r := rng.randf()
 			if r < 0.3:
 				# turn onto the crossing street (right-hand traffic lanes)
@@ -155,7 +155,7 @@ func _cars(delta: float) -> void:
 					c_dir[i] = new_dir
 					p = np
 					var aa := p.x if new_axis == 0 else p.z
-					c_next[i] = (floorf(aa / CityGen.BLOCK) + (1.0 if new_dir > 0.0 else 0.0)) * CityGen.BLOCK
+					c_next[i] = (floorf(aa / CityGen.WBLOCK) + (1.0 if new_dir > 0.0 else 0.0)) * CityGen.WBLOCK
 					c_pos[i] = p
 					axis = new_axis
 					dir = new_dir
@@ -174,14 +174,14 @@ func _cars(delta: float) -> void:
 			else:
 				p.x -= LANE * 2.0 * dir
 			var a2 := p.x if axis == 0 else p.z
-			c_next[i] = (floorf(a2 / CityGen.BLOCK) + (1.0 if dir > 0.0 else 0.0)) * CityGen.BLOCK
-		p.y = 0.35
+			c_next[i] = (floorf(a2 / CityGen.WBLOCK) + (1.0 if dir > 0.0 else 0.0)) * CityGen.WBLOCK
+		p.y = 0.7
 		c_pos[i] = p
 		active_cars += 1
 		if c_bus[i] == 1:
-			bus_batch.push(p, _yaw(axis, dir), c_var[i])
+			bus_batch.push(p, _yaw(axis, dir), c_var[i], Color.WHITE, 0.0, 0.0, CityGen.S)
 		else:
-			car_batch.push(p, _yaw(axis, dir), c_var[i])
+			car_batch.push(p, _yaw(axis, dir), c_var[i], Color.WHITE, 0.0, 0.0, CityGen.S)
 	car_batch.end()
 	bus_batch.end()
 
@@ -195,31 +195,31 @@ func _boats(delta: float) -> void:
 		var arr: Array[Vector4] = sea_boats if big else river_boats
 		var k := i - river_boats.size() if big else i
 		var b := arr[k]
-		if b.w < 0.0 or Vector2(b.x - focus.x, b.y - focus.z).length() > 700.0:
+		if b.w < 0.0 or Vector2(b.x - focus.x, b.y - focus.z).length() > 1200.0:
 			b.w = -1.0
 			for attempt in 6:
 				var a := rng.randf() * TAU
-				var r := rng.randf_range(150.0, 650.0)
+				var r := rng.randf_range(250.0, 1100.0)
 				var px := focus.x + cos(a) * r
 				var pz := focus.z + sin(a) * r
-				if CityGen.island_h(px, pz) < (0.42 if big else 0.47):
-					b = Vector4(px, pz, rng.randf() * TAU, rng.randf_range(14.0, 22.0) if big else rng.randf_range(18.0, 34.0))
+				if CityGen.island_hw(px, pz) < (0.42 if big else 0.47):
+					b = Vector4(px, pz, rng.randf() * TAU, rng.randf_range(28.0, 44.0) if big else rng.randf_range(36.0, 68.0))
 					break
 			if b.w < 0.0:
 				arr[k] = b
 				continue
 		var fwd := Vector2(-sin(b.z), -cos(b.z))
-		var ahead := Vector2(b.x, b.y) + fwd * (70.0 if big else 30.0)
-		if CityGen.island_h(ahead.x, ahead.y) > 0.46:
+		var ahead := Vector2(b.x, b.y) + fwd * (140.0 if big else 60.0)
+		if CityGen.island_hw(ahead.x, ahead.y) > 0.46:
 			b.z += delta * 1.2 # steer away from the shore
 		b.x += fwd.x * b.w * delta
 		b.y += fwd.y * b.w * delta
 		arr[k] = b
 		if big:
-			ship_batch.push(Vector3(b.x, 0.4, b.y), b.z, 0)
+			ship_batch.push(Vector3(b.x, 0.6, b.y), b.z, 0, Color.WHITE, 0.0, 0.0, CityGen.S)
 		else:
-			boat_batch.push(Vector3(b.x, 0.4, b.y), b.z, k % 2)
+			boat_batch.push(Vector3(b.x, 0.6, b.y), b.z, k % 2, Color.WHITE, 0.0, 0.0, CityGen.S)
 			if fx != null and Engine.get_process_frames() % 4 == 0:
-				fx.wake(Vector3(b.x, 0.3, b.y) - Vector3(fwd.x, 0, fwd.y) * 16.0)
+				fx.wake(Vector3(b.x, 0.5, b.y) - Vector3(fwd.x, 0, fwd.y) * 32.0)
 	boat_batch.end()
 	ship_batch.end()

@@ -86,7 +86,7 @@ func test_world_gen() -> void:
 			var bx: PackedFloat32Array = c["boxes"]
 			total_boxes += bx.size() / 5
 			for i in bx.size() / 5:
-				if bx[i * 5 + 4] > CityGen.LOW_ALT:
+				if bx[i * 5 + 4] > CityGen.LOW_ALT / CityGen.S:
 					tall += 1
 	var ms := Time.get_ticks_msec() - t0
 	check(total_boxes > 60, "5x5 chunks around the origin contain a city (%d buildings)" % total_boxes)

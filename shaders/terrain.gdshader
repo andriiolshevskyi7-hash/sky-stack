@@ -24,7 +24,7 @@ void vertex() {
 
 void fragment() {
 	vec2 p = floor(wpos.xz) + 0.5; // one terrain sample per world unit = crisp pixels
-	float h = island_h(p);
+	float h = island_h(p * 0.5); // map is in virtual units (world scale 2)
 	vec3 col;
 	if (h < 0.5) {
 		float depth = 0.5 - h;
@@ -43,7 +43,7 @@ void fragment() {
 	} else if (h < 0.525) {
 		col = h < 0.506 ? SAND_WET : SAND;
 	} else {
-		float f = texture(cloud_tex, fract(p / 2200.0 + vec2(0.37, 0.61))).r;
+		float f = texture(cloud_tex, fract(p / 4400.0 + vec2(0.37, 0.61))).r;
 		col = f > 0.55 ? FOREST : (h < 0.535 ? GRASS_LIGHT : GRASS);
 	}
 	ALBEDO = fogged(lit(col, wpos), wpos);

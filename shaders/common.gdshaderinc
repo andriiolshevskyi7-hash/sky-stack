@@ -21,7 +21,7 @@ global uniform vec3 fog_color;
 
 const vec3 SHADOW_TINT = vec3(0.42, 0.55, 0.88);
 
-const float CLOUD_SHADOW_H = 300.0;
+const float CLOUD_SHADOW_H = 600.0;
 
 float bayer2(vec2 a) {
 	a = floor(a);
@@ -54,7 +54,7 @@ float shadow_amount(vec3 w) {
 		}
 	}
 	if (w.y < CLOUD_SHADOW_H - 10.0) {
-		vec2 cp = (w.xz - sun_shift * (CLOUD_SHADOW_H - w.y) + cloud_offset) / 1400.0;
+		vec2 cp = (w.xz - sun_shift * (CLOUD_SHADOW_H - w.y) + cloud_offset) / 2800.0;
 		float n = texture(cloud_tex, fract(cp)).r;
 		s = max(s, cloud_shadow * step(cloud_cover, n));
 	}

@@ -26,7 +26,7 @@ const HORIZON_NIGHT := Color("2a2f4e")
 const TOP_DAY := Color("2f74d6")
 const TOP_NIGHT := Color("0a0a14")
 var cloud_offset := Vector2.ZERO
-const WIND := Vector2(9.0, 4.0)
+const WIND := Vector2(18.0, 8.0)
 
 var beams: Array[MeshInstance3D] = []
 var _bt := 0.0
@@ -47,11 +47,11 @@ func _ready() -> void:
 func _beam_mesh() -> ArrayMesh:
 	# two crossed tapered quads, origin at the bottom, pointing +Y
 	var mb := MeshBuf.new()
-	var h := 300.0
+	var h := 600.0
 	for k in 2:
 		var ax := Vector3(1, 0, 0) if k == 0 else Vector3(0, 0, 1)
-		var w0 := 1.5
-		var w1 := 26.0
+		var w0 := 3.0
+		var w1 := 52.0
 		mb.quad(ax * -w1 + Vector3(0, h, 0), ax * w1 + Vector3(0, h, 0), ax * w0, ax * -w0,
 			Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1), Color.WHITE)
 	return mb.commit()
@@ -101,7 +101,7 @@ func sun_shift() -> Vector2:
 func _update_beams(delta: float) -> void:
 	_bt += delta
 	var on := night > 0.05
-	var grid := 320.0
+	var grid := 640.0
 	var gx := roundf(focus.x / grid) * grid
 	var gz := roundf(focus.z / grid) * grid
 	var offs := [Vector2(0, 0), Vector2(grid, 0), Vector2(-grid, 0), Vector2(0, grid), Vector2(0, -grid)]
@@ -111,8 +111,8 @@ func _update_beams(delta: float) -> void:
 		if not on:
 			continue
 		var o: Vector2 = offs[i]
-		var bx := gx + o.x + CityGen.hashf(int(gx + o.x), int(gz + o.y), 5) * 100.0 - 50.0
-		var bz := gz + o.y + CityGen.hashf(int(gx + o.x), int(gz + o.y), 6) * 100.0 - 50.0
+		var bx := gx + o.x + CityGen.hashf(int(gx + o.x), int(gz + o.y), 5) * 200.0 - 100.0
+		var bz := gz + o.y + CityGen.hashf(int(gx + o.x), int(gz + o.y), 6) * 200.0 - 100.0
 		var sweep := _bt * (0.5 + 0.13 * i) + i * 1.7
 		var tilt := 0.35 + 0.2 * sin(_bt * 0.7 + i)
 		b.global_transform = Transform3D(Basis.from_euler(Vector3(tilt, sweep, 0.0)), Vector3(bx, 0.5, bz))

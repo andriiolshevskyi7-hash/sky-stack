@@ -134,7 +134,7 @@ func _process(delta: float) -> void:
 				var goal := jp
 				if e.target_id >= 0:
 					e.orbit += delta * 0.9
-					goal = e.target_pos + Vector3(cos(e.orbit), 0, sin(e.orbit)) * 34.0
+					goal = e.target_pos + Vector3(cos(e.orbit), 0, sin(e.orbit)) * 70.0
 				_steer(e, goal, 2.2, delta)
 				e.pos += _forward(e.yaw) * e.speed * delta
 				if e.fire_cd <= 0.0:
@@ -219,12 +219,12 @@ func _process(delta: float) -> void:
 func _alt(e: E) -> float:
 	match e.type:
 		BOMBER:
-			return 160.0
+			return 320.0
 		DRONE:
-			var base := e.target_pos.y + 14.0 if e.target_id >= 0 else jet.position.y
-			return clampf(base, 25.0, 190.0) + sin(e.t * 2.0 + e.orbit) * 3.0
+			var base := e.target_pos.y + 28.0 if e.target_id >= 0 else jet.position.y
+			return clampf(base, 50.0, 380.0) + sin(e.t * 2.0 + e.orbit) * 3.0
 	# fighters follow the player's altitude
-	return clampf(jet.position.y + sin(e.t * 0.7) * 10.0, 20.0, 210.0)
+	return clampf(jet.position.y + sin(e.t * 0.7) * 20.0, 30.0, 2900.0)
 
 
 

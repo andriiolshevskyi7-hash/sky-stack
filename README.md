@@ -52,8 +52,8 @@ three for free. An AI wingman flies with you.
 
 All values persist in `user://save.cfg`. Defaults:
 
-* **Flight** – speed 92, boost x1.8, turn rate 1.25, bank 52°, cruising
-  altitude 110, ceiling 1500, ground clearance 7, wingmen 1, crashes on,
+* **Flight** – speed 130, boost x1.8, turn rate 1.25, bank 52°, cruising
+  altitude 220, ceiling 3000, ground clearance 14, wingmen 1, crashes on,
   invert off
 * **Combat** – cannon 300, missiles 6, reload 5 s, enemy jets 3, dodge slow
   motion 1.3 s

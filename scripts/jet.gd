@@ -27,8 +27,8 @@ const BOOST_SPEED := BASE_SPEED * 1.8
 
 ## tunables (pause-menu settings)
 var cfg := {
-	"speed": 92.0, "boost": 1.8, "turn": 1.25, "bank": 52.0, "cruise": 110.0,
-	"ceiling": 1500.0, "clearance": 7.0, "crashes": true, "cannon": 300, "reload": 5.0,
+	"speed": 130.0, "boost": 1.8, "turn": 1.25, "bank": 52.0, "cruise": 220.0,
+	"ceiling": 3000.0, "clearance": 14.0, "crashes": true, "cannon": 300, "reload": 5.0,
 }
 
 var yaw := 0.0
@@ -158,7 +158,7 @@ func barrel_roll() -> void:
 func loop(front: bool = false) -> void:
 	if not alive or man == M_LOOP or man == M_FRONT:
 		return
-	if front and position.y < 170.0:
+	if front and position.y < 200.0:
 		return
 	man = M_FRONT if front else M_LOOP
 	man_t = 0.0
@@ -230,7 +230,7 @@ func step(delta: float) -> void:
 		else:
 			_flip_hold = 0.0
 		# eject: hold a dive into the ground with boost off
-		if not autopilot and bool(cfg["crashes"]) and not boosting and pitch_in < -0.85 and position.y < 40.0:
+		if not autopilot and bool(cfg["crashes"]) and not boosting and pitch_in < -0.85 and position.y < 60.0:
 			_eject_hold += delta
 			if _eject_hold > 0.45:
 				_eject_hold = 0.0
@@ -273,8 +273,8 @@ func step(delta: float) -> void:
 				hit_building.emit(12.0)
 				if fx != null:
 					fx.sparks(position - Vector3(n.x, 0, n.y) * RADIUS, 20)
-		near_tall = chunks.nearest_tall(position.x, position.z, position.y - 6.0, 60.0)
-		if position.y < CityGen.LOW_ALT and near_tall < 26.0:
+		near_tall = chunks.nearest_tall(position.x, position.z, position.y - 6.0, 90.0)
+		if position.y < CityGen.LOW_ALT and near_tall < 44.0:
 			lowfly_time += delta
 			lowfly_grace = 1.2
 		else:
@@ -309,8 +309,8 @@ func step(delta: float) -> void:
 			trails.add(1, position + vb * Vector3(17.0, 3.0, 9.0))
 		fx.afterburner(position + vb * Vector3(0.0, 2.5, 20.0), forward3(), boosting)
 		# sea spray when skimming the water
-		if position.y < 30.0 and CityGen.is_water(position.x, position.z):
-			fx.spray(Vector3(position.x, 0.5, position.z) - forward() * 10.0, 1.0 - position.y / 30.0)
+		if position.y < 45.0 and CityGen.is_water_w(position.x, position.z):
+			fx.spray(Vector3(position.x, 0.5, position.z) - forward() * 10.0, 1.0 - position.y / 45.0)
 	# ---- visual
 	stack.basis = visual_basis()
 	stack.bank = 0.0
