@@ -627,6 +627,7 @@ func apply_settings(key: String) -> void:
 	trails.visible = st["trails"]
 	jet.trails = trails if st["trails"] else null
 	controls.helper_buttons = st["helper_buttons"]
+	controls.show_indicator = st["stick_indicator"]
 	show_debug = st["debug"]
 	AudioServer.set_bus_mute(0, not st["sound"])
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(0.001, float(st["volume"]))))

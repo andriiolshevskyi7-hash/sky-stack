@@ -1,7 +1,9 @@
 class_name Controls
 extends Node
-## Touch: drag anywhere (outside the buttons) to fly - left/right turns, drag
-## DOWN climbs, drag UP dives (invertible). A quick tap = barrel roll.
+## Touch: floating invisible joystick - touch anywhere outside the buttons and
+## that point becomes the stick centre; drag left/right to turn, DOWN to climb,
+## UP to dive (invertible). Dead zone + response curve for precision. A quick
+## tap (short, no movement) = barrel roll.
 ## Rectangular buttons: LOOP + VIEW (bottom left), MISSILE + GUN + BOOST
 ## (bottom right), pause (top right).
 ## Keyboard: A/D or arrows turn, S/Down climbs, W/Up dives, Shift boost,
@@ -31,6 +33,11 @@ var drag_radius := 110.0
 var drag_start := Vector2.ZERO
 var drag_pos := Vector2.ZERO
 var dragging := false
+var show_indicator := true
+const DEAD_ZONE := 0.08
+const CURVE := 1.6
+const TAP_MS := 220
+var _drag_max := 0.0 # furthest the finger got from the centre (px)
 var pressed := {} # name -> bool (for drawing)
 
 var _touch_role := {} # index -> role
@@ -69,7 +76,7 @@ func _layout() -> void:
 		"tutorial": Rect2(Vector2(s.x - m - 64.0 * ui_scale - gap - 150.0 * ui_scale, m), Vector2(150.0 * ui_scale, 52.0 * ui_scale)),
 		"intel": Rect2(Vector2(s.x - m - 64.0 * ui_scale - gap * 2.0 - 260.0 * ui_scale, m), Vector2(110.0 * ui_scale, 52.0 * ui_scale)),
 	}
-	drag_radius = 110.0 * ui_scale
+	drag_radius = 90.0 * ui_scale
 
 
 ## For tests/HUD: centre of a button.
@@ -87,7 +94,7 @@ func reset() -> void:
 
 func _hit_button(p: Vector2) -> String:
 	for n in btn:
-		if not helper_buttons and (n == "intel" or n == "tutorial"):
+		if n == "tutorial" or (not helper_buttons and n == "intel"):
 			continue
 		if btn[n].grow(6.0 * ui_scale).has_point(p):
 			return n
@@ -129,6 +136,7 @@ func _input(event: InputEvent) -> void:
 				drag_start = e.position
 				drag_pos = e.position
 				dragging = true
+				_drag_max = 0.0
 				_touch_t0[e.index] = Time.get_ticks_msec()
 				_touch_p0[e.index] = e.position
 		else:
@@ -136,8 +144,8 @@ func _input(event: InputEvent) -> void:
 			_touch_role.erase(e.index)
 			if role == "drag":
 				var dt: int = Time.get_ticks_msec() - int(_touch_t0.get(e.index, 0))
-				var moved: float = e.position.distance_to(_touch_p0.get(e.index, e.position))
-				if dt < 250 and moved < 14.0 * ui_scale and enabled:
+				var moved: float = maxf(_drag_max, e.position.distance_to(_touch_p0.get(e.index, e.position)))
+				if dt < TAP_MS and moved < 12.0 * ui_scale and enabled:
 					roll_pressed.emit()
 				_drag_index = -1
 				dragging = false
@@ -145,6 +153,7 @@ func _input(event: InputEvent) -> void:
 		var e := event as InputEventScreenDrag
 		if e.index == _drag_index:
 			drag_pos = e.position
+			_drag_max = maxf(_drag_max, drag_pos.distance_to(drag_start))
 			var d := drag_pos - drag_start
 			if d.length() > drag_radius * 1.5:
 				drag_start = drag_pos - d.normalized() * drag_radius * 1.5
@@ -175,6 +184,19 @@ func _input(event: InputEvent) -> void:
 				intel_pressed.emit()
 
 
+## Per-axis dead zone + response curve: small moves are precise, full
+## deflection is fast.
+func _curve(v: Vector2) -> Vector2:
+	return Vector2(_axis(v.x), _axis(v.y))
+
+
+func _axis(a: float) -> float:
+	var m := absf(a)
+	if m < DEAD_ZONE:
+		return 0.0
+	return signf(a) * pow((m - DEAD_ZONE) / (1.0 - DEAD_ZONE), CURVE)
+
+
 func _process(_delta: float) -> void:
 	var k := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
@@ -187,7 +209,7 @@ func _process(_delta: float) -> void:
 		k.y += 1.0
 	var t := Vector2.ZERO
 	if dragging:
-		t = ((drag_pos - drag_start) / drag_radius).limit_length(1.0)
+		t = _curve(((drag_pos - drag_start) / drag_radius).limit_length(1.0))
 	var raw := t if k == Vector2.ZERO else k
 	# screen-down = climb (+y); invert flips it
 	stick = Vector2(raw.x, -raw.y if invert else raw.y)

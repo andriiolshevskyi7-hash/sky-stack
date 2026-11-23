@@ -209,7 +209,24 @@ func test_touch(main: Node) -> void:
 	_touch(c.button_center("boost"), false, 3)
 	_touch(jp, false, 1)
 	await _frames(2)
-	check(not c.fire and not c.boost and c.stick == Vector2.ZERO, "buttons released")
+	check(not c.fire and not c.boost and c.stick == Vector2.ZERO, "buttons released, stick back to neutral")
+	# dead zone: a tiny wiggle does nothing; half deflection is gentler than linear
+	_touch(jp, true, 1)
+	await _frames(1)
+	_drag(jp + Vector2(c.drag_radius * 0.05, 0), 1)
+	await _frames(2)
+	check(c.stick == Vector2.ZERO, "dead zone ignores tiny movements")
+	_drag(jp + Vector2(c.drag_radius * 0.5, 0), 1)
+	await _frames(2)
+	check(c.stick.x > 0.1 and c.stick.x < 0.45, "response curve: half drag -> gentle turn (%.2f)" % c.stick.x)
+	# pressing GUN while steering does not move the stick centre
+	var before := c.drag_start
+	_touch(c.button_center("gun"), true, 2)
+	await _frames(2)
+	check(c.drag_start == before and c.fire and c.stick.x > 0.1, "multitouch: steer + hold GUN")
+	_touch(c.button_center("gun"), false, 2)
+	_touch(jp, false, 1)
+	await _frames(2)
 	# quick tap = barrel roll
 	_touch(jp, true, 1)
 	await _frames(1)

@@ -7,7 +7,7 @@ signal closed
 
 const TABS := ["TOUCH", "CONTROLLER", "MOUSE + KEYS"]
 const ROWS := {
-	"TOUCH": [["FLY", ""], ["TURN", "Drag left or right"], ["CLIMB / DIVE", "Drag down to climb, up to dive"], ["THRUSTERS", "Hold BOOST"], ["CHANGE VIEW", "VIEW"],
+	"TOUCH": [["FLY", ""], ["STICK", "Touch anywhere: that point is the stick centre"], ["TURN", "Drag left or right"], ["CLIMB / DIVE", "Drag down to climb, up to dive"], ["THRUSTERS", "Hold BOOST"], ["CHANGE VIEW", "VIEW"],
 		["TRICKS", ""], ["ROLL", "Tap"], ["BACK FLIP", "Full climb with thrusters, held"], ["FRONT FLIP", "Full dive with thrusters, held. Needs height"], ["LOOP", "LOOP (flown for you)"], ["EJECT", "Hold a dive into the ground, thrusters off"],
 		["FIGHT", ""], ["CANNON", "Hold GUN"], ["LOCK ON", "Keep an enemy ahead until the box turns red"], ["MISSILE", "MISSILE"], ["DODGE A MISSILE", "Roll as the two rings meet"], ["COUNTER", "Missile straight after a dodge fires three, free"], ["AMMO", "300 rounds, 6 missiles. Run out and it takes 5 s to reload"]],
 	"CONTROLLER": [["FLY", ""], ["TURN / PITCH", "Left stick"], ["THRUSTERS", "Right trigger"], ["CANNON", "A / Cross"], ["MISSILE", "B / Circle"], ["ROLL", "X / Square"], ["LOOP", "Y / Triangle"], ["VIEW", "Back / Select"], ["PAUSE", "Start"]],
@@ -75,7 +75,7 @@ func _draw() -> void:
 			_t(Vector2(_panel.position.x + 30 * s, y), r[0], 16, Color(0.85, 0.9, 1.0), -1)
 			_t(Vector2(_panel.position.x + _panel.size.x * 0.38, y), r[1], 16, Color.WHITE, -1)
 		y += lh
-	_t(Vector2(_panel.position.x + 30 * s, _panel.end.y - 20 * s), "Tap outside to shut this. TUTORIAL flies you through it all.", 15, Color(0.6, 0.7, 0.85), -1)
+	_t(Vector2(_panel.position.x + 30 * s, _panel.end.y - 20 * s), "Tap outside to shut this.", 15, Color(0.6, 0.7, 0.85), -1)
 
 
 func _t(p: Vector2, txt: String, size: float, col: Color, w: float) -> void:

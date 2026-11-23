@@ -116,7 +116,7 @@ func _draw_status(vs: Vector2) -> void:
 	ctext(vs.x * 0.5, 40 * s, "%07d" % game.score, 28)
 	ctext(vs.x * 0.5, 62 * s, "HI %07d" % maxi(Save.high_score, game.score), 14, Color(1, 1, 1, 0.7))
 	# INTEL / TUTORIAL buttons
-	for n in ["intel", "tutorial"]:
+	for n in ["intel"]:
 		if not c.helper_buttons:
 			break
 		var r: Rect2 = c.btn[n]
@@ -200,9 +200,11 @@ func _draw_touch(c: Controls) -> void:
 					draw_rect(Rect2(Vector2(x0 + i * (bw + 3 * s), cy + 10 * s), Vector2(bw, 12 * s)), Color(1, 1, 1, 0.9 if i < have else 0.25))
 			_:
 				text(Vector2(r.position.x, cy + 7 * s), label, 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
-	if c.dragging:
-		draw_arc(c.drag_start, c.drag_radius, 0, TAU, 40, Color(1, 1, 1, 0.18), 2.0 * s)
-		draw_circle(c.drag_start + (c.drag_pos - c.drag_start).limit_length(c.drag_radius), 14.0 * s, Color(1, 1, 1, 0.3))
+	if c.dragging and c.show_indicator:
+		# subtle floating-stick indicator: faint ring at the origin + dot at the finger
+		draw_arc(c.drag_start, c.drag_radius, 0, TAU, 40, Color(1, 1, 1, 0.14), maxf(1.0, 2.0 * s))
+		draw_circle(c.drag_start, 3.0 * s, Color(1, 1, 1, 0.25))
+		draw_circle(c.drag_start + (c.drag_pos - c.drag_start).limit_length(c.drag_radius), 9.0 * s, Color(1, 1, 1, 0.28))
 
 
 func _draw_small_buttons(c: Controls) -> void:
