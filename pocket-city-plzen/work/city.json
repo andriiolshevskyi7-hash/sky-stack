@@ -1,0 +1,686 @@
+{
+ "name": "Plzeň",
+ "title": "Náměstí Republiky, Plzeň",
+ "region": "West Bohemia",
+ "place": "Náměstí Republiky",
+ "timezone": "Europe/Prague",
+ "level": 3.4,
+ "flag": "<svg aria-hidden='true' viewBox='0 0 30 20'><rect width='30' height='10' fill='#ffffff'/><rect y='10' width='30' height='10' fill='#d7141a'/><path d='M0 0 L15 10 L0 20 Z' fill='#11457e'/></svg>",
+ "styles": {
+  "default": {
+   "facade": "stucco",
+   "wall": [
+    "#efe1c4",
+    "#e9cf9e",
+    "#f2e6d0",
+    "#dcc6a8",
+    "#e8d6b8",
+    "#d9b99a",
+    "#f0dcc0",
+    "#cfd2c2",
+    "#e7c9a9"
+   ],
+   "trim": "#f7efe0",
+   "roof": "gabled",
+   "ridge": "street",
+   "pitch": 45,
+   "roofColour": [
+    "#a9573f",
+    "#b5634a",
+    "#9c4f3b",
+    "#8f5a49",
+    "#a86448"
+   ],
+   "roofTex": "tiles",
+   "eaves": 0.35,
+   "levels": 4,
+   "floor": 3.4,
+   "shop": "poi",
+   "awning": "some",
+   "awnings": [
+    "#7d3a32",
+    "#2f4a5e",
+    "#3d5e47",
+    "#efe2c6"
+   ],
+   "maxSpan": 16,
+   "rectFill": 0.62,
+   "flatRoof": "#c8bfb0",
+   "glass": [
+    "#b7c6c4",
+    "#a9bcbd",
+    "#c4cfc8"
+   ],
+   "frame": "#6e655c"
+  },
+  "rules": [
+   {
+    "if": {
+     "maxArea": 30
+    },
+    "set": {
+     "levels": 1,
+     "shop": "none",
+     "roof": "flat"
+    }
+   },
+   {
+    "if": {
+     "use": "toilets"
+    },
+    "set": {
+     "levels": 1,
+     "floor": 3.2,
+     "roof": "flat",
+     "facade": "plain",
+     "wall": [
+      "#5f6460"
+     ],
+     "shop": "none"
+    }
+   },
+   {
+    "if": {
+     "cut": true
+    },
+    "set": {
+     "levels": 4,
+     "roof": "gabled",
+     "ridge": "long"
+    }
+   },
+   {
+    "if": {
+     "nearStreet": false
+    },
+    "set": {
+     "levels": 3,
+     "shop": "none",
+     "ridge": "long"
+    }
+   }
+  ]
+ },
+ "buildings": {
+  "w45099317": {
+   "levels": 3,
+   "floor": 4.0,
+   "facade": "civic",
+   "wall": [
+    "#f1e4c6"
+   ],
+   "trim": "#fbf5e8",
+   "shop": "none",
+   "ridge": "street",
+   "pitch": 42
+  },
+  "w45099315": {
+   "levels": 5,
+   "facade": "stucco",
+   "wall": [
+    "#e7d7bd"
+   ]
+  },
+  "w45195282": {
+   "levels": 3,
+   "floor": 3.8,
+   "wall": [
+    "#f3ead9"
+   ]
+  },
+  "w45238340": {
+   "levels": 3,
+   "wall": [
+    "#e6c88f"
+   ]
+  },
+  "r6462427": {
+   "levels": 3,
+   "floor": 3.8,
+   "wall": [
+    "#f0e3c8"
+   ]
+  },
+  "r337286": {
+   "levels": 3,
+   "floor": 3.8,
+   "wall": [
+    "#e9d2a6"
+   ]
+  },
+  "w45084478": {
+   "levels": 3,
+   "floor": 3.8,
+   "wall": [
+    "#ead9b9"
+   ]
+  }
+ },
+ "palette": {
+  "ground": "#d2b19d",
+  "road": "#a99c96",
+  "pavement": "#cba692",
+  "walk": "#c59f8a",
+  "grass": "#aed27c",
+  "water": "#86b7c0",
+  "slab": "#b98d78",
+  "marking": "#f3ece0",
+  "kerb": "#d8c8b6",
+  "paving": "#ad8471",
+  "rail": "#6f7076"
+ },
+ "paving": {
+  "style": "slabs",
+  "size": 0.45,
+  "colour": "#94695a",
+  "stone": "#b98c78"
+ },
+ "lamp": {
+  "colour": "#3a3f3d",
+  "height": 4.6,
+  "head": "#f3e9cc"
+ },
+ "shops": {
+  "signs": [
+   "KAVÁRNA",
+   "PIVNICE",
+   "LÉKÁRNA",
+   "TRAFIKA",
+   "CUKRÁRNA"
+  ],
+  "font": "Georgia,serif",
+  "fascias": [
+   "#3b4e5c",
+   "#6d342d",
+   "#3f5b45",
+   "#2d2b2e"
+  ]
+ },
+ "cafes": {
+  "umbrellas": [
+   "#efe6d2",
+   "#7d3a32",
+   "#efe6d2",
+   "#2f4a5e"
+  ],
+  "table": "#efe9dc",
+  "chair": "#5b4a3d"
+ },
+ "trees": {
+  "default": {
+   "style": 3,
+   "colours": [
+    "#7fae5e",
+    "#94bf6a"
+   ],
+   "height": 9,
+   "autumn": "#d8a23e"
+  },
+  "rules": [
+   {
+    "match": "Ulmus|elm",
+    "style": 1,
+    "colours": [
+     "#86b35f",
+     "#9cc46d"
+    ],
+    "height": 6.5,
+    "autumn": "#d6b048",
+    "spring": "#b6db76"
+   },
+   {
+    "match": "Broadleaf",
+    "style": 3,
+    "colours": [
+     "#7fae5e",
+     "#94bf6a"
+    ],
+    "height": 10,
+    "autumn": "#d38c3a"
+   }
+  ],
+  "extra": [
+   [
+    -69,
+    -86,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    -75.5,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    -65,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    -54.5,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    -44,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    -33.5,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    -23,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    -12.5,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    -2,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    8.5,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    19,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    29.5,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    40,
+    6.5,
+    "Ulmus (elm), 2026"
+   ],
+   [
+    -69,
+    50.5,
+    6.5,
+    "Ulmus (elm), 2026"
+   ]
+  ]
+ },
+ "people": {
+  "clothes": [
+   "#2d3a4a",
+   "#efe8da",
+   "#7d3a32",
+   "#5d7a8c",
+   "#c9a45c",
+   "#3f5b45",
+   "#b8b2a8",
+   "#1f2326"
+  ],
+  "pants": [
+   "#2b3140",
+   "#3d4552",
+   "#5a5048",
+   "#1f2326",
+   "#7a7e86"
+  ],
+  "umbrellas": [
+   "#2d3a4a",
+   "#7d3a32",
+   "#1f2326",
+   "#3f5b45"
+  ],
+  "bikes": [
+   "#2d3a4a",
+   "#b03a2e",
+   "#e8e4da",
+   "#3f5b45"
+  ]
+ },
+ "vehicles": {
+  "kinds": [
+   "hatch",
+   "hatch",
+   "small",
+   "sedan",
+   "mpv"
+  ],
+  "colours": [
+   "#e9e9e5",
+   "#2e3139",
+   "#9aa2aa",
+   "#5a6470",
+   "#7d1f1f",
+   "#2f4a6b",
+   "#c9ccd0"
+  ],
+  "plate": "#f4f4f0"
+ },
+ "seasonLabel": "Season",
+ "seasons": [
+  {
+   "id": "spring",
+   "label": "Spring",
+   "leaves": "spring",
+   "crowd": 1.0,
+   "cafes": true,
+   "note": {
+    "text": "May in Plzeň averages 20.6 °C by day and 6.0 °C at night.",
+    "source": "Wikipedia, Plzeň-Bolevec climate 1991–2020",
+    "url": "https://en.wikipedia.org/wiki/Plze%C5%88#Climate"
+   }
+  },
+  {
+   "id": "summer",
+   "label": "Summer",
+   "leaves": "summer",
+   "crowd": 1.4,
+   "wx": "rain",
+   "wet": true,
+   "umbrellas": true,
+   "cafes": "closed",
+   "note": {
+    "text": "July is the wettest month in Plzeň, with 72 mm of rain, and the warmest, at 26.1 °C by day.",
+    "source": "Wikipedia, Plzeň-Bolevec climate 1991–2020",
+    "url": "https://en.wikipedia.org/wiki/Plze%C5%88#Climate"
+   }
+  },
+  {
+   "id": "autumn",
+   "label": "Autumn",
+   "leaves": "autumn",
+   "crowd": 0.9,
+   "cafes": true,
+   "note": {
+    "text": "October in Plzeň averages 13.8 °C by day, with 84% humidity.",
+    "source": "Wikipedia, Plzeň-Bolevec climate 1991–2020",
+    "url": "https://en.wikipedia.org/wiki/Plze%C5%88#Climate"
+   }
+  },
+  {
+   "id": "winter",
+   "label": "Winter",
+   "leaves": "bare",
+   "coats": true,
+   "crowd": 0.6,
+   "cafes": false,
+   "note": {
+    "text": "January is the coldest month in Plzeň: 2.4 °C by day and −4.1 °C at night.",
+    "source": "Wikipedia, Plzeň-Bolevec climate 1991–2020",
+    "url": "https://en.wikipedia.org/wiki/Plze%C5%88#Climate"
+   }
+  },
+  {
+   "id": "snow",
+   "label": "Snow",
+   "sub": "winter",
+   "icon": "winter",
+   "leaves": "bare",
+   "coats": true,
+   "snow": true,
+   "wx": "snow",
+   "crowd": 0.5,
+   "cafes": false,
+   "note": {
+    "text": "January brings Plzeň the most snow of the year, 15.2 cm on average.",
+    "source": "Wikipedia, Plzeň-Bolevec climate 1991–2020",
+    "url": "https://en.wikipedia.org/wiki/Plze%C5%88#Climate"
+   }
+  }
+ ],
+ "occasionLabel": "Special scenes",
+ "occasions": [
+  {
+   "id": "advent",
+   "label": "Christmas market",
+   "leaves": "bare",
+   "coats": true,
+   "crowd": 1.9,
+   "icon": "winter",
+   "cafes": false,
+   "night": true,
+   "litShare": 0.7,
+   "decor": {
+    "fairy": [
+     "#fff3c4",
+     "#ffe7a8",
+     "#fde9b0"
+    ]
+   },
+   "note": {
+    "text": "Every year a Christmas market fills Republic Square, with carols and a Christmas tree lighting.",
+    "source": "VisitCzechia",
+    "url": "https://www.visitczechia.com/en-us/things-to-do/events/2025/11/e-plzen-advent-christmas-markets"
+   }
+  }
+ ],
+ "months": [
+  "winter",
+  "winter",
+  "spring",
+  "spring",
+  "spring",
+  "summer",
+  "summer",
+  "summer",
+  "autumn",
+  "autumn",
+  "autumn",
+  "winter"
+ ],
+ "views": [
+  {
+   "id": "cathedral",
+   "label": "St Bartholomew",
+   "camera": {
+    "yaw": -30,
+    "pitch": 26,
+    "zoom": 2.0,
+    "x": -15,
+    "y": -5,
+    "z": 30
+   }
+  },
+  {
+   "id": "tower",
+   "label": "The tower",
+   "camera": {
+    "yaw": 240,
+    "pitch": 16,
+    "zoom": 1.4,
+    "x": -24,
+    "y": 10,
+    "z": 60
+   }
+  },
+  {
+   "id": "townhall",
+   "label": "Town Hall",
+   "camera": {
+    "yaw": 235,
+    "pitch": 20,
+    "zoom": 3.0,
+    "x": -16,
+    "y": 66,
+    "z": 9
+   }
+  },
+  {
+   "id": "column",
+   "label": "Plague column",
+   "camera": {
+    "yaw": 235,
+    "pitch": 18,
+    "zoom": 6,
+    "x": -43,
+    "y": 44,
+    "z": 7
+   }
+  },
+  {
+   "id": "elms",
+   "label": "New elms",
+   "camera": {
+    "yaw": -100,
+    "pitch": 28,
+    "zoom": 2.6,
+    "x": -68,
+    "y": -20,
+    "z": 3
+   }
+  }
+ ],
+ "legend": [
+  {
+   "name": "Katedrála sv. Bartoloměje",
+   "source": "Wikipedia (cs)",
+   "count": "102.26 m",
+   "icon": "landmark",
+   "camera": {
+    "yaw": -30,
+    "pitch": 26,
+    "zoom": 2.0,
+    "x": -15,
+    "y": -5,
+    "z": 30
+   }
+  },
+  {
+   "name": "Renaissance Town Hall",
+   "source": "Wikipedia (cs)",
+   "count": "1559",
+   "icon": "landmark",
+   "camera": {
+    "yaw": 235,
+    "pitch": 20,
+    "zoom": 3.0,
+    "x": -16,
+    "y": 66,
+    "z": 9
+   }
+  },
+  {
+   "name": "Houses on the square",
+   "source": "OpenStreetMap",
+   "count": "131",
+   "icon": "buildings",
+   "camera": {
+    "yaw": 160,
+    "pitch": 26,
+    "zoom": 2.2,
+    "x": 40,
+    "y": 60,
+    "z": 6
+   }
+  },
+  {
+   "name": "Elm row, 2026",
+   "source": "ČTK via archiweb",
+   "count": "14",
+   "icon": "trees",
+   "camera": {
+    "yaw": -100,
+    "pitch": 28,
+    "zoom": 2.6,
+    "x": -68,
+    "y": -20,
+    "z": 3
+   }
+  }
+ ],
+ "notes": [
+  {
+   "title": "Náměstí Republiky",
+   "text": "The rectangular square measures 139 × 193 m, one of the largest in Europe and the largest medieval square in Bohemia outside Prague. Trams run along its north and south sides. Since 2008 it has been paved with red-brown Italian porphyry instead of asphalt.",
+   "links": [
+    {
+     "label": "Wikipedia (cs)",
+     "url": "https://cs.wikipedia.org/wiki/N%C3%A1m%C4%9Bst%C3%AD_Republiky_(Plze%C5%88)"
+    },
+    {
+     "label": "archiweb / ČTK",
+     "url": "https://www.archiweb.cz/en/n/home/plzen-zahajila-prvni-etapu-revitalizace-namesti-vysazi-se-stromy-ubydou-auta"
+    }
+   ]
+  },
+  {
+   "title": "Katedrála svatého Bartoloměje",
+   "text": "A Gothic hall church with three naves, begun after 1342: 58 m long and 30 m wide, with vaults 25 m high. Its north tower, 102.26 m, is the tallest church tower in the country; the south tower was never finished and stops under the main cornice. The walls are cut sandstone and the saddle roof dates from 1528. The Šternberk chapel (hipped roof) adjoins the presbytery on the south, the sacristy (lean-to roof) on the north. The spire's shape and colours are drawn by eye.",
+   "links": [
+    {
+     "label": "Wikipedia (cs)",
+     "url": "https://cs.wikipedia.org/wiki/Katedr%C3%A1la_svat%C3%A9ho_Bartolom%C4%9Bje"
+    }
+   ]
+  },
+  {
+   "title": "Town Hall and Císařský dům",
+   "text": "The first Renaissance building in Plzeň, rebuilt by Giovanni de Statia of Lugano. Jan Koula designed its sgraffito decoration in 1910. Next door, Císařský dům joined two Renaissance houses in 1606–07 under twin gables. The gables, turret and sgraffito are drawn by eye.",
+   "links": [
+    {
+     "label": "Wikipedia (cs), Town Hall",
+     "url": "https://cs.wikipedia.org/wiki/Plze%C5%88sk%C3%A1_radnice"
+    },
+    {
+     "label": "Wikipedia (cs), Císařský dům",
+     "url": "https://cs.wikipedia.org/wiki/C%C3%ADsa%C5%99sk%C3%BD_d%C5%AFm_(Plze%C5%88)"
+    }
+   ]
+  },
+  {
+   "title": "Marian plague column and gilded fountains",
+   "text": "The early-Baroque column of 1681 stands in the north-west corner. It has a balustrade and six steps, and a copy of the Plzeň Madonna faces east. Since 2010, three gilded fountains by Ondřej Císler, a greyhound, a camel and an angel, stand in the other corners. Their shapes here are simplified.",
+   "links": [
+    {
+     "label": "Wikipedia (cs), column",
+     "url": "https://cs.wikipedia.org/wiki/Mari%C3%A1nsk%C3%BD_sloup_(Plze%C5%88)"
+    },
+    {
+     "label": "Wikipedia (cs), square",
+     "url": "https://cs.wikipedia.org/wiki/N%C3%A1m%C4%9Bst%C3%AD_Republiky_(Plze%C5%88)"
+    }
+   ]
+  },
+  {
+   "title": "The 2026 elms",
+   "text": "In 2026 the city began revitalising the square. The street between the cathedral and the bishop's residence becomes a walking and cycling zone, and 14 elms line about 250 m of the square's edge. The trees' exact spots here are illustrative.",
+   "links": [
+    {
+     "label": "archiweb / ČTK",
+     "url": "https://www.archiweb.cz/en/n/home/plzen-zahajila-prvni-etapu-revitalizace-namesti-vysazi-se-stromy-ubydou-auta"
+    }
+   ]
+  },
+  {
+   "title": "What is illustrative",
+   "text": "Measured from OpenStreetMap: footprints, streets, tram tracks, fountain spots and the cathedral's outline. Drawn by eye: most house heights (59 of 131 have none mapped), wall and roof colours, the cathedral's window tracery and spire, the Town Hall's gables, the Christmas stalls and tree, people and traffic. OpenStreetMap may not yet show every street change from the 2026 works.",
+   "links": [
+    {
+     "label": "OpenStreetMap",
+     "url": "https://www.openstreetmap.org/#map=18/49.7475/13.3778"
+    }
+   ]
+  }
+ ],
+ "credits": []
+}

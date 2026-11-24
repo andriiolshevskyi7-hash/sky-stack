@@ -1,0 +1,28 @@
+{
+ "lat": 49.7475,
+ "lon": 13.3778,
+ "rotation": -7,
+ "size": 250.0,
+ "asked": {
+  "lat": 49.7475,
+  "lon": 13.3778
+ },
+ "moved_m": 0.0,
+ "famous_inside": [
+  "Boží oko",
+  "Chotěšovský dům",
+  "Císařský dům",
+  "Gerlachovský dům",
+  "Magistrát města Plzně",
+  "Scriboniovský dům",
+  "U Zlatého růžence",
+  "biskupství",
+  "morový sloup",
+  "svatý Bartoloměj",
+  "way/435774529"
+ ],
+ "famous_cut": [],
+ "keep_missing": [],
+ "place": "Náměstí Republiky, Plzeň",
+ "osm_base": null
+}
