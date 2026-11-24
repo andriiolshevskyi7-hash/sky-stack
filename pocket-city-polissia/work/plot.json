@@ -1,0 +1,16 @@
+{
+ "lat": 51.281688,
+ "lon": 25.884056,
+ "rotation": -22.0,
+ "size": 150.0,
+ "asked": {
+  "lat": 51.281688,
+  "lon": 25.884056
+ },
+ "moved_m": 0.0,
+ "famous_inside": [],
+ "famous_cut": [],
+ "keep_missing": [],
+ "place": "Хряськ, Волинська область",
+ "osm_base": null
+}

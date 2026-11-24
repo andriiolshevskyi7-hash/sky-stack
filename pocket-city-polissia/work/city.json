@@ -1,0 +1,490 @@
+{
+ "name": "Хряськ",
+ "title": "Хряськ, Волинь",
+ "region": "Волинське Полісся",
+ "place": "Садиби на краю села",
+ "timezone": "Europe/Kyiv",
+ "level": 2.9,
+ "flag": "<svg aria-hidden='true' viewBox='0 0 30 20'><rect width='30' height='10' fill='#0057b7'/><rect y='10' width='30' height='10' fill='#ffd700'/></svg>",
+ "styles": {
+  "default": {
+   "facade": "house",
+   "wall": [
+    "#f2efe6",
+    "#ece3cf",
+    "#dfe6e8",
+    "#e9dcc0"
+   ],
+   "trim": "#f7f4ec",
+   "frame": "#3f6f9a",
+   "roof": "gabled",
+   "ridge": "long",
+   "pitch": 34,
+   "roofColour": [
+    "#b9bab6"
+   ],
+   "eaves": 0.5,
+   "levels": 1,
+   "floor": 3.0,
+   "shop": "none",
+   "maxSpan": 16,
+   "rectFill": 0.7,
+   "flatRoof": "#a9aaa6",
+   "glass": [
+    "#a9bcc4",
+    "#b8c7c9"
+   ]
+  },
+  "rules": [
+   {
+    "if": {
+     "type": "barn"
+    },
+    "set": {
+     "facade": "warehouse",
+     "wall": [
+      "#cfc8bb",
+      "#bfb5a5"
+     ],
+     "floor": 3.4,
+     "pitch": 26,
+     "frame": "#6a5a48"
+    }
+   },
+   {
+    "if": {
+     "type": "shed"
+    },
+    "set": {
+     "facade": "plain",
+     "wall": [
+      "#8f7f6b",
+      "#9c8b74",
+      "#7f7262"
+     ],
+     "floor": 2.5,
+     "pitch": 24,
+     "eaves": 0.3,
+     "frame": "#5b4b3c"
+    }
+   }
+  ]
+ },
+ "buildings": {
+  "w-2": {
+   "roofColour": [
+    "#6a4c45"
+   ],
+   "roof": "hipped",
+   "pitch": 30,
+   "wall": [
+    "#f1ece2"
+   ]
+  },
+  "w-3": {
+   "roofColour": [
+    "#cfcfc9"
+   ],
+   "wall": [
+    "#ebe6db"
+   ],
+   "floor": 2.6
+  },
+  "w-4": {
+   "roofColour": [
+    "#c3c5c3"
+   ],
+   "wall": [
+    "#dfe8ea"
+   ]
+  },
+  "w-5": {
+   "roofColour": [
+    "#8e9193"
+   ]
+  },
+  "w-6": {
+   "roofColour": [
+    "#8e9193"
+   ]
+  },
+  "w-7": {
+   "roofColour": [
+    "#cdcdc8"
+   ],
+   "wall": [
+    "#ece3cf"
+   ]
+  },
+  "w-8": {
+   "roofColour": [
+    "#8e9193"
+   ],
+   "floor": 2.3
+  },
+  "w-9": {
+   "roofColour": [
+    "#6f7276"
+   ],
+   "wall": [
+    "#e7dcc4"
+   ]
+  },
+  "w-10": {
+   "roofColour": [
+    "#66696d"
+   ]
+  },
+  "w-11": {
+   "roofColour": [
+    "#cacbc6"
+   ]
+  },
+  "w-12": {
+   "roofColour": [
+    "#c0c2bf"
+   ]
+  },
+  "w-13": {
+   "roofColour": [
+    "#5f6265"
+   ]
+  },
+  "w-14": {
+   "roofColour": [
+    "#d3d3ce"
+   ],
+   "floor": 2.2
+  }
+ },
+ "palette": {
+  "ground": "#a3c46f",
+  "road": "#a19d97",
+  "pavement": "#a3c46f",
+  "walk": "#cdb995",
+  "grass": "#a3c46f",
+  "water": "#86aeb3",
+  "slab": "#c9b796",
+  "marking": "#efe9dc",
+  "kerb": "#b8b2a6",
+  "paving": "#b9ab92",
+  "sand": "#b39572"
+ },
+ "lamp": {
+  "colour": "#6b5a48",
+  "height": 6.5,
+  "head": "#efe6cc",
+  "auto": false
+ },
+ "trees": {
+  "default": {
+   "style": 3,
+   "colours": [
+    "#6f9f4c",
+    "#83b05a",
+    "#78a852"
+   ],
+   "height": 9,
+   "autumn": "#d6a33a",
+   "blossom": "#f7eef0",
+   "spring": "#a8d26a"
+  },
+  "rules": []
+ },
+ "people": {
+  "clothes": [
+   "#3b4a5e",
+   "#f1ede4",
+   "#6d3b33",
+   "#5f7a54",
+   "#c9a45c",
+   "#2d2f33",
+   "#9db3c9"
+  ],
+  "pants": [
+   "#2b3140",
+   "#3d4552",
+   "#4c4a45",
+   "#1f2326"
+  ],
+  "umbrellas": [
+   "#2d3a4a",
+   "#6d3b33"
+  ],
+  "bikes": [
+   "#2d3a4a",
+   "#6d3b33",
+   "#3f5b45"
+  ]
+ },
+ "vehicles": {
+  "kinds": [
+   "hatch",
+   "sedan",
+   "small",
+   "mpv"
+  ],
+  "colours": [
+   "#e9e9e5",
+   "#5a6470",
+   "#7d1f1f",
+   "#2f4a6b",
+   "#c9ccd0",
+   "#3e5b3a"
+  ],
+  "plate": "#f4f4f0"
+ },
+ "seasonLabel": "Пора року",
+ "seasons": [
+  {
+   "id": "spring",
+   "label": "Весна",
+   "leaves": "blossom",
+   "petals": true,
+   "crowd": 0.36,
+   "note": {
+    "text": "У квітні в Луцьку вдень у середньому 14,7 °C.",
+    "source": "Wikipedia, Lutsk climate 1991–2020 (NOAA)",
+    "url": "https://en.wikipedia.org/wiki/Lutsk#Climate"
+   }
+  },
+  {
+   "id": "summer",
+   "label": "Літо",
+   "leaves": "summer",
+   "crowd": 0.45,
+   "note": {
+    "text": "Липень у Луцьку найтепліший (25,6 °C вдень) і найдощовіший: 93 мм опадів.",
+    "source": "Wikipedia, Lutsk climate 1991–2020 (NOAA)",
+    "url": "https://en.wikipedia.org/wiki/Lutsk#Climate"
+   }
+  },
+  {
+   "id": "autumn",
+   "label": "Осінь",
+   "leaves": "autumn",
+   "crowd": 0.36,
+   "wet": true,
+   "umbrellas": true,
+   "wx": "drizzle",
+   "note": {
+    "text": "У жовтні в Луцьку вдень у середньому 13,0 °C.",
+    "source": "Wikipedia, Lutsk climate 1991–2020 (NOAA)",
+    "url": "https://en.wikipedia.org/wiki/Lutsk#Climate"
+   }
+  },
+  {
+   "id": "winter",
+   "label": "Зима",
+   "leaves": "bare",
+   "coats": true,
+   "snow": true,
+   "wx": "snow",
+   "crowd": 0.23,
+   "note": {
+    "text": "Січень у Луцьку: −0,4 °C вдень і −5,3 °C уночі.",
+    "source": "Wikipedia, Lutsk climate 1991–2020 (NOAA)",
+    "url": "https://en.wikipedia.org/wiki/Lutsk#Climate"
+   }
+  }
+ ],
+ "occasionLabel": "Особливі сцени",
+ "occasions": [
+  {
+   "id": "kupala",
+   "label": "Івана Купала",
+   "leaves": "summer",
+   "crowd": 0.8,
+   "icon": "summer",
+   "night": 0.85,
+   "litShare": 0.6,
+   "dress": {
+    "colours": [
+     "#f6f2e8",
+     "#f6f2e8",
+     "#b8322a"
+    ],
+    "share": 0.6
+   },
+   "note": {
+    "text": "На Купала багаття запалюють пізно ввечері, і вони зазвичай горять до ранку.",
+    "source": "Wikipedia, Kupala Night",
+    "url": "https://en.wikipedia.org/wiki/Kupala_Night"
+   }
+  }
+ ],
+ "months": [
+  "winter",
+  "winter",
+  "spring",
+  "spring",
+  "spring",
+  "summer",
+  "summer",
+  "summer",
+  "autumn",
+  "autumn",
+  "autumn",
+  "winter"
+ ],
+ "views": [
+  {
+   "id": "yard",
+   "label": "Подвір'я",
+   "camera": {
+    "yaw": -30,
+    "pitch": 30,
+    "zoom": 2.6,
+    "x": -5,
+    "y": 2,
+    "z": 2
+   }
+  },
+  {
+   "id": "north",
+   "label": "Хата з брунатним дахом",
+   "camera": {
+    "yaw": 200,
+    "pitch": 26,
+    "zoom": 4.2,
+    "x": -18,
+    "y": 26,
+    "z": 3
+   }
+  },
+  {
+   "id": "barns",
+   "label": "Клуні",
+   "camera": {
+    "yaw": -10,
+    "pitch": 24,
+    "zoom": 3.6,
+    "x": -6,
+    "y": -32,
+    "z": 2
+   }
+  },
+  {
+   "id": "road",
+   "label": "Дорога",
+   "camera": {
+    "yaw": -80,
+    "pitch": 24,
+    "zoom": 3.2,
+    "x": -42,
+    "y": 5,
+    "z": 2
+   }
+  }
+ ],
+ "legend": [
+  {
+   "name": "Хати",
+   "source": "Супутниковий знімок",
+   "count": "4",
+   "icon": "buildings",
+   "camera": {
+    "yaw": -30,
+    "pitch": 30,
+    "zoom": 2.6,
+    "x": -5,
+    "y": 2,
+    "z": 2
+   }
+  },
+  {
+   "name": "Клуні й сараї",
+   "source": "Супутниковий знімок",
+   "count": "9",
+   "icon": "buildings",
+   "camera": {
+    "yaw": -10,
+    "pitch": 24,
+    "zoom": 3.6,
+    "x": -6,
+    "y": -32,
+    "z": 2
+   }
+  },
+  {
+   "name": "Дерева",
+   "source": "Супутниковий знімок",
+   "count": "38",
+   "icon": "trees",
+   "camera": {
+    "yaw": 30,
+    "pitch": 30,
+    "zoom": 2.4,
+    "x": 15,
+    "y": -10,
+    "z": 3
+   }
+  },
+  {
+   "name": "Ниви й городи",
+   "source": "Супутниковий знімок",
+   "count": "6",
+   "icon": "water",
+   "camera": {
+    "yaw": -60,
+    "pitch": 34,
+    "zoom": 2.0,
+    "x": 30,
+    "y": -20,
+    "z": 0
+   }
+  }
+ ],
+ "notes": [
+  {
+   "title": "Хряськ",
+   "text": "Село на Волинському Поліссі, у Маневицькій громаді Камінь-Каширського району. Відоме з 1577 року; за переписом 2001 року тут жили 724 людини. Селом тече Піщанка, ліва притока Стиру.",
+   "links": [
+    {
+     "label": "Вікіпедія",
+     "url": "https://uk.wikipedia.org/wiki/%D0%A5%D1%80%D1%8F%D1%81%D1%8C%D0%BA"
+    }
+   ]
+  },
+  {
+   "title": "Звідки план",
+   "text": "OpenStreetMap тут має лише кілька доріг і жодної будівлі. Тому всі хати, сараї, дерева, ниви й дороги обведено зі супутникового знімка, який надіслав автор запиту (масштаб 20 м = 146 пікселів, знімок повернуто на 22° від півночі). Положення точні до кількох метрів.",
+   "links": [
+    {
+     "label": "Google Maps",
+     "url": "https://www.google.com/maps/@51.281688,25.884056,19z"
+    },
+    {
+     "label": "OpenStreetMap",
+     "url": "https://www.openstreetmap.org/#map=18/51.28169/25.88406"
+    }
+   ]
+  },
+  {
+   "title": "Купала",
+   "text": "На Купала збирають трави й квіти, плетуть вінки, розпалюють багаття й стрибають через вогонь. На Поліссі на жердину над багаттям ставили колесо або череп коня чи корови. Місце багаття тут умовне.",
+   "links": [
+    {
+     "label": "Wikipedia",
+     "url": "https://en.wikipedia.org/wiki/Kupala_Night"
+    }
+   ]
+  },
+  {
+   "title": "Що умовне",
+   "text": "Зі знімка: обриси й кольори дахів, дерева, ниви, дороги. На око: висота хат (один поверх), кольори стін і вікон, порода дерев (у садах це можуть бути яблуні, вишні, груші, тож навесні вони цвітуть умовно), люди, авто. Клімат подано за Луцьком, приблизно за 80 км від села.",
+   "links": [
+    {
+     "label": "Lutsk climate",
+     "url": "https://en.wikipedia.org/wiki/Lutsk#Climate"
+    }
+   ]
+  }
+ ],
+ "credits": [
+  {
+   "label": "Обриси: супутниковий знімок Google Maps",
+   "url": "https://www.google.com/maps/@51.281688,25.884056,19z"
+  }
+ ]
+}
