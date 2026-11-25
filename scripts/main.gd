@@ -33,6 +33,7 @@ var sky_mat: ShaderMaterial
 var cockpit: Cockpit
 var cockpit3d: Cockpit3D
 var quality := 2 # graphics quality 0 low, 1 medium, 2 high
+var plane_shadows: PlaneShadows
 var trails: Trails
 var missiles: Missiles
 var fleet: Fleet
@@ -139,6 +140,8 @@ func _ready() -> void:
 	world.add_child(missiles)
 	fleet = Fleet.new()
 	fleet.name = "Fleet"
+	plane_shadows = PlaneShadows.new()
+	plane_shadows.name = "PlaneShadows"
 	world.add_child(fleet)
 	bases = Bases.new()
 	bases.name = "Bases"
@@ -166,6 +169,10 @@ func _ready() -> void:
 	world.add_child(clouds)
 	speed_lines = SpeedLines.new()
 	pv.overlay.add_child(speed_lines)
+	plane_shadows.fleet = fleet
+	plane_shadows.player = jet
+	plane_shadows.daynight = daynight
+	world.add_child(plane_shadows)
 	cockpit3d = Cockpit3D.new()
 	cockpit3d.name = "Cockpit3D"
 	cockpit3d.game = self
@@ -1501,6 +1508,7 @@ func apply_settings(key: String) -> void:
 	# medium = shadows + bloom, high = soft shadows, richer smoke and water
 	quality = int(st.get("quality", 2))
 	chunks.set_shadows(quality >= 1)
+	plane_shadows.enabled = quality >= 1
 	Stacks.shadow_mat.set_shader_parameter("soft", 1.0 if quality >= 2 else 0.0)
 	RenderingServer.global_shader_parameter_set("gfx_quality", float(quality))
 	fx.quality = quality
