@@ -117,7 +117,37 @@ func test_stacks() -> void:
 				if rects[i].intersects(rects[j]):
 					overlap = true
 		check(not overlap and not rects.is_empty(), "%s atlas cells inside and non-overlapping (%d cells)" % [["main", "plane"][atl], rects.size()])
-	check(Stacks.sheets.has("plane_wren") and Stacks.get_sheet("plane_maul").v == Planes.SKINS.size(), "12 plane sheets with a variant per skin")
+	check(Stacks.sheets.has("plane_wren") and Stacks.get_sheet("plane_maul").n == PlaneArt.D, "12 plane sheets, %d slices each" % PlaneArt.D)
+	check(Stacks.plane_palette_tex.get_height() == Planes.SKINS.size() * 3 and Stacks.plane_palette_tex.get_width() == PlaneArt.MATS, "plane palette: a row per skin and class")
+	# every plane: art exists, mirror-symmetric paint, glowing nozzle, canopy
+	var pa := PlaneArt.new()
+	var art_ok := true
+	for pi in Planes.LIST.size():
+		if not PlaneArt.ART.has(Planes.LIST[pi]["id"]):
+			art_ok = false
+			continue
+		pa.build(pi)
+		var n_glow := 0
+		var n_glass := 0
+		var asym := 0
+		var vox := 0
+		for z in PlaneArt.D:
+			for y in PlaneArt.W:
+				for x in PlaneArt.W / 2:
+					var a := pa.get_mat(x, y, z)
+					var b := pa.get_mat(PlaneArt.W - 1 - x, y, z)
+					if a != 0:
+						vox += 1
+					if (a == 0) != (b == 0):
+						asym += 1
+					if a == PlaneArt.GLOW or b == PlaneArt.GLOW:
+						n_glow += 1
+					if a == PlaneArt.GLASS or b == PlaneArt.GLASS:
+						n_glass += 1
+		if n_glow == 0 or n_glass == 0 or asym > 0 or vox < 600:
+			art_ok = false
+			print("  plane %s: glow %d glass %d asym %d vox %d" % [Planes.LIST[pi]["id"], n_glow, n_glass, asym, vox])
+	check(art_ok, "all planes: symmetric voxel art with canopy glass and glowing nozzles")
 	check(Stacks.jet_shadow_tex != null and Stacks.cloud_tex != null, "shadow/cloud textures")
 
 

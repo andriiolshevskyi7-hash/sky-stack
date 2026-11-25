@@ -20,9 +20,12 @@ const GOLD := Color(1.0, 0.85, 0.35)
 
 
 var _name_edit: LineEdit
+var _pv: PlaneDraw
 
 
 func _ready() -> void:
+	_pv = PlaneDraw.new()
+	add_child(_pv)
 	_name_edit = LineEdit.new()
 	_name_edit.visible = false
 	_name_edit.max_length = 16
@@ -104,6 +107,8 @@ func _draw() -> void:
 	_page_t += get_process_delta_time()
 	_xf = Transform2D(0.0, Vector2(0, UI.slide(_page_t, s)))
 	draw_set_transform_matrix(_xf)
+	_pv.begin()
+	_pv.xf = _xf
 	match page:
 		"lobby":
 			_draw_lobby(vs)
@@ -117,6 +122,7 @@ func _draw() -> void:
 			_draw_profile(vs)
 		"skins":
 			_draw_skins(vs)
+	_pv.flush()
 
 
 func _team_list(x: float, y: float, w: float, team: Array, col: Color, title: String) -> void:
@@ -220,34 +226,21 @@ func open_hangar(on_back: Callable) -> void:
 	show_page("hangar", {"on_back": on_back})
 
 
-## Rotating sprite stack drawn in 2D: every slice is the same texture region,
-## rotated, squashed for a 3/4 view and lifted one layer per slice.
-func _draw_stack(sheet: String, variant: int, c: Vector2, sc: float, yaw: float) -> void:
-	var sh = Stacks.get_sheet(sheet)
-	var tex: Texture2D = Stacks.plane_atlas_tex if sh.atlas == 1 else Stacks.atlas_tex
+## Rotating sprite stack (drawn by the palette-shaded PlaneDraw child) with
+## a soft shadow under it.
+func _draw_stack(pi: int, variant: int, c: Vector2, sc: float, yaw: float) -> void:
 	var squash := 0.62
 	var xa := Vector2(cos(yaw), sin(yaw) * squash) * sc
 	var ya := Vector2(-sin(yaw), cos(yaw) * squash) * sc
-	# soft shadow
 	draw_set_transform_matrix(_xf * Transform2D(xa, ya, c + Vector2(0, sc * 6.0)))
-	draw_circle(Vector2.ZERO, sh.w * 0.45, Color(0, 0, 0, 0.25))
-	var lift := sc * 0.95
-	for i in sh.n:
-		var src := Rect2(Vector2(sh.cell(i, variant)), Vector2(sh.w, sh.h))
-		var copies := maxi(1, int(ceil(lift)))
-		for k in copies:
-			var o := c - Vector2(0, i * lift + k * lift / copies)
-			draw_set_transform_matrix(_xf * Transform2D(xa, ya, o))
-			draw_texture_rect_region(tex, Rect2(-sh.w * 0.5, -sh.h * 0.5, sh.w, sh.h), src)
+	draw_circle(Vector2.ZERO, PlaneArt.WORLD * 0.45, Color(0, 0, 0, 0.25))
 	draw_set_transform_matrix(_xf)
+	_pv.stack(pi, variant, c, sc, yaw)
 
 
 ## Top-down icon (all slices on top of each other).
 func _draw_icon(pi: int, variant: int, c: Vector2, sc: float) -> void:
-	var sh = Stacks.get_sheet(Planes.sheet_of(pi))
-	for i in sh.n:
-		var src := Rect2(Vector2(sh.cell(i, variant)), Vector2(sh.w, sh.h))
-		draw_texture_rect_region(Stacks.plane_atlas_tex, Rect2(c - Vector2(sh.w, sh.h) * 0.5 * sc, Vector2(sh.w, sh.h) * sc), src)
+	_pv.icon(pi, variant, c, sc)
 
 
 func _header(vs: Vector2, title: String) -> void:
@@ -314,7 +307,7 @@ func _draw_hangar(vs: Vector2) -> void:
 	var lv := Profile.levels(sel) if owned_sel else {}
 	_txt(Vector2(cx - vs.x * 0.13, top + 20 * s), p["name"] + "  " + p["code"], 26, Color.WHITE, vs.x * 0.26, HORIZONTAL_ALIGNMENT_CENTER)
 	_txt(Vector2(cx - vs.x * 0.13, top + 42 * s), Planes.BRANCH_NAMES[int(p["branch"])], 14, Color(0.65, 0.75, 0.9), vs.x * 0.26, HORIZONTAL_ALIGNMENT_CENTER)
-	_draw_stack(Planes.sheet_of(sel), Profile.skin_of(sel) if owned_sel else 0, Vector2(cx, top + 175 * s), 6.0 * s, _t * 0.6)
+	_draw_stack(sel, Profile.skin_of(sel) if owned_sel else 0, Vector2(cx, top + 175 * s), 6.0 * s, _t * 0.6)
 	var bars := Planes.bars(sel, lv)
 	var bw := vs.x * 0.25
 	for i in 4:
@@ -412,7 +405,7 @@ func _draw_skins(vs: Vector2) -> void:
 	# --- preview
 	var cx := vs.x * 0.62
 	_txt(Vector2(cx - vs.x * 0.15, top + 20 * s), p["name"] + "  -  " + tr(Planes.SKINS[skin_sel]["name"]), 24, Color.WHITE, vs.x * 0.3, HORIZONTAL_ALIGNMENT_CENTER)
-	_draw_stack(Planes.sheet_of(sel), skin_sel, Vector2(cx, top + 190 * s), 6.2 * s, _t * 0.6)
+	_draw_stack(sel, skin_sel, Vector2(cx, top + 190 * s), 6.2 * s, _t * 0.6)
 	_txt(Vector2(cx - vs.x * 0.15, top + 340 * s), tr("TAIL NUMBER") + "  #%02d" % Profile.tail(), 20, Color.WHITE, vs.x * 0.3, HORIZONTAL_ALIGNMENT_CENTER)
 	_small_button(Rect2(Vector2(cx - 130 * s, top + 352 * s), Vector2(56 * s, 44 * s)), "-", func() -> void: Profile.set_tail(Profile.tail() - 1), Color(0.25, 0.3, 0.42))
 	_small_button(Rect2(Vector2(cx + 74 * s, top + 352 * s), Vector2(56 * s, 44 * s)), "+", func() -> void: Profile.set_tail(Profile.tail() + 1), Color(0.25, 0.3, 0.42))

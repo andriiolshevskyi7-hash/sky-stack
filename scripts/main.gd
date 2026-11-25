@@ -336,6 +336,13 @@ func _parse_args() -> void:
 			_open_settings()
 		elif a == "--touch":
 			controls.touch_seen = true
+		elif a.begins_with("--gallery"):
+			_gallery.call_deferred(int(a.substr(10)) if a.length() > 10 else 0)
+		elif a.begins_with("--plane="):
+			var pv := a.substr(8).split(",")
+			_debug_plane = int(pv[0])
+			_debug_skin = int(pv[1]) if pv.size() > 1 else 0
+			apply_player_plane()
 		elif a == "--nofog":
 			cam.fog_enabled = false
 		elif a == "--nodebug":
@@ -538,6 +545,30 @@ func _update_border(delta: float) -> void:
 
 # ------------------------------------------------------------------ states
 
+## Debug: every plane in a grid close to the camera (--gallery[=skin],
+## --gallery=-1 cycles the skins per plane).
+func _gallery(skin: int) -> void:
+	menu.close()
+	jet.visible = false
+	var root := Node3D.new()
+	add_child(root)
+	root.global_position = jet.global_position + Vector3(0, 300, 0)
+	for i in Planes.LIST.size():
+		var st := SpriteStack.new()
+		st.sheet = Planes.sheet_of(i)
+		st.variant = i % Planes.SKINS.size() if skin < 0 else skin
+		root.add_child(st)
+		st.position = Vector3((i % 4 - 1.5) * 46.0, 0, (i / 4 - 1.0) * 40.0)
+		st.rotation = Vector3(0, deg_to_rad(-35.0 if i % 2 == 0 else 35.0), 0)
+	cam.override = root
+	cam.override_offset = Vector3(0, 95, 62)
+	cam.override_look = Vector3(0, 0, 8)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--gview="):
+			var v := a.substr(8).split(",")
+			cam.override_offset = Vector3(float(v[0]), float(v[1]), float(v[2]))
+
+
 func _to_title() -> void:
 	state = State.TITLE
 	get_tree().paused = false
@@ -646,10 +677,15 @@ func plane_missiles() -> int:
 
 
 ## Put the player in the plane chosen in the hangar (stats, skin, missiles).
+## Debug (--plane=i[,skin]): fly this plane without touching the profile.
+var _debug_plane := -1
+var _debug_skin := 0
+
+
 func apply_player_plane() -> void:
-	var p := Profile.plane_index()
+	var p := Profile.plane_index() if _debug_plane < 0 else _debug_plane
 	var lv := Profile.levels(p)
-	jet.apply_plane(p, lv, Profile.skin_of(p))
+	jet.apply_plane(p, lv, Profile.skin_of(p) if _debug_plane < 0 else _debug_skin)
 	var st := Planes.stats(p, lv)
 	missiles.max_missiles = plane_missiles()
 	missiles.ammo = missiles.max_missiles
@@ -1881,6 +1917,7 @@ func test_hook(t: Node) -> Array:
 		errs.append("player spawns on top of own carrier group (%.0f units)" % own_d)
 	if world_map.outside(jet.position) > -WorldMap.BORDER_WARN:
 		errs.append("ocean spawn is near the battle-area edge")
+	jet.apply_plane(0, {}, 0) # the same plane whatever the local profile holds
 	jet.position = Vector3(world_map.half + 700.0, 600.0, 0.0)
 	jet.set_attitude(-PI * 0.5) # flying +X, away from the area
 	jet.invuln = 99.0

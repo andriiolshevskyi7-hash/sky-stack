@@ -172,7 +172,7 @@ func _draw_tags(vs: Vector2) -> void:
 		var sp := _screen(pl.position)
 		if not Rect2(Vector2.ZERO, vs).has_point(sp):
 			continue
-		if game.cam.cockpit_blend > 0.5 and sp.y > vs.y * Cockpit.DASH_FRAC - 6.0 * s:
+		if game.cam.cockpit_blend > 0.5 and sp.y > vs.y * game.cockpit.DASH_FRAC - 6.0 * s:
 			continue # behind the dashboard
 		var ally: bool = pl.team == game.jet.team
 		var col := Color(0.45, 0.75, 1.0, 0.95) if ally else Color(1.0, 0.4, 0.35, 0.95)

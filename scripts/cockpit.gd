@@ -18,13 +18,28 @@ extends Node2D
 ##            view, red lock circle, yellow lead marker
 ## Touch buttons sit at the outer edges of the dashboard; every instrument
 ## and HUD number stays inside the free centre band.
+##
+## Every class has its own interior (see _apply_style), and the tiers within
+## a class differ too:
+##  light   - bubble canopy: thin arched frame, cool grey paint, compact
+##            analog dash, green HUD; tiers 3-4 swap the outer gauges for a
+##            radar display
+##  heavy   - charcoal "glass cockpit": two multi-function displays (radar
+##            scope with live contacts, engine page with throttle / heat / G)
+##            around a smaller ball, cyan HUD, amber top light
+##  attack  - armoured tub: very thick riveted olive frame with windscreen
+##            posts, a cluster of small round gauges, guarded arming switch,
+##            amber HUD, red top light; tier 4 adds a radar display
+##  per plane: accent stripe colour, number of warning lights, HUD reticle
+##            (cross, circle, pipper + range ring, diamond) and a data plate
+##            with the plane's code
 
 var game: Node
 var size := Vector2(748, 336)
 var alpha := 0.0
 
-const HUD := Color(0.47, 0.95, 0.55, 0.92) # soft green
-const HUD_DIM := Color(0.47, 0.95, 0.55, 0.5)
+var HUD := Color(0.47, 0.95, 0.55, 0.92) # soft green (per class)
+var HUD_DIM := Color(0.47, 0.95, 0.55, 0.5)
 const YEL := Color("ffd84a")
 const YEL_DIM := Color(1.0, 0.85, 0.3, 0.55)
 const RED := Color("ff3b30")
@@ -37,22 +52,37 @@ const SKY := Color("4fa3ee")
 const SKY_D := Color("3a8bd8")
 const GROUND := Color("9a6232")
 const GROUND_D := Color("80501f")
-const F0 := Color("17181d") # darkest metal / outlines
-const F1 := Color("2d3038")
-const F2 := Color("41454f")
-const F3 := Color("5f6472")
-const F4 := Color("8f96a5") # highlights
+var F0 := Color("17181d") # darkest metal / outlines (per class)
+var F1 := Color("2d3038")
+var F2 := Color("41454f")
+var F3 := Color("5f6472")
+var F4 := Color("8f96a5") # highlights
 const RIV := Color("a9afbb")
 const DIAL := Color("121318")
 
-const DASH_FRAC := 0.69 # glass above, dashboard below (bottom ~30%)
-const TOP_BAR := 15.0
+var DASH_FRAC := 0.69 # glass above, dashboard below (bottom ~30%)
+var TOP_BAR := 15.0
+## Interior style of the current plane (see _apply_style).
+var st := {}
+var _style_plane := -2
+
+## Class interiors: frame paint F0..F4, HUD colour, top light, canopy kind,
+## frame thickness, dash height.
+const CLASS_STYLE := [
+	{"f": ["1b1f27", "3a4250", "525b6d", "737d91", "aab4c6"], "hud": Color(0.47, 0.95, 0.55), "light": "f0580e",
+		"canopy": "bubble", "top": 9.0, "pillar": 5.0, "dash": 0.71},
+	{"f": ["121418", "23272f", "343944", "4c5260", "7b8394"], "hud": Color(0.42, 0.93, 0.92), "light": "ffb020",
+		"canopy": "frame", "top": 15.0, "pillar": 7.0, "dash": 0.69},
+	{"f": ["171a11", "373d2a", "4b5238", "656e50", "98a07c"], "hud": Color(1.0, 0.8, 0.32), "light": "ff3b30",
+		"canopy": "armour", "top": 21.0, "pillar": 11.0, "dash": 0.67},
+]
+const RETICLES := ["cross", "circle", "pipper", "diamond"]
 
 ## 3x5 pixel font for numbers (crisp at the world pixel size).
 const GLYPHS := {
 	"0": [7, 5, 5, 5, 7], "1": [2, 6, 2, 2, 7], "2": [7, 1, 7, 4, 7], "3": [7, 1, 7, 1, 7],
 	"4": [5, 5, 7, 1, 1], "5": [7, 4, 7, 1, 7], "6": [7, 4, 7, 5, 7], "7": [7, 1, 1, 2, 2],
-	"8": [7, 5, 7, 5, 7], "9": [7, 5, 7, 1, 7], "-": [0, 0, 7, 0, 0], " ": [0, 0, 0, 0, 0],
+	"8": [7, 5, 7, 5, 7], "9": [7, 5, 7, 1, 7], "-": [0, 0, 7, 0, 0], " ": [0, 0, 0, 0, 0], ".": [0, 0, 0, 0, 2],
 }
 
 var _font: Font
@@ -89,11 +119,42 @@ func _process(_d: float) -> void:
 		queue_redraw()
 
 
+## Pick the interior for the plane being flown.
+func _apply_style(pi: int) -> void:
+	_style_plane = pi
+	var d: Dictionary = Planes.LIST[maxi(pi, 0)]
+	var cls := int(d["branch"])
+	var tier := int(d["tier"])
+	var c: Dictionary = CLASS_STYLE[cls]
+	var f: Array = c["f"]
+	F0 = Color(f[0])
+	F1 = Color(f[1])
+	F2 = Color(f[2])
+	F3 = Color(f[3])
+	F4 = Color(f[4])
+	var hc: Color = c["hud"]
+	HUD = Color(hc.r, hc.g, hc.b, 0.92)
+	HUD_DIM = Color(hc.r, hc.g, hc.b, 0.5)
+	TOP_BAR = c["top"]
+	DASH_FRAC = c["dash"]
+	st = {
+		"cls": cls, "tier": tier, "canopy": c["canopy"], "pillar": c["pillar"],
+		"light": Color(c["light"]),
+		"stripe": Color.from_hsv(fmod(0.07 + maxi(pi, 0) * 0.137, 1.0), 0.55, 0.85),
+		"warn": 4 + (tier + 1) / 2,
+		"reticle": RETICLES[tier - 1],
+		"code": "%s %s" % [d["code"], d["name"]],
+		"radar": (cls == Planes.LIGHT and tier >= 3) or cls == Planes.HEAVY or (cls == Planes.ATTACK and tier == 4),
+	}
+
+
 func _draw() -> void:
 	if game == null:
 		return
 	modulate.a = alpha
 	var jet: Jet = game.jet
+	if jet.plane != _style_plane:
+		_apply_style(jet.plane)
 	var w := floorf(size.x)
 	var h := floorf(size.y)
 	var dash_top := floorf(h * DASH_FRAC)
@@ -146,14 +207,7 @@ func _hud(jet: Jet, c: Vector2, w: float, h: float, dash_top: float) -> void:
 				draw_line((mid + right * side * half).round(), (mid + right * side * half + tip).round(), col, 1.0)
 		if deg != 0:
 			ptext(mid + right * (half + 9.0) - Vector2(0, 2), str(absi(deg)), col, true)
-	# gun reticle: bracket box + cross
-	draw_line(c + Vector2(-5, 0), c + Vector2(5, 0), HUD, 1.0)
-	draw_line(c + Vector2(0, -5), c + Vector2(0, 5), HUD, 1.0)
-	for sx in [-1.0, 1.0]:
-		for sy in [-1.0, 1.0]:
-			var p := c + Vector2(sx * 16.0, sy * 16.0)
-			draw_line(p, p - Vector2(sx * 7.0, 0), HUD, 1.0)
-			draw_line(p, p - Vector2(0, sy * 7.0), HUD, 1.0)
+	_reticle(c)
 	_targets(jet, c, w, dash_top, glass_h)
 	# speed (left) and altitude (right): big numbers above tapes
 	var tape_h := floorf(glass_h * 0.5)
@@ -253,6 +307,41 @@ func _targets(jet: Jet, c: Vector2, w: float, dash_top: float, glass_h: float) -
 			wtext(lp2 + Vector2(0, rr + 11), "LOCK", RED)
 
 
+## Gun reticle, different per tier: bracket box + cross, circle + dot,
+## pipper with a range ring (ammo left), diamond with a centre dot.
+func _reticle(c: Vector2) -> void:
+	match st.get("reticle", "cross"):
+		"cross":
+			draw_line(c + Vector2(-5, 0), c + Vector2(5, 0), HUD, 1.0)
+			draw_line(c + Vector2(0, -5), c + Vector2(0, 5), HUD, 1.0)
+			for sx in [-1.0, 1.0]:
+				for sy in [-1.0, 1.0]:
+					var p := c + Vector2(sx * 16.0, sy * 16.0)
+					draw_line(p, p - Vector2(sx * 7.0, 0), HUD, 1.0)
+					draw_line(p, p - Vector2(0, sy * 7.0), HUD, 1.0)
+		"circle":
+			draw_arc(c, 12.0, 0, TAU, 24, HUD, 1.0)
+			draw_rect(Rect2(c - Vector2(1, 1), Vector2(2, 2)), HUD)
+			for k in 4:
+				var a := TAU * k / 4.0
+				draw_line(c + Vector2(cos(a), sin(a)) * 12.0, c + Vector2(cos(a), sin(a)) * 17.0, HUD, 1.0)
+		"pipper":
+			var jet: Jet = game.jet
+			var amm := clampf(jet.ammo / Jet.MAX_AMMO, 0.0, 1.0)
+			draw_arc(c, 15.0, -PI * 0.5, -PI * 0.5 + TAU * amm, 28, HUD, 1.0)
+			draw_arc(c, 18.0, 0, TAU, 32, HUD_DIM, 1.0)
+			draw_rect(Rect2(c - Vector2(1, 1), Vector2(3, 3)), HUD)
+			for k in 12:
+				var a := TAU * k / 12.0
+				draw_rect(Rect2((c + Vector2(cos(a), sin(a)) * 18.0).round(), Vector2(1, 1)), HUD)
+		"diamond":
+			var pts := PackedVector2Array([c + Vector2(0, -11), c + Vector2(11, 0), c + Vector2(0, 11), c + Vector2(-11, 0), c + Vector2(0, -11)])
+			draw_polyline(pts, HUD, 1.0)
+			draw_rect(Rect2(c - Vector2(1, 1), Vector2(2, 2)), HUD)
+			draw_line(c + Vector2(-22, 0), c + Vector2(-14, 0), HUD, 1.0)
+			draw_line(c + Vector2(14, 0), c + Vector2(22, 0), HUD, 1.0)
+
+
 func _tape(x: float, y0: float, hgt: float, value: float, step: float, px_per_unit: float, right_side: bool) -> void:
 	var cy := y0 + hgt * 0.5
 	var dir := 1.0 if right_side else -1.0
@@ -289,6 +378,109 @@ func _wear(r: Rect2, n: int, salt: int) -> void:
 
 
 func _canopy(w: float, h: float, dash_top: float) -> void:
+	match st.get("canopy", "frame"):
+		"bubble":
+			_canopy_bubble(w, h, dash_top)
+		"armour":
+			_canopy_armour(w, h, dash_top)
+		_:
+			_canopy_frame(w, h, dash_top)
+
+
+## Top light in its housing (colour per class).
+func _top_light(r: Rect2) -> void:
+	var lc: Color = st.get("light", ORANGE)
+	draw_rect(r.grow(1), F0)
+	draw_rect(r, lc)
+	draw_rect(Rect2(r.position, Vector2(r.size.x, 2)), lc.lightened(0.35))
+	draw_rect(Rect2(Vector2(r.position.x, r.end.y - 2), Vector2(r.size.x, 2)), lc.darkened(0.3))
+
+
+## Light fighters: bubble canopy - thin top bow, arched windscreen frame
+## curving down to slim sills, so the view is wide open.
+func _canopy_bubble(w: float, h: float, dash_top: float) -> void:
+	draw_rect(Rect2(0, 0, w, TOP_BAR), F1)
+	draw_rect(Rect2(0, 1, w, 1), F3)
+	draw_rect(Rect2(0, TOP_BAR - 1, w, 1), F0)
+	_rivets(Vector2(0, 4), Vector2(w, 4), int(w / 20))
+	# slim side sills and rounded corners where the bubble meets the bow
+	var pw: float = st.get("pillar", 5.0)
+	var rad := floorf((dash_top - TOP_BAR) * 0.3)
+	for side in [0, 1]:
+		var sx := 1.0 if side == 0 else -1.0
+		var x0 := 0.0 if side == 0 else w
+		draw_rect(Rect2(Vector2(x0 if side == 0 else x0 - pw, TOP_BAR - 1), Vector2(pw, dash_top - TOP_BAR + 1)), F1)
+		var inner := x0 + sx * pw
+		var arc := PackedVector2Array()
+		for k in 13:
+			var a := k / 12.0 * PI * 0.5
+			arc.append(Vector2(inner + sx * rad * (1.0 - sin(a)), TOP_BAR - 1 + rad * (1.0 - cos(a))))
+		var poly := PackedVector2Array([Vector2(inner, TOP_BAR - 1)])
+		poly.append_array(arc)
+		draw_colored_polygon(poly, F1)
+		draw_polyline(arc, F0, 1.0)
+		var hl := PackedVector2Array()
+		for p in arc:
+			hl.append(p + Vector2(-sx, -1))
+		draw_polyline(hl, F3, 1.0)
+		draw_line(Vector2(inner, TOP_BAR + rad), Vector2(inner, dash_top), F0, 1.0)
+		draw_line(Vector2(inner - sx * 2, TOP_BAR + rad), Vector2(inner - sx * 2, dash_top), F3, 1.0)
+		_rivets(Vector2(x0 + sx * 2, TOP_BAR + 8), Vector2(x0 + sx * 2, dash_top - 6), 10)
+	# thin centre seam of the canopy bow
+	draw_line(Vector2(w * 0.5 - 1, TOP_BAR), Vector2(w * 0.5 - 1, TOP_BAR + 3), F0, 1.0)
+	# small centre housing with the top light
+	var cw := floorf(w * 0.14)
+	var cx := floorf(w * 0.5 - cw * 0.5)
+	draw_colored_polygon(PackedVector2Array([Vector2(cx - 8, 0), Vector2(cx + cw + 8, 0), Vector2(cx + cw + 2, TOP_BAR + 7), Vector2(cx - 2, TOP_BAR + 7)]), F1)
+	draw_line(Vector2(cx - 2, TOP_BAR + 7), Vector2(cx + cw + 2, TOP_BAR + 7), F0, 1.0)
+	_top_light(Rect2(cx + 6, 3, cw - 12, 7))
+
+
+## Attackers: armoured tub - very thick riveted frame, windscreen posts
+## dividing the glass into three panes, armour plate with bolt rows.
+func _canopy_armour(w: float, h: float, dash_top: float) -> void:
+	draw_rect(Rect2(0, 0, w, TOP_BAR), F1)
+	draw_rect(Rect2(0, 1, w, 1), F3)
+	draw_rect(Rect2(0, TOP_BAR - 4, w, 3), F2)
+	draw_rect(Rect2(0, TOP_BAR - 1, w, 1), F0)
+	_rivets(Vector2(0, 5), Vector2(w, 5), int(w / 12))
+	_rivets(Vector2(0, 11), Vector2(w, 11), int(w / 12))
+	_wear(Rect2(0, 2, w, TOP_BAR - 5), 110, 3)
+	# windscreen posts (outside the HUD centre band)
+	for side in [0, 1]:
+		var sx := 1.0 if side == 0 else -1.0
+		var xt := w * 0.5 - sx * w * 0.26
+		var xb := w * 0.5 - sx * w * 0.29
+		draw_colored_polygon(PackedVector2Array([Vector2(xt - 3, TOP_BAR - 1), Vector2(xt + 3, TOP_BAR - 1), Vector2(xb + 3, dash_top), Vector2(xb - 3, dash_top)]), F1)
+		draw_line(Vector2(xt - sx * 3, TOP_BAR), Vector2(xb - sx * 3, dash_top), F3, 1.0)
+		draw_line(Vector2(xt + sx * 3, TOP_BAR), Vector2(xb + sx * 3, dash_top), F0, 1.0)
+	# heavy side pillars with bolt rows
+	var pw: float = st.get("pillar", 11.0)
+	for side in [0, 1]:
+		var sx := 1.0 if side == 0 else -1.0
+		var x0 := 0.0 if side == 0 else w
+		var r := Rect2(Vector2(x0 if side == 0 else x0 - pw, TOP_BAR - 1), Vector2(pw, dash_top - TOP_BAR + 1))
+		draw_rect(r, F1)
+		var inner := x0 + sx * pw
+		draw_line(Vector2(inner, TOP_BAR), Vector2(inner, dash_top), F0, 1.0)
+		draw_line(Vector2(inner - sx * 2, TOP_BAR), Vector2(inner - sx * 2, dash_top), F3, 1.0)
+		_rivets(Vector2(x0 + sx * 3, TOP_BAR + 6), Vector2(x0 + sx * 3, dash_top - 6), 12)
+		_rivets(Vector2(x0 + sx * 7, TOP_BAR + 9), Vector2(x0 + sx * 7, dash_top - 9), 11)
+		draw_colored_polygon(PackedVector2Array([Vector2(inner, TOP_BAR - 1), Vector2(inner + sx * 22, TOP_BAR - 1), Vector2(inner, TOP_BAR + 20)]), F1)
+		draw_line(Vector2(inner + sx * 22, TOP_BAR - 1), Vector2(inner, TOP_BAR + 20), F3, 1.0)
+	# centre housing: red top light behind a grille
+	var cw := floorf(w * 0.2)
+	var cx := floorf(w * 0.5 - cw * 0.5)
+	var hb := TOP_BAR + 10
+	draw_colored_polygon(PackedVector2Array([Vector2(cx - 14, 0), Vector2(cx + cw + 14, 0), Vector2(cx + cw + 4, hb), Vector2(cx - 4, hb)]), F1)
+	draw_line(Vector2(cx - 4, hb), Vector2(cx + cw + 4, hb), F0, 1.0)
+	_top_light(Rect2(cx + 8, 6, cw - 16, 10))
+	for k in range(int(cx + 10), int(cx + cw - 8), 4):
+		draw_line(Vector2(k, 6), Vector2(k, 15), Color(0, 0, 0, 0.35), 1.0)
+
+
+## Heavy fighters: thick top frame with bevels, rivets and wear.
+func _canopy_frame(w: float, h: float, dash_top: float) -> void:
 	# thick top frame with bevels, rivets and wear
 	draw_rect(Rect2(0, 0, w, TOP_BAR), F1)
 	draw_rect(Rect2(0, 1, w, 1), F3)
@@ -304,16 +496,13 @@ func _canopy(w: float, h: float, dash_top: float) -> void:
 	draw_line(Vector2(cx - 5, hb), Vector2(cx + cw + 5, hb), F0, 1.0)
 	draw_line(Vector2(cx - 15, 1), Vector2(cx - 5, hb - 1), F3, 1.0)
 	draw_line(Vector2(cx + cw + 15, 1), Vector2(cx + cw + 5, hb - 1), F0, 1.0)
-	draw_rect(Rect2(cx + 8, 7, cw - 16, 11), F0)
-	draw_rect(Rect2(cx + 9, 8, cw - 18, 9), ORANGE)
-	draw_rect(Rect2(cx + 9, 8, cw - 18, 2), ORANGE_L)
-	draw_rect(Rect2(cx + 9, 15, cw - 18, 2), Color("c2400a"))
+	_top_light(Rect2(cx + 9, 8, cw - 18, 9))
 	_rivets(Vector2(cx + 2, hb - 5), Vector2(cx + cw - 2, hb - 5), 8)
 	# thin side pillars with a highlight edge and rivets
 	for side in [0, 1]:
 		var sx := 1.0 if side == 0 else -1.0
 		var x0 := 0.0 if side == 0 else w
-		var pw := 7.0
+		var pw: float = st.get("pillar", 7.0)
 		var r := Rect2(Vector2(x0 if side == 0 else x0 - pw, TOP_BAR - 1), Vector2(pw, dash_top - TOP_BAR + 1))
 		draw_rect(r, F1)
 		var inner := x0 + sx * pw
@@ -328,15 +517,20 @@ func _canopy(w: float, h: float, dash_top: float) -> void:
 # ------------------------------------------------------------------ dashboard
 
 func _dash(jet: Jet, w: float, h: float, top: float) -> void:
-	# coaming: raised edge in front of the glass, angled at the sides
+	var cls: int = st.get("cls", 0)
+	# coaming: raised edge in front of the glass, angled at the sides, with
+	# the plane's accent stripe
 	var gs := PackedVector2Array([Vector2(0, top + 7), Vector2(w * 0.16, top), Vector2(w * 0.84, top), Vector2(w, top + 7), Vector2(w, top + 18), Vector2(0, top + 18)])
 	draw_colored_polygon(gs, F0)
 	draw_polyline(PackedVector2Array([Vector2(0, top + 7), Vector2(w * 0.16, top), Vector2(w * 0.84, top), Vector2(w, top + 7)]), F3, 1.0)
 	draw_line(Vector2(w * 0.16, top + 1), Vector2(w * 0.84, top + 1), F2, 1.0)
+	draw_line(Vector2(w * 0.16 + 2, top + 2), Vector2(w * 0.84 - 2, top + 2), Color(st.get("stripe", ORANGE)).darkened(0.25), 1.0)
 	# warning lights row (orange / red, blink when urgent)
 	var m: Missiles = game.missiles
-	var warn := [jet.health < jet.max_health * 0.4, m.incoming_t < 3.0, jet.reloading > 0.0 or m.reload > 0.0, jet.boosting, jet.position.y < CityGen.LOW_ALT or jet.stalling]
-	var lw := 20.0
+	var warn := [jet.health < jet.max_health * 0.4, m.incoming_t < 3.0, jet.reloading > 0.0 or m.reload > 0.0, jet.boosting,
+		jet.position.y < CityGen.LOW_ALT or jet.stalling, jet.overheated, jet.gloc > 0.1]
+	warn.resize(int(st.get("warn", 5)))
+	var lw := 20.0 if warn.size() <= 5 else 16.0
 	var lx := floorf(w * 0.5 - warn.size() * (lw + 3) * 0.5)
 	var blink := int(Time.get_ticks_msec() / 180) % 2 == 0
 	for i in warn.size():
@@ -347,31 +541,64 @@ func _dash(jet: Jet, w: float, h: float, top: float) -> void:
 		draw_rect(Rect2(lx + i * (lw + 3) - 1, top + 5, lw + 2, 9), F0)
 		draw_rect(Rect2(lx + i * (lw + 3), top + 6, lw, 7), col)
 		draw_rect(Rect2(lx + i * (lw + 3), top + 6, lw, 1), ORANGE_L if on else Color(1, 0.5, 0.2, 0.25))
-	# panel body: dark grey with wear
+	# panel body with wear
 	var py := top + 18
 	draw_rect(Rect2(0, py, w, h - py), F1)
 	draw_line(Vector2(0, py), Vector2(w, py), F2, 1.0)
 	_wear(Rect2(0, py + 1, w, h - py - 1), 140, 2)
+	if cls == Planes.ATTACK:
+		# armour plate: bolt rows across the panel
+		_rivets(Vector2(0, py + 4), Vector2(w, py + 4), int(w / 14))
 	var panel_h := h - py
-	# the whole ball + bezel fits between the coaming and the screen edge
 	var r := floorf(minf((panel_h - 20.0) * 0.5, 56.0))
+	if cls == Planes.HEAVY:
+		r = floorf(r * 0.8)
 	var bc := Vector2(floorf(w * 0.5), floorf(py + r + 10))
-	# round gauges both sides (inside the band free of touch buttons)
-	var gr := floorf(r * 0.48)
-	var g1 := floorf(w * 0.5 - r - gr - 22)
-	var g2 := floorf(g1 - gr * 2 - 12)
-	var g3 := floorf(w * 0.5 + r + gr + 22)
-	var g4 := floorf(g3 + gr * 2 + 12)
+	var gr := floorf(minf((panel_h - 20.0) * 0.5, 56.0) * 0.48)
 	var gy := floorf(py + gr + 7)
-	_gauge(Vector2(g1, gy), gr, jet.speed / (jet.boost_speed() * 1.05))
-	_gauge(Vector2(g2, gy + 6), gr, jet.boost_energy / 100.0)
-	_gauge(Vector2(g3, gy), gr, jet.position.y / 1000.0)
-	_gauge(Vector2(g4, gy + 6), gr, jet.health / jet.max_health)
-	# small orange / grey switches under the gauges
-	_switches(Vector2(g1 - 9, gy + gr + 8), [jet.ammo > 0.0 and jet.reloading <= 0.0, game.missiles_left() > 0])
-	_switches(Vector2(g3 - 9, gy + gr + 8), [m.locked, m.counter_t > 0.0])
-	_switches(Vector2(g2 - 9, gy + gr + 14), [jet.boosting, false])
-	_switches(Vector2(g4 - 9, gy + gr + 14), [jet.health < jet.max_health * 0.4, false])
+	match cls:
+		Planes.LIGHT:
+			var g1 := floorf(w * 0.5 - r - gr - 22)
+			var g3 := floorf(w * 0.5 + r + gr + 22)
+			_gauge(Vector2(g1, gy), gr, jet.speed / (jet.boost_speed() * 1.05))
+			_gauge(Vector2(g3, gy), gr, jet.position.y / 1000.0)
+			var g4 := floorf(g3 + gr * 2 + 12)
+			_gauge(Vector2(g4, gy + 6), gr, jet.health / jet.max_health)
+			if st.get("radar", false):
+				var mw := gr * 2.6
+				_radar(Rect2(g1 - gr - 10 - mw, gy - gr + 2, mw, gr * 2.2))
+			else:
+				_gauge(Vector2(floorf(g1 - gr * 2 - 12), gy + 6), gr, jet.throttle)
+			_switches(Vector2(g1 - 9, gy + gr + 8), [jet.ammo > 0.0 and jet.reloading <= 0.0, game.missiles_left() > 0])
+			_switches(Vector2(g3 - 9, gy + gr + 8), [m.locked, m.counter_t > 0.0])
+		Planes.HEAVY:
+			var mw := floorf(r * 1.9)
+			var mh := floorf(minf(panel_h - 22.0, r * 1.7))
+			var tier4: bool = int(st.get("tier", 1)) >= 3
+			if tier4:
+				mw = floorf(mw * 1.2)
+			_radar(Rect2(bc.x - r - 16 - mw, py + 8, mw, mh))
+			_engine_page(jet, Rect2(bc.x + r + 16, py + 8, mw, mh))
+			_switches(Vector2(bc.x - r - 16 - mw, py + 12 + mh), [jet.ammo > 0.0 and jet.reloading <= 0.0, game.missiles_left() > 0, m.locked])
+			_switches(Vector2(bc.x + r + 16 + mw - 31, py + 12 + mh), [jet.boosting, m.counter_t > 0.0, jet.overheated])
+		_:
+			# cluster of small round gauges each side + guarded arming switch
+			var sg := floorf(gr * 0.72)
+			var lx0 := floorf(w * 0.5 - r - sg - 20)
+			var rx0 := floorf(w * 0.5 + r + sg + 20)
+			var vals_r := [jet.position.y / 1000.0, jet.health / jet.max_health, jet.heat / 100.0]
+			for k in 3:
+				var o := Vector2(k * (sg * 2 + 8), 0) if k < 2 else Vector2((sg * 2 + 8) * 0.5, sg * 2 + 6)
+				_gauge(Vector2(rx0, gy - 4) + o, sg, vals_r[k])
+			if st.get("radar", false):
+				var mw := sg * 4.4
+				_radar(Rect2(lx0 + sg - mw, gy - 4 - sg, mw, sg * 4.2))
+			else:
+				var vals_l := [jet.speed / (jet.boost_speed() * 1.05), jet.throttle, clampf(jet.g_load / 9.0, 0.0, 1.0)]
+				for k in 3:
+					var o := Vector2(-k * (sg * 2 + 8), 0) if k < 2 else Vector2(-(sg * 2 + 8) * 0.5, sg * 2 + 6)
+					_gauge(Vector2(lx0, gy - 4) + o, sg, vals_l[k])
+			_arm_switch(Vector2(floorf(w * 0.5 + r + 14), floorf(h - 22)), game.missiles_left() > 0)
 	# big attitude ball in a chunky metal bezel with gold screws
 	draw_circle(bc, r + 9, F0)
 	draw_circle(bc, r + 8, F2)
@@ -386,8 +613,101 @@ func _dash(jet: Jet, w: float, h: float, top: float) -> void:
 		draw_rect(Rect2(sp - Vector2(1, 1), Vector2(3, 3)), GOLD)
 		draw_rect(Rect2(sp - Vector2(1, 1), Vector2(1, 1)), GOLD_L)
 	draw_colored_polygon(PackedVector2Array([bc + Vector2(-4, -r - 8), bc + Vector2(4, -r - 8), bc + Vector2(0, -r - 1)]), YEL)
+	# data plate with the plane's code
+	var code: String = st.get("code", "")
+	var pw2 := _font.get_string_size(code, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x + 8
+	var pp := Vector2(floorf(bc.x - r - 14 - pw2), floorf(h - 13))
+	draw_rect(Rect2(pp, Vector2(pw2, 11)), F0)
+	draw_rect(Rect2(pp + Vector2(1, 1), Vector2(pw2 - 2, 9)), Color("b8b09a"))
+	draw_string(_font, pp + Vector2(4, 9), code, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color("24221c"))
 	# control stick in front of the lower bezel, moves with the input
 	_stick(Vector2(floorf(w * 0.5), h), r)
+
+
+## Multi-function display: radar scope (top = nose), range rings, sweep,
+## contacts (enemies yellow, the locked one red, friends green).
+func _radar(rr: Rect2) -> void:
+	rr = Rect2(rr.position.round(), rr.size.round())
+	_mfd_frame(rr)
+	var scr := rr.grow(-4)
+	var c := Vector2(floorf(scr.get_center().x), floorf(scr.end.y - 3))
+	var rad := minf(scr.size.y - 4, scr.size.x * 0.5 - 2)
+	var g := Color(HUD.r, HUD.g, HUD.b, 0.3)
+	for k in [0.5, 1.0]:
+		draw_arc(c, rad * k, PI * 1.15, PI * 1.85, 16, g, 1.0)
+	draw_line(c, c + Vector2(0, -rad), g, 1.0)
+	var sw := PI * 1.15 + fmod(Time.get_ticks_msec() / 1000.0 * 1.6, 1.0) * PI * 0.7
+	draw_line(c, (c + Vector2(cos(sw), sin(sw)) * rad).round(), Color(HUD.r, HUD.g, HUD.b, 0.6), 1.0)
+	var jet: Jet = game.jet
+	var rng := 2200.0
+	var fwd := Vector2(-sin(jet.yaw), -cos(jet.yaw))
+	var right := Vector2(-fwd.y, fwd.x)
+	var lt = game.missiles.lock_target
+	var cons: Array = []
+	for pl in game.fleet.planes:
+		if pl.alive and pl != jet:
+			cons.append(pl)
+	for e0 in game.enemies.pool:
+		if e0.active:
+			cons.append(e0)
+	for e in cons:
+		var ep: Vector3 = Missiles.tpos(e)
+		if ep == Vector3.INF:
+			continue
+		var d := Vector2(ep.x - jet.position.x, ep.z - jet.position.z)
+		var p := Vector2(d.dot(right), -d.dot(fwd)) / rng * rad
+		if p.y > 0.0 or p.length() > rad:
+			continue
+		var col := YEL
+		if "team" in e and e.team == jet.team:
+			col = Color(0.4, 0.9, 1.0)
+		if e == lt:
+			col = RED
+		draw_rect(Rect2((c + p).round() - Vector2(1, 1), Vector2(3, 2)), col)
+	draw_rect(Rect2(c - Vector2(1, 1), Vector2(3, 3)), HUD)
+
+
+## Engine page: throttle and afterburner-heat bars, G and speed digits.
+func _engine_page(jet: Jet, rr: Rect2) -> void:
+	rr = Rect2(rr.position.round(), rr.size.round())
+	_mfd_frame(rr)
+	var scr := rr.grow(-5)
+	var bh := scr.size.y - 12
+	var bw2 := 7.0
+	for k in 2:
+		var v: float = jet.throttle if k == 0 else jet.heat / 100.0
+		var x := scr.position.x + 3 + k * (bw2 + 5)
+		draw_rect(Rect2(x, scr.position.y + 2, bw2, bh), Color(HUD.r, HUD.g, HUD.b, 0.15))
+		var col := HUD if k == 0 else (RED if jet.overheated else ORANGE)
+		if k == 0 and jet.boosting:
+			col = ORANGE
+		var fh := floorf(bh * clampf(v, 0.0, 1.0))
+		draw_rect(Rect2(x, scr.position.y + 2 + bh - fh, bw2, fh), col)
+	var tx := scr.position.x + 2 * (bw2 + 5) + 8
+	ptext(Vector2(tx, scr.position.y + 3), "%d" % int(jet.speed * 3.6), HUD)
+	ptext(Vector2(tx, scr.position.y + 12), "%.1f" % jet.g_load, HUD)
+	ptext(Vector2(tx, scr.position.y + 21), str(int(jet.position.y)), HUD_DIM)
+
+
+func _mfd_frame(rr: Rect2) -> void:
+	draw_rect(rr.grow(2), F0)
+	draw_rect(rr.grow(1), F3)
+	draw_rect(rr, Color("0a0f0c"))
+	# bezel buttons
+	for k in 4:
+		var x := rr.position.x + (k + 0.5) * rr.size.x / 4.0
+		draw_rect(Rect2(x - 2, rr.end.y + 3, 4, 2), F4)
+	draw_line(rr.position + Vector2(1, 1), Vector2(rr.end.x - 2, rr.position.y + 1), Color(1, 1, 1, 0.06), 1.0)
+
+
+## Master arm switch under a red striped guard (up when missiles are left).
+func _arm_switch(p: Vector2, armed: bool) -> void:
+	draw_rect(Rect2(p, Vector2(14, 16)), F0)
+	draw_rect(Rect2(p + Vector2(1, 1), Vector2(12, 14)), Color("8a1a10"))
+	for k in 3:
+		draw_line(p + Vector2(1, 3 + k * 5), p + Vector2(12, 1 + k * 5), Color("e8c84a"), 1.0)
+	draw_rect(Rect2(p + Vector2(5, 3 if armed else 9), Vector2(4, 5)), F4)
+	draw_rect(Rect2(p + Vector2(5, 3 if armed else 9), Vector2(4, 1)), Color.WHITE)
 
 
 func _gauge(c: Vector2, r: float, frac: float) -> void:

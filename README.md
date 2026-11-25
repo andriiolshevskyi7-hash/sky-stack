@@ -189,6 +189,17 @@ test removes all manual sorting. Dynamic stacks draw each slice 2–4 times
 between slice heights so no gaps appear when the camera is close. Dynamic stacks are GPU-instanced (`MultiMesh`, one draw call per sheet)
 and rotated in the vertex shader; static stacks are baked per chunk.
 
+Planes (`scripts/plane_art.gd`) are small voxel models, 64×64 px × 16
+slices, built from parametric parts: shaped fuselage stations, bubble canopy
+with frame bows and the pilot's helmet, wings with dihedral, panel lines,
+rivets, flaps, roundels and nav lights, canards, fins with rudders and a
+strobe, intakes with lips and dark ducts, nacelles, booms, nozzles with petals
+and a glowing core, pylons with missiles / tanks / bombs / rocket pods, gun
+ports, stencils, exhaust soot and weathering. The slices store *material
+indices*; the stack shader colours them from a palette (row = skin × class),
+so every skin costs one palette row instead of a texture. The atlas is
+cached in `user://cache` after the first start.
+
 ## Running locally
 
 Open the folder in Godot 4.3 and press Play, or:
@@ -223,4 +234,6 @@ starts a game on autopilot in chase view (0 overhead, 1 chase, 2 cockpit) at
 midnight on wave 4 and saves a screenshot after 200 frames.
 `--map=N` (0 tropical, 1 desert, 2 snow, 3 night, 4 ocean) switches map,
 `--mode=N` (1 dogfight, 2 base strike, 3 duel) starts a team match, and
-`--at=x,z[,y]` moves the jet.
+`--at=x,z[,y]` moves the jet, `--plane=i[,skin]` flies plane i without
+touching the profile, `--gallery[=skin]` shows all 12 planes up close
+(`--gallery=-1` one skin each, `--gview=x,y,z` camera offset).

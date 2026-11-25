@@ -26,23 +26,26 @@ class Sheet:
 	var block := Vector2i.ZERO
 	var vstride := Vector2i.ZERO
 	var overridden := false
-	var atlas := 0 # 0 = main atlas, 1 = plane atlas
+	var atlas := 0 # 0 = main atlas, 1 = plane atlas (material indices + palette)
+	var pad := 1 # gap between cells
+	var world_scale := 1.0 # world units per slice pixel
 	var uv_rects: Array[Rect2] = []
 
 	func uv(s: int, variant: int) -> Rect2:
-		return uv_rects[variant * n + s]
+		return uv_rects[mini(variant, v - 1) * n + s]
 
 	func cell(s: int, variant: int) -> Vector2i:
-		return origin + vstride * variant + Vector2i((s % cols) * (w + 1), (s / cols) * (h + 1))
+		return origin + vstride * mini(variant, v - 1) + Vector2i((s % cols) * (w + pad), (s / cols) * (h + pad))
 
 
 var sheets := {}
 var atlas_size := Vector2i(ATLAS_W, 256)
-## Second atlas: one sheet per plane of the aircraft tree, skins = variants.
-const PLANE_ATLAS := Vector2i(1024, 2048)
+## Second atlas: one row of 16 slices per plane of the aircraft tree, holding
+## MATERIAL indices; skins are rows of the palette texture (see PlaneArt).
+const PLANE_ATLAS := Vector2i(1024, 1024)
 var plane_atlas_tex: ImageTexture
-var plane_emit_tex: ImageTexture
-var plane_albedo := {} # plane index -> Image (factory skin strip, for shadows)
+var plane_palette_tex: ImageTexture
+var plane_albedo := {} # plane index -> Image (slice strip, for shadows)
 var atlas_tex: ImageTexture
 var emit_tex: ImageTexture
 var facade_tex: ImageTexture
@@ -204,46 +207,33 @@ func _total(sh: Sheet) -> Vector2i:
 	return Vector2i(sh.block.x, sh.block.y * sh.v)
 
 
-## The 12 planes of the aircraft tree: 40x40, 11 slices, 8 skins each.
-## Sheet i sits at ((i % 2) * 452, (i / 2) * 328) of the plane atlas; the 8
-## skins are stacked vertically (variant stride 41 px).
+## The 12 planes of the aircraft tree: 64x64 px, 16 slices, one row each
+## (slice s of plane i at (s * 64, i * 64), no gaps). One variant: the skin
+## is chosen in the shader from the palette.
 func _build_plane_sheets() -> void:
-	var atlas := Image.create(PLANE_ATLAS.x, PLANE_ATLAS.y, false, Image.FORMAT_RGBA8)
-	var eatlas := Image.create(PLANE_ATLAS.x, PLANE_ATLAS.y, false, Image.FORMAT_RGBA8)
-	var W := Planes.SHEET_W
-	var N := Planes.SLICES
-	var V := Planes.SKINS.size()
+	var W := PlaneArt.W
+	var N := PlaneArt.D
+	var atlas := PlaneArt.build_atlas(PLANE_ATLAS.x, PLANE_ATLAS.y)
 	for pi in Planes.LIST.size():
 		var sh := Sheet.new()
 		sh.name = Planes.sheet_of(pi)
 		sh.w = W
 		sh.h = W
 		sh.n = N
-		sh.v = V
+		sh.v = 1
 		sh.atlas = 1
+		sh.pad = 0
+		sh.world_scale = PlaneArt.WORLD / W
 		sh.cols = N
-		sh.block = Vector2i(N * (W + PAD), W + PAD)
-		sh.vstride = Vector2i(0, W + PAD)
-		sh.origin = Vector2i((pi % 2) * (sh.block.x + 1), (pi / 2) * sh.block.y * V)
-		for vi in V:
-			var a := Image.create(W * N, W, false, Image.FORMAT_RGBA8)
-			var e := Image.create(W * N, W, false, Image.FORMAT_RGBA8)
-			var p := Painter.new(a, e, W, W)
-			for s in N:
-				p.ox = s * W
-				Planes.paint(p, s, pi, vi)
-			if vi == 0:
-				plane_albedo[pi] = a
-			for s in N:
-				var dst := sh.cell(s, vi)
-				atlas.blit_rect(a, Rect2i(s * W, 0, W, W), dst)
-				eatlas.blit_rect(e, Rect2i(s * W, 0, W, W), dst)
-		for vi in V:
-			for s in N:
-				sh.uv_rects.append(slice_uv(sh, s, vi))
+		sh.block = Vector2i(N * W, W)
+		sh.vstride = Vector2i.ZERO
+		sh.origin = Vector2i(0, pi * W)
+		for s in N:
+			sh.uv_rects.append(slice_uv(sh, s, 0))
 		sheets[sh.name] = sh
+		plane_albedo[pi] = atlas.get_region(Rect2i(0, pi * W, N * W, W))
 	plane_atlas_tex = ImageTexture.create_from_image(atlas)
-	plane_emit_tex = ImageTexture.create_from_image(eatlas)
+	plane_palette_tex = ImageTexture.create_from_image(PlaneArt.palette_image())
 
 
 ## Ground shadow of the player's plane (silhouette of every slice).
@@ -283,7 +273,7 @@ func make_stack_mesh(sheet_name: String, copies: int = 1) -> ArrayMesh:
 	var mb := MeshBuf.new()
 	# Each slice is drawn `copies` times between its height and the next one so
 	# no gaps open up when a perspective camera looks at a stack up close.
-	mb.add_stack(sh, 0, Vector3.ZERO, 0.0, 1.0, Color.WHITE, copies)
+	mb.add_stack(sh, 0, Vector3.ZERO, 0.0, sh.world_scale, Color.WHITE, copies)
 	return mb.commit()
 
 
@@ -293,12 +283,18 @@ func batch_material(sheet_name: String) -> ShaderMaterial:
 	var sh := get_sheet(sheet_name)
 	var m := ShaderMaterial.new()
 	m.shader = preload("res://shaders/stack.gdshader")
-	var planes := sh.atlas == 1
-	m.set_shader_parameter("albedo_tex", plane_atlas_tex if planes else atlas_tex)
-	m.set_shader_parameter("emit_tex", plane_emit_tex if planes else emit_tex)
+	if sh.atlas == 1:
+		m.set_shader_parameter("palette_mode", true)
+		m.set_shader_parameter("index_tex", plane_atlas_tex)
+		m.set_shader_parameter("palette_tex", plane_palette_tex)
+		m.set_shader_parameter("albedo_tex", atlas_tex)
+		m.set_shader_parameter("emit_tex", emit_tex)
+	else:
+		m.set_shader_parameter("albedo_tex", atlas_tex)
+		m.set_shader_parameter("emit_tex", emit_tex)
+		m.set_shader_parameter("variant_stride", Vector2(sh.vstride) / Vector2(atlas_size))
 	m.set_shader_parameter("dynamic", true)
 	m.set_shader_parameter("fadeable", false)
-	m.set_shader_parameter("variant_stride", Vector2(sh.vstride) / Vector2(PLANE_ATLAS if planes else atlas_size))
 	_batch_mats[sheet_name] = m
 	return m
 
