@@ -20,6 +20,7 @@ const SCHEMA := [
 	["FLIGHT", "wingmen", "Wingmen", "f", 1.0, 0.0, 3.0, 1.0],
 	["FLIGHT", "invert", "Invert climb/dive (drag up climbs)", "b", false],
 	["FLIGHT", "crashes", "Crashes (dive into the ground to eject)", "b", true],
+	["COMBAT", "team_size", "Team size (bots per side)", "f", 4.0, 2.0, 8.0, 1.0],
 	["COMBAT", "cannon", "Cannon rounds before a reload", "f", 300.0, 50.0, 1000.0, 50.0],
 	["COMBAT", "missiles", "Missiles before a reload", "f", 6.0, 1.0, 20.0, 1.0],
 	["COMBAT", "reload", "Reload time (seconds)", "f", 5.0, 1.0, 15.0, 0.5],

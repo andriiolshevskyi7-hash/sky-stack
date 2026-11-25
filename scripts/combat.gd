@@ -24,6 +24,7 @@ var enemies: Node
 var chunks: ChunkManager
 var fx: Fx
 var fleet: Node # Fleet: all planes (player + bots)
+var bases: Node # Bases (base strike)
 
 
 func _ready() -> void:
@@ -93,10 +94,10 @@ func enemy_bullet(p: Vector3, dir: Vector3, speed: float, d: float) -> void:
 
 
 ## Projectile that flies to `at` and triggers there (flak burst / building hit).
-func lob(p: Vector3, at: Vector3, speed: float, d: float, k: int, building_id: int = -1) -> void:
+func lob(p: Vector3, at: Vector3, speed: float, d: float, k: int, building_id: int = -1, team: int = 1) -> void:
 	var dist := p.distance_to(at)
 	var t := maxf(0.05, dist / speed)
-	_spawn(p, (at - p) / t, t, d, true, k, building_id)
+	_spawn(p, (at - p) / t, t, d, team == 1, k, building_id)
 	if k == FLAK:
 		Sfx.play("flak", -6.0, 1.3)
 	elif k == BOMB:
@@ -110,7 +111,7 @@ func _trigger(i: int) -> void:
 			fx.explosion(p, 0.45)
 			Sfx.play("flak", -4.0)
 			if fleet != null:
-				fleet.splash(p, 22.0, 0, dmg[i], null)
+				fleet.splash(p, 24.0, 0 if owner_enemy[i] == 1 else 1, dmg[i], null)
 			elif jet.alive and p.distance_to(jet.position) < 20.0 and jet.invuln <= 0.0:
 				jet.damage(dmg[i])
 		BOMB, BLD_SHOT:
@@ -132,7 +133,7 @@ func _process(delta: float) -> void:
 		pos[i] += vel[i] * delta
 		var p := pos[i]
 		if life[i] <= 0.0:
-			if owner_enemy[i] == 1:
+			if owner_enemy[i] == 1 or kind[i] == FLAK:
 				_trigger(i)
 			remove = true
 		elif kind[i] == BULLET:
@@ -143,6 +144,9 @@ func _process(delta: float) -> void:
 				remove = true
 				if s != null and "shots_hit" in s:
 					s.shots_hit += 1
+			elif bases != null and bases.hit_test(p, team, dmg[i], s):
+				fx.sparks(p, 4)
+				remove = true
 			elif fleet != null and fleet.hit_test(p, team, dmg[i], s):
 				fx.hit(p)
 				remove = true

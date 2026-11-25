@@ -64,6 +64,10 @@ func _draw() -> void:
 		_draw_status(vs)
 	elif playing:
 		ctext(vs.x * 0.5, 96 * s, "%07d" % game.score, 22, Color(1, 1, 1, 0.85))
+	if playing and game.match_rules.is_team_mode():
+		_draw_team_bar(vs, game.match_rules)
+		var cockpit_on: bool = game.cam.cockpit_blend >= 0.5
+		_draw_minimap(Vector2((22.0 + 90.0) * s, (150.0 if cockpit_on else 240.0) * s), 82.0 * s)
 	if playing:
 		_draw_tags(vs)
 		_draw_feed(vs)
@@ -111,17 +115,20 @@ func _draw_status(vs: Vector2) -> void:
 		if i < lit and lit <= 2:
 			col = Color(1.0, 0.3, 0.25)
 		draw_rect(Rect2(Vector2(x + 210 * s + i * 18 * s, y + 13 * s), Vector2(11 * s, 22 * s)), col)
-	# city + wave + altitude (small)
-	_panel(Rect2(Vector2(x, y + ph + 8 * s), Vector2(pw, 30 * s)))
-	text(Vector2(x + 16 * s, y + ph + 30 * s), "CITY", 15, Color(0.75, 0.9, 1.0))
-	draw_rect(Rect2(Vector2(x + 70 * s, y + ph + 17 * s), Vector2(140 * s, 12 * s)), Color(0, 0, 0, 0.4))
-	draw_rect(Rect2(Vector2(x + 70 * s, y + ph + 17 * s), Vector2(140 * s * game.city_hp / game.city_max, 12 * s)), C_CITY)
-	if game.wave > 0 and not game.tutorial.active():
-		text(Vector2(x + 225 * s, y + ph + 30 * s), "WAVE %d  %d" % [game.wave, game.enemies_left()], 15, Color(1, 0.85, 0.85))
-	text(Vector2(x + 4 * s, y + ph + 66 * s), "ALT %d" % int(jet.position.y), 16, Color(0.85, 0.95, 1.0) if jet.position.y > CityGen.LOW_ALT else Color(1, 0.85, 0.3))
-	# score
-	ctext(vs.x * 0.5, 40 * s, "%07d" % game.score, 28)
-	ctext(vs.x * 0.5, 62 * s, "HI %07d" % maxi(Save.high_score, game.score), 14, Color(1, 1, 1, 0.7))
+	var mr: Match = game.match_rules
+	if mr.is_team_mode():
+		pass # team bar + minimap are drawn in _draw (also in the cockpit)
+	else:
+		# city + wave + altitude (small)
+		_panel(Rect2(Vector2(x, y + ph + 8 * s), Vector2(pw, 30 * s)))
+		text(Vector2(x + 16 * s, y + ph + 30 * s), "CITY", 15, Color(0.75, 0.9, 1.0))
+		draw_rect(Rect2(Vector2(x + 70 * s, y + ph + 17 * s), Vector2(140 * s, 12 * s)), Color(0, 0, 0, 0.4))
+		draw_rect(Rect2(Vector2(x + 70 * s, y + ph + 17 * s), Vector2(140 * s * game.city_hp / game.city_max, 12 * s)), C_CITY)
+		if game.wave > 0 and not game.tutorial.active():
+			text(Vector2(x + 225 * s, y + ph + 30 * s), "WAVE %d  %d" % [game.wave, game.enemies_left()], 15, Color(1, 0.85, 0.85))
+		text(Vector2(x + 4 * s, y + ph + 66 * s), "ALT %d" % int(jet.position.y), 16, Color(0.85, 0.95, 1.0) if jet.position.y > CityGen.LOW_ALT else Color(1, 0.85, 0.3))
+		ctext(vs.x * 0.5, 40 * s, "%07d" % game.score, 28)
+		ctext(vs.x * 0.5, 62 * s, "HI %07d" % maxi(Save.high_score, game.score), 14, Color(1, 1, 1, 0.7))
 	# INTEL / TUTORIAL buttons
 	for n in ["intel"]:
 		if not c.helper_buttons:
@@ -217,6 +224,66 @@ func _draw_boss(vs: Vector2) -> void:
 	draw_rect(r, Color(0.2, 0.05, 0.05))
 	draw_rect(Rect2(r.position, Vector2(w * clampf(b.hp / b.max_hp, 0.0, 1.0), r.size.y)), Color(1, 0.3, 0.2))
 	ctext(vs.x * 0.5, 80 * s, "BOSS BOMBER", 16, Color(1, 0.8, 0.7))
+
+
+## Team score bar + timer (team modes).
+func _draw_team_bar(vs: Vector2, mr: Match) -> void:
+	var w := 520.0 * s
+	var h := 40.0 * s
+	var x0 := vs.x * 0.5 - w * 0.5
+	var y0 := 18.0 * s
+	var tgt := float(mr.kill_target) if mr.mode != Match.BASE else 100.0
+	_panel(Rect2(Vector2(x0, y0), Vector2(w, h)))
+	var half := w * 0.5 - 60 * s
+	var fb := clampf(mr.score[0] / tgt, 0.0, 1.0)
+	var fr := clampf(mr.score[1] / tgt, 0.0, 1.0)
+	draw_rect(Rect2(Vector2(x0 + 60 * s + half - half * fb, y0 + 8 * s), Vector2(half * fb, h - 16 * s)) if false else Rect2(Vector2(x0 + 8 * s, y0 + 8 * s), Vector2((half - 8 * s) * fb, h - 16 * s)), Color(0.35, 0.65, 1.0, 0.9))
+	draw_rect(Rect2(Vector2(x0 + w - 8 * s - (half - 8 * s) * fr, y0 + 8 * s), Vector2((half - 8 * s) * fr, h - 16 * s)), Color(1.0, 0.4, 0.35, 0.9))
+	text(Vector2(x0 + 14 * s, y0 + 28 * s), str(mr.score[0]) + ("%" if mr.mode == Match.BASE else ""), 20)
+	text(Vector2(x0, y0 + 28 * s), str(mr.score[1]) + ("%" if mr.mode == Match.BASE else ""), 20, C_TEXT, HORIZONTAL_ALIGNMENT_RIGHT, w - 14 * s)
+	var tl := maxi(0, int(ceil(mr.time_left)))
+	ctext(vs.x * 0.5, y0 + 29 * s, "%d:%02d" % [tl / 60, tl % 60], 22, Color(1, 0.95, 0.7))
+	if mr.mode != Match.BASE:
+		ctext(vs.x * 0.5, y0 + h + 18 * s, "FIRST TO %d" % mr.kill_target, 13, Color(1, 1, 1, 0.65))
+	if mr.countdown > 0.0:
+		ctext(vs.x * 0.5, vs.y * 0.45, str(ceili(mr.countdown)), 96, Color(1, 0.9, 0.4))
+	if game._player_respawn > 0.0:
+		ctext(vs.x * 0.5, vs.y * 0.45, "RESPAWN %d" % ceili(game._player_respawn), 40, Color(1, 1, 1, 0.9))
+
+
+## Heading-up minimap: planes (blue/red), bases, your jet in the middle.
+func _draw_minimap(c: Vector2, r: float) -> void:
+	draw_circle(c, r + 3 * s, Color(0, 0, 0, 0.45))
+	draw_circle(c, r, Color(0.08, 0.16, 0.28, 0.75))
+	draw_arc(c, r, 0, TAU, 40, Color(0.6, 0.8, 1.0, 0.6), maxf(1.0, 2.0 * s))
+	var jet: Jet = game.jet
+	var rng_w := 4200.0
+	var cy := cos(jet.yaw)
+	var sy := sin(jet.yaw)
+	var see_enemies: bool = game.match_rules.mode != Match.BASE or game.bases.radar_up(jet.team)
+	for st in game.bases.structures:
+		_mm_dot(c, r, rng_w, cy, sy, st.pos, Color(0.4, 0.7, 1.0, 0.8) if st.team == 0 else Color(1, 0.45, 0.4, 0.8), 3.0 if st.active else 1.5, true)
+	for pl in game.fleet.planes:
+		if not pl.alive or pl == jet:
+			continue
+		if pl.team != jet.team and not see_enemies:
+			continue
+		_mm_dot(c, r, rng_w, cy, sy, pl.position, Color(0.45, 0.75, 1.0) if pl.team == jet.team else Color(1.0, 0.35, 0.3), 3.5, false)
+	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -7) * s, c + Vector2(5, 6) * s, c + Vector2(-5, 6) * s]), Color.WHITE)
+	if not see_enemies:
+		ctext(c.x, c.y + r + 18 * s, "RADAR DOWN", 13, Color(1, 0.5, 0.4))
+
+
+func _mm_dot(c: Vector2, r: float, rng_w: float, cy: float, sy: float, p: Vector3, col: Color, size: float, square: bool) -> void:
+	var jp: Vector3 = game.jet.position
+	var d := Vector2(p.x - jp.x, p.z - jp.z)
+	var l := Vector2(cy * d.x - sy * d.y, sy * d.x + cy * d.y) / rng_w * r
+	if l.length() > r - 3.0:
+		l = l.normalized() * (r - 3.0)
+	if square:
+		draw_rect(Rect2(c + l - Vector2(size, size) * s, Vector2(size, size) * 2.0 * s), col)
+	else:
+		draw_circle(c + l, size * s, col)
 
 
 func _screen(p: Vector3) -> Vector2:

@@ -1,7 +1,7 @@
 extends Node
 ## Game root: builds the pixel view, world, HUD and runs the game state machine.
 
-enum State { TITLE, PLAY, PAUSE, OVER }
+enum State { TITLE, PLAY, PAUSE, OVER, LOBBY, RESULTS }
 
 const SPAWN := Vector3(0, 0, 0)
 
@@ -30,6 +30,11 @@ var cockpit: Cockpit
 var trails: Trails
 var missiles: Missiles
 var fleet: Fleet
+var match_rules: Match
+var bases: Bases
+var screens: Screens
+var _player_respawn := -1.0
+var _last_results := {}
 var kill_feed: Array = [] # [text, age, color]
 var intel: Intel
 var tutorial: Tutorial
@@ -129,6 +134,12 @@ func _ready() -> void:
 	fleet = Fleet.new()
 	fleet.name = "Fleet"
 	world.add_child(fleet)
+	bases = Bases.new()
+	bases.name = "Bases"
+	world.add_child(bases)
+	match_rules = Match.new()
+	match_rules.game = self
+	add_child(match_rules)
 	traffic = Traffic.new()
 	traffic.name = "Traffic"
 	world.add_child(traffic)
@@ -193,7 +204,13 @@ func _ready() -> void:
 		var base := jet.position if team == 0 else jet.position + Vector3(cos(a), 0, sin(a)) * 1400.0
 		return [Vector3(base.x + rng.randf_range(-200, 200), 260.0, base.z + rng.randf_range(-200, 200)), rng.randf() * TAU]
 	fleet.plane_killed.connect(_on_plane_killed)
+	fleet.plane_killed.connect(func(v: Jet, k: Jet, _a: Jet) -> void: match_rules.on_kill(v, k))
 	combat.fleet = fleet
+	combat.bases = bases
+	bases.game = self
+	bases.fleet = fleet
+	bases.combat = combat
+	bases.fx = fx
 	missiles.fleet = fleet
 	missiles.clouds = clouds
 	tutorial = Tutorial.new()
@@ -212,6 +229,8 @@ func _ready() -> void:
 	layer.add_child(menu)
 	intel = Intel.new()
 	layer.add_child(intel)
+	screens = Screens.new()
+	layer.add_child(screens)
 	settings_ui = SettingsScreen.new()
 	layer.add_child(settings_ui)
 	settings_ui.changed.connect(func(k: String) -> void: apply_settings(k))
@@ -252,6 +271,13 @@ func _parse_args() -> void:
 			_shot_frames = int(a.substr(9))
 		elif a == "--play":
 			start_game()
+		elif a.begins_with("--mode="):
+			_open_lobby(int(a.substr(7)))
+			if not OS.get_cmdline_user_args().has("--lobby"):
+				start_match()
+				match_rules.countdown = 0.0
+		elif a == "--end":
+			match_rules.time_left = 0.5
 		elif a.begins_with("--cam="):
 			cam.mode = int(a.substr(6)) as GameCamera.Mode
 		elif a.begins_with("--tod="):
@@ -304,10 +330,18 @@ func _process(delta: float) -> void:
 	if state == State.PAUSE:
 		return
 	delta = minf(delta, 0.05)
-	jet.step(delta)
+	var frozen := state == State.PLAY and match_rules.countdown > 0.0
+	if not frozen:
+		jet.step(delta)
 	_update_pilot(delta)
-	if state == State.PLAY or state == State.TITLE or state == State.OVER:
+	if (state == State.PLAY or state == State.TITLE or state == State.OVER or state == State.RESULTS) and not frozen:
 		fleet.step(delta)
+	if state == State.PLAY:
+		match_rules.update(delta)
+		if _player_respawn > 0.0:
+			_player_respawn -= delta
+			if _player_respawn <= 0.0:
+				_respawn_player()
 	cam.update_cam(delta, jet, jet.speed_ratio())
 	jet.visible = jet.alive and cam.cockpit_blend < 0.6
 	cockpit.size = Vector2(pv.low)
@@ -333,7 +367,7 @@ func _process(delta: float) -> void:
 	pv.set_post("flash", flash)
 	speed_lines.size = Vector2(pv.low)
 	speed_lines.strength = lerpf(speed_lines.strength, 1.0 if jet.boosting else 0.0, 1.0 - exp(-delta * 6.0))
-	if state == State.PLAY:
+	if state == State.PLAY and match_rules.mode == Match.CITY:
 		if tutorial.active():
 			tutorial.process(delta)
 		else:
@@ -342,7 +376,7 @@ func _process(delta: float) -> void:
 	RenderingServer.global_shader_parameter_set("jet_yaw", jet.yaw)
 	banner_time -= delta
 	Sfx.set_engine(state == State.PLAY and jet.alive, jet.speed_ratio())
-	if state == State.PLAY and jet.alive:
+	if state == State.PLAY and jet.alive and match_rules.mode == Match.CITY:
 		_score_acc += delta * (2.0 + 6.0 * (jet.multiplier - 1))
 		if _score_acc >= 1.0:
 			score += int(_score_acc)
@@ -360,15 +394,74 @@ func _to_title() -> void:
 	get_tree().paused = false
 	jet.autopilot = true
 	controls.enabled = false
-	menu.open("SKY STACK", "Defend the city.  Fly low between skyscrapers for a score multiplier.",
-		[["START", start_game]],
-		[func() -> String: return "HIGH SCORE  %d" % Save.high_score,
-		"TAP ANYWHERE TO START",
-		"Touch: stick left - BOOST / FIRE right      Keys: WASD  Shift  Space  C  Esc"], 0.25, true)
+	screens.close()
+	fleet.clear_bots()
+	bases.clear()
+	match_rules.running = false
+	match_rules.mode = Match.CITY
+	menu.open("SKY STACK", "Offline air combat",
+		[["PLAY", _open_mode_menu], ["SETTINGS", _open_settings_from_title]],
+		[func() -> String: return "COINS %d     XP %d     HIGH SCORE %d" % [Profile.coins(), Profile.xp(), Save.high_score],
+		"TAP ANYWHERE TO PLAY"], 0.25, true)
+
+
+func _open_settings_from_title() -> void:
+	menu.close()
+	settings_ui.open()
+
+
+func _open_mode_menu() -> void:
+	state = State.TITLE
+	screens.close()
+	menu.open("CHOOSE MODE", "Bots fly the same planes you do", [
+		["TEAM DOGFIGHT", func() -> void: _open_lobby(Match.DOGFIGHT)],
+		["BASE STRIKE", func() -> void: _open_lobby(Match.BASE)],
+		["CITY DEFENCE", func() -> void: _open_lobby(Match.CITY)],
+		["DUEL", _open_duel_menu],
+		["BACK", _to_title],
+	], [], 0.35)
+
+
+func _open_duel_menu() -> void:
+	menu.open("DUEL", "Choose your opponent", [
+		["ROOKIE", func() -> void: _open_lobby(Match.DUEL, 0.15)],
+		["REGULAR", func() -> void: _open_lobby(Match.DUEL, 0.45)],
+		["VETERAN", func() -> void: _open_lobby(Match.DUEL, 0.7)],
+		["ACE", func() -> void: _open_lobby(Match.DUEL, 0.95)],
+		["BACK", _open_mode_menu],
+	], [], 0.35)
+
+
+## Bot skill centre matched to the player's progress (rank in phase 4).
+func rank_skill() -> float:
+	return clampf(0.25 + Profile.xp() / 25000.0, 0.2, 0.9)
+
+
+var _lobby_mode := Match.DOGFIGHT
+var _lobby_duel := 0.5
+
+
+func _open_lobby(mode: int, duel_skill: float = 0.5) -> void:
+	_lobby_mode = mode
+	_lobby_duel = duel_skill
+	menu.close()
+	state = State.LOBBY
+	match_rules.configure(mode, int(Save.settings.get("team_size", 4)), rank_skill(), duel_skill)
+	screens.show_page("lobby", {
+		"mode_name": Match.MODE_NAMES[mode], "mode_info": Match.MODE_INFO[mode], "map_name": "TROPICAL ISLANDS",
+		"roster": match_rules.roster, "on_start": start_match, "on_back": _open_mode_menu,
+	})
 
 
 func start_game() -> void:
+	match_rules.configure(Match.CITY, 4, rank_skill())
+	start_match()
+
+
+func start_match() -> void:
+	screens.close()
 	menu.close()
+
 	state = State.PLAY
 	get_tree().paused = false
 	controls.enabled = true
@@ -385,11 +478,116 @@ func start_game() -> void:
 	combat.clear()
 	missiles.clear()
 	tutorial.stop()
-	_spawn_wingmen()
 	Engine.time_scale = 1.0
 	wave_queue.clear()
-	between_t = 3.0
-	show_banner("GET READY", "Protect the city", 2.5)
+	_player_respawn = -1.0
+	fleet.clear_bots()
+	bases.clear()
+	jet.kills = 0
+	jet.deaths = 0
+	jet.assists = 0
+	jet.damage_dealt = 0.0
+	jet.base_damage = 0.0
+	jet.ground_kills = 0
+	jet.shots_fired = 0
+	jet.shots_hit = 0
+	kill_feed.clear()
+	match_rules.start()
+	if match_rules.mode == Match.CITY:
+		fleet.respawn_delay = [12.0, -1.0]
+		fleet.spawn_point = _city_spawn
+		fleet.extra_targets = Callable()
+		_spawn_wingmen()
+		between_t = 3.0
+		show_banner("GET READY", "Protect the city", 2.5)
+		return
+	# team modes
+	between_t = 0.0
+	tutorial.step = -1
+	if match_rules.mode == Match.BASE:
+		bases.build(0, Bases.find_land(Vector3(0, 0, 3200)), 0.0)
+		bases.build(1, Bases.find_land(Vector3(0, 0, -3200)), PI)
+		fleet.extra_targets = func(team: int) -> Array: return bases.alive_targets(1 - team)
+	else:
+		fleet.extra_targets = Callable()
+	fleet.respawn_delay = [match_rules.respawn_delay(0), match_rules.respawn_delay(1)]
+	fleet.spawn_point = match_rules.spawn_point
+	var sp: Array = match_rules.spawn_point(0)
+	jet.reset(sp[0], sp[1])
+	jet.position = sp[0]
+	for t in 2:
+		var bots: Array = match_rules.roster[t].filter(func(e: Dictionary) -> bool: return not e.get("player", false))
+		var prev: Jet = null
+		for i in bots.size():
+			var e: Dictionary = bots[i]
+			var p: Array = match_rules.spawn_point(t)
+			var b := fleet.spawn_bot(t, e["skill"], e["role"], p[0], p[1])
+			b.pilot = e["name"]
+			if e["role"] == BotBrain.ATTACKER:
+				b.brain.ground_targets = bases.target_for
+			if prev != null and prev.brain.partner == null:
+				prev.brain.partner = b
+				b.brain.partner = prev
+				b.brain.leader = false
+				if b.brain.role == BotBrain.ESCORT:
+					b.brain.escort_of = prev
+				prev = null
+			else:
+				prev = b
+	show_banner(Match.MODE_NAMES[match_rules.mode], Match.MODE_INFO[match_rules.mode], 3.0)
+
+
+func _city_spawn(team: int) -> Array:
+	var a := rng.randf() * TAU
+	var base := jet.position if team == 0 else jet.position + Vector3(cos(a), 0, sin(a)) * 1400.0
+	return [Vector3(base.x + rng.randf_range(-200, 200), 260.0, base.z + rng.randf_range(-200, 200)), rng.randf() * TAU]
+
+
+func _respawn_player() -> void:
+	var sp: Array = match_rules.spawn_point(0)
+	jet.reset(sp[0], sp[1])
+	jet.position = sp[0]
+	trails.clear()
+	controls.enabled = true
+	show_banner("BACK IN THE FIGHT", "", 1.2)
+
+
+func on_structure_destroyed(s: Object, src: Object) -> void:
+	var who: String = src.pilot if src != null and is_instance_valid(src) and "pilot" in src else "Crash"
+	var col := Color(0.5, 0.8, 1.0) if s.team == 1 else Color(1.0, 0.45, 0.4)
+	kill_feed.append(["%s  >  %s %s" % [who, "RED" if s.team == 1 else "BLUE", Bases.KIND_NAMES[s.kind]], 0.0, col])
+	if src == jet:
+		score += 200
+		popups.append([s.pos, "+200", 0.0])
+
+
+func on_match_finished() -> void:
+	state = State.RESULTS
+	controls.enabled = false
+	controls.reset()
+	Sfx.set_engine(false, 0.0)
+	var res := match_rules.results(fleet.planes)
+	_finish_profile(res, Match.MODE_KEYS[match_rules.mode])
+	Sfx.play("clear" if res["won"] else "gameover")
+	res["on_again"] = func() -> void: _open_lobby(_lobby_mode, _lobby_duel)
+	res["on_menu"] = _to_title
+	_last_results = res
+	screens.show_page("results", res)
+
+
+func _finish_profile(res: Dictionary, mode_key: String) -> void:
+	var lvl0 := Profile.xp() / 1000.0
+	Profile.record_match({
+		"mode": mode_key, "won": res.get("won", false), "kills": jet.kills, "deaths": jet.deaths, "assists": jet.assists,
+		"shots": jet.shots_fired, "hits": jet.shots_hit, "damage": jet.damage_dealt, "base_damage": jet.base_damage,
+		"ground_kills": jet.ground_kills, "mvp": res.get("me_mvp", false), "score": res.get("my_score", score),
+		"plane": jet.sheet_name, "time": match_rules.elapsed, "xp": res.get("xp", 0), "coins": res.get("coins", 0),
+		"missile_dodges": missiles.dodges,
+	})
+	res["rank_from"] = lvl0
+	res["rank_to"] = Profile.xp() / 1000.0
+	res["rank_text"] = "LEVEL %d   %d / 1000 XP" % [Profile.xp() / 1000 + 1, Profile.xp() % 1000]
+
 
 
 # ------------------------------------------------------------------ waves
@@ -607,7 +805,9 @@ func _update_pilot(delta: float) -> void:
 		pilot.queue_free()
 		pilot = null
 		cam.override = null
-		if state == State.PLAY or state == State.TITLE:
+		if match_rules.is_team_mode() and state == State.PLAY:
+			_respawn_player()
+		elif state == State.PLAY or state == State.TITLE:
 			score = maxi(0, score - 300)
 			jet.reset(p, jet.yaw)
 			trails.clear()
@@ -797,6 +997,10 @@ func _toggle_snap() -> void:
 func _on_jet_died() -> void:
 	if state != State.PLAY:
 		return
+	if match_rules.is_team_mode():
+		_player_respawn = match_rules.respawn_delay(0)
+		show_banner("SHOT DOWN", "Respawn in %d s" % int(_player_respawn), _player_respawn)
+		return
 	state = State.OVER
 	_over_t = 0.0
 	if over_reason == "":
@@ -807,6 +1011,8 @@ func _on_jet_died() -> void:
 
 func _open_game_over() -> void:
 	var record := Save.submit_score(score)
+	var res := {"won": false, "my_score": score, "xp": 50 + score / 20 + kills * 30, "coins": 20 + score / 40 + kills * 15}
+	_finish_profile(res, "city")
 	menu.open("GAME OVER", over_reason + ("   -   NEW HIGH SCORE!" if record else ""), [
 		["RETRY", start_game],
 		["TITLE", _to_title],
@@ -834,6 +1040,46 @@ func test_hook(t: Node) -> Array:
 			break
 	if kills != before + 1:
 		errs.append("enemy kill not registered")
+	# --- team dogfight 4v4: lobby roster, countdown, kills, results, profile
+	_open_lobby(Match.DOGFIGHT)
+	if match_rules.roster[0].size() != 4 or match_rules.roster[1].size() != 4:
+		errs.append("lobby roster is not 4v4")
+	start_match()
+	if fleet.planes.size() != 8:
+		errs.append("dogfight did not spawn 8 planes (%d)" % fleet.planes.size())
+	var froze := jet.position
+	await t.get_tree().process_frame
+	await t.get_tree().process_frame
+	if jet.position.distance_to(froze) > 1.0:
+		errs.append("planes move during the countdown")
+	match_rules.countdown = 0.0
+	var victim: Jet = fleet.enemy_planes(0)[0]
+	victim.damage(999.0, jet)
+	await t.get_tree().process_frame
+	if match_rules.score[0] != 1 or jet.kills != 1:
+		errs.append("kill not credited to the player / team score (score %s kills %d)" % [match_rules.score, jet.kills])
+	var b0 := Profile.stat("battles")
+	match_rules.time_left = 0.01
+	await t.get_tree().create_timer(0.3).timeout
+	if state != State.RESULTS or not screens.visible:
+		errs.append("results screen not shown at the end of the match")
+	if Profile.stat("battles") != b0 + 1:
+		errs.append("match not recorded in the profile")
+	# --- base strike: destroying the enemy base wins
+	_open_lobby(Match.BASE)
+	start_match()
+	match_rules.countdown = 0.0
+	if bases.structures.size() != 22:
+		errs.append("base strike should build 2 x 11 structures (%d)" % bases.structures.size())
+	for st in bases.alive_targets(1):
+		st.take_damage(999.0, jet)
+	await t.get_tree().create_timer(0.3).timeout
+	if state != State.RESULTS or match_rules.winner != 0:
+		errs.append("destroying the enemy base did not win the match")
+	if jet.base_damage <= 0.0:
+		errs.append("base damage not credited")
+	state = State.PLAY
+	start_game()
 	# --- bots: aces vs rookies, same flight model as the player
 	wave_queue.clear()
 	tutorial.step = 99

@@ -188,8 +188,21 @@ func test_touch(main: Node) -> void:
 	await _frames(3)
 	_touch(start, false)
 	await _frames(3)
-	check(main.state == main.State.PLAY, "touch on START starts the game")
-	check(not main.menu.visible, "menu closed after START")
+	check(main.state == main.State.TITLE and main.menu.title == "CHOOSE MODE", "tap on title opens the mode menu")
+	var city_btn: Vector2 = main.menu.button_center(2)
+	_touch(city_btn, true)
+	await _frames(3)
+	_touch(city_btn, false)
+	await _frames(3)
+	check(main.state == main.State.LOBBY and main.screens.visible, "CITY DEFENCE opens the lobby")
+	await _frames(2)
+	var sb: Vector2 = main.screens.button_center("START")
+	_touch(sb, true)
+	await _frames(3)
+	_touch(sb, false)
+	await _frames(3)
+	check(main.state == main.State.PLAY, "touch on lobby START starts the game")
+	check(not main.menu.visible and not main.screens.visible, "menus closed after START")
 	var c: Controls = main.controls
 	# drag steering anywhere: drag right + down = turn right + climb
 	var vs := c.get_viewport().get_visible_rect().size

@@ -145,6 +145,8 @@ func _update_lock(delta: float) -> void:
 		for pl in fleet.planes:
 			if pl.alive and pl.team != jet.team:
 				cands.append(pl)
+		if fleet.extra_targets.is_valid():
+			cands.append_array(fleet.extra_targets.call(jet.team))
 	for c in cands:
 		var cp := tpos(c)
 		var v: Vector3 = cp - jet.position
@@ -248,6 +250,11 @@ func _process(delta: float) -> void:
 					tj.damage(25.0, m.shooter)
 					fx.explosion(m.pos, 0.8)
 					done = true
+		elif m.target != null and m.target.has_method("take_damage") and tp != Vector3.INF:
+			if m.pos.distance_to(tp) < 26.0:
+				m.target.take_damage(30.0, m.shooter)
+				fx.explosion(m.pos, 1.2)
+				done = true
 		elif not (m.target is Jet) and not m.enemy:
 			if enemies.hit_test(m.pos, 8.0):
 				fx.explosion(m.pos, 1.0)
