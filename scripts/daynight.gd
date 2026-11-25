@@ -58,6 +58,15 @@ func _beam_mesh() -> ArrayMesh:
 	return mb.commit()
 
 
+## Current ambient light colour (cockpit lighting reads it).
+var amb_color := Color.WHITE
+
+
+## World direction towards the sun.
+func sun_dir() -> Vector3:
+	return Vector3(-0.55, maxf(sun_elevation(), -0.2) * 0.9 + 0.05, -0.8).normalized()
+
+
 func sun_elevation() -> float:
 	return sin((t - 0.25) * TAU)
 
@@ -69,6 +78,7 @@ func _process(delta: float) -> void:
 	night = 1.0 - smoothstep(-0.15, 0.1, e)
 	var dusk := clampf(1.0 - absf(e) / 0.35, 0.0, 1.0) * (1.0 - night)
 	var amb := DAY.lerp(DUSK, dusk).lerp(NIGHT, night)
+	amb_color = amb
 	RenderingServer.global_shader_parameter_set("night", night)
 	RenderingServer.global_shader_parameter_set("ambient", Vector3(amb.r, amb.g, amb.b))
 	# lower sun -> longer shadows (direction fixed, top-left light)

@@ -31,6 +31,7 @@ var menu: Menu
 var env: Environment
 var sky_mat: ShaderMaterial
 var cockpit: Cockpit
+var cockpit3d: Cockpit3D
 var trails: Trails
 var missiles: Missiles
 var fleet: Fleet
@@ -164,6 +165,11 @@ func _ready() -> void:
 	world.add_child(clouds)
 	speed_lines = SpeedLines.new()
 	pv.overlay.add_child(speed_lines)
+	cockpit3d = Cockpit3D.new()
+	cockpit3d.name = "Cockpit3D"
+	cockpit3d.game = self
+	add_child(cockpit3d)
+	pv.post_mat.set_shader_parameter("cockpit_tex", cockpit3d.texture())
 	cockpit = Cockpit.new()
 	cockpit.game = self
 	pv.overlay.add_child(cockpit)
@@ -481,12 +487,14 @@ func _process(delta: float) -> void:
 			if _player_respawn <= 0.0:
 				_respawn_player()
 	cam.update_cam(delta, jet, jet.speed_ratio())
-	# in the cockpit the own plane shows only when looking out to the side /
-	# back (wings, tail) - the near plane clips the canopy around the eye
+	# in the cockpit the own plane stays hidden (the 3D cockpit replaces it)
 	cam.look_target = controls.look
-	jet.visible = jet.alive and (cam.cockpit_blend < 0.6 or absf(cam.look.x) > 0.75)
+	jet.visible = jet.alive and cam.cockpit_blend < 0.6
 	cockpit.size = Vector2(pv.low)
 	cockpit.alpha = cam.cockpit_blend if state != State.TITLE else 0.0
+	cockpit3d.set_size(pv.low)
+	cockpit3d.update(delta, cockpit.alpha)
+	pv.post_mat.set_shader_parameter("cockpit_alpha", cockpit.alpha if cockpit3d.active else 0.0)
 	chunks.radius = 2 if cam.mode == GameCamera.Mode.OVERHEAD else 3
 	var gf := ground_focus()
 	chunks.focus = gf
@@ -1794,6 +1802,23 @@ func test_hook(t: Node) -> Array:
 	await t.get_tree().create_timer(2.5).timeout
 	if jet.visible or cam.cockpit_blend < 0.9:
 		errs.append("cockpit view did not engage (blend %.2f, jet visible %s)" % [cam.cockpit_blend, jet.visible])
+	# 3D cockpit: rendered, small HUD combiner in the upper middle, panel
+	# below the centre, the stick follows the input
+	var hs: Array = cockpit3d.hud_screen()
+	var hr: Rect2 = hs[0]
+	if not cockpit3d.active or cockpit3d._body.mesh == null or cockpit3d._body.mesh.get_surface_count() == 0:
+		errs.append("3D cockpit not active / no geometry")
+	elif hr.size.x <= 0.0 or hr.size.x > pv.low.x * 0.2 or absf(hr.get_center().x - pv.low.x * 0.5) > 4.0:
+		errs.append("HUD combiner wrong size / place (%s of %s)" % [hr, pv.low])
+	elif cockpit3d.lip_y() < pv.low.y * 0.55:
+		errs.append("glareshield too high (%.0f of %d)" % [cockpit3d.lip_y(), pv.low.y])
+	controls.debug_look = Vector2(0, 0)
+	jet.stick_override = Vector2(1, 0)
+	await t.get_tree().create_timer(0.2).timeout
+	if absf(cockpit3d._stick.rotation.z) < 0.05:
+		errs.append("cockpit stick does not follow the input")
+	jet.stick_override = Vector2.INF
+	controls.debug_look = Vector2.INF
 	cam.mode = GameCamera.Mode.CHASE
 	# a crash is fatal: the pilot ejects (close-up), city defence ends
 	jet.position.y = float(jet.cfg["clearance"]) - 1.0

@@ -175,7 +175,8 @@ All values persist in `user://save.cfg`. Defaults:
 | City on the islands (districts, parks, port, stadiums, forests) | `scripts/city_gen.gd` |
 | Threaded chunk streaming, ~4 draw calls per chunk | `scripts/chunk_manager.gd` |
 | Perspective camera blending overhead / chase / cockpit, horizon fog, shake, dither fade | `scripts/game_camera.gd`, `shaders/common.gdshaderinc` |
-| Pixel-art cockpit per class / tier: canopy bow, HUD combiner with green symbology, keypad, displays (radar, flight, engine, moving map, panoramic), consoles, knees + stick, head look | `scripts/cockpit.gd` |
+| 3D cockpit: low-poly tub (angled consoles, sloped panel under an overhanging glareshield, canopy bows, HUD posts + combiner, keypad, stick between the knees, throttle lever, seat) in its own low-res viewport composited by the post shader; pixel-art textures drawn live into a canvas atlas (radar, colour attitude, moving map, engine page, panoramic page, lit keys, warning lights); sun + ambient + night instrument glow; head look and head motion with G / turbulence | `scripts/cockpit3d.gd`, `scripts/cockpit_art.gd`, `shaders/cockpit.gdshader` |
+| HUD symbology clipped to the projected combiner, helmet target markers | `scripts/cockpit.gd` |
 
 The pixel view: the world renders into a `SubViewport` whose height is
 280–400 px and whose width follows the screen aspect, chosen so it scales to the
