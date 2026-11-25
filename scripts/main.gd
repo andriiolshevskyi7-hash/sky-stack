@@ -283,6 +283,8 @@ func _parse_args() -> void:
 			_shot_frames = int(a.substr(9))
 		elif a == "--play":
 			start_game()
+		elif a == "--botprobe":
+			_bot_probe.call_deferred()
 		elif a == "--fight":
 			_fight_test = true
 		elif a.begins_with("--team="):
@@ -343,7 +345,33 @@ func _parse_args() -> void:
 			_start_wave(int(a.substr(7)))
 
 
+## --botprobe: two bots dogfight, log every second (tuning the bot AI).
+func _bot_probe() -> void:
+	start_game()
+	tutorial.step = 99
+	wave_queue.clear()
+	enemies.clear()
+	fleet.clear_bots()
+	jet.position.y = 2000.0
+	jet.invuln = 999.0
+	jet.autopilot = true
+	var aces := fleet.spawn_pair(0, 0.95, BotBrain.DOGFIGHTER, Vector3(0, 300, 0), PI)
+	var rooks := fleet.spawn_pair(1, 0.1, BotBrain.DOGFIGHTER, Vector3(0, 400, -900), 0.0)
+	var a: Jet = aces[0]
+	var b: Jet = rooks[0]
+	for i in 100:
+		if i % 10 == 9:
+			print("PAIRS t=%d aces dmg=%.0f k=%d alive=%s,%s | rooks dmg=%.0f k=%d alive=%s,%s" % [i, aces[0].damage_dealt + aces[1].damage_dealt, aces[0].kills + aces[1].kills, aces[0].alive, aces[1].alive, rooks[0].damage_dealt + rooks[1].damage_dealt, rooks[0].kills + rooks[1].kills, rooks[0].alive, rooks[1].alive])
+		await get_tree().create_timer(1.0).timeout
+		for j in [a, b]:
+			var o: Jet = b if j == a else a
+			var to: Vector3 = o.position - j.position
+			print("PROBE t=%d %s y=%.0f v=%.0f g=%.1f dist=%.0f off=%.2f roll=%.0f pitch=%.0f st=%d dmg=%.0f stick=%s" % [i, "ACE" if j == a else "ROOK", j.position.y, j.speed, j.g_load, to.length(), j.forward3().angle_to(to), rad_to_deg(j.roll), rad_to_deg(j.pitch), j.brain.state, j.damage_dealt, j.in_stick])
+	get_tree().quit()
+
+
 var _fight_test := false
+var _stall_warn := 0.0
 
 
 ## --fight (screenshots only): sit behind an enemy and shoot, so combat
@@ -356,8 +384,7 @@ func _fight_tick() -> void:
 		for pl in fleet.planes:
 			if pl.alive and pl.team == 1:
 				jet.position = pl.position - pl.forward3() * 110.0 + Vector3(0, 6, 0)
-				jet.yaw = pl.yaw
-				jet.pitch = pl.pitch
+				jet.set_attitude(pl.yaw, pl.pitch)
 				break
 	controls.fire = _frame > _shot_frames * 2 / 3
 
@@ -404,6 +431,10 @@ func _process(delta: float) -> void:
 	if state == State.PLAY:
 		_update_border(delta)
 		_track_live(delta)
+		_stall_warn -= delta
+		if jet.alive and jet.stalling and _stall_warn <= 0.0:
+			_stall_warn = 0.35
+			Sfx.play("warn", -4.0, 0.8)
 		# flares go out by themselves just before an enemy missile hits
 		if jet.alive and jet.flares > 0 and jet.flares_active <= 0.0 and missiles.incoming_t < 0.45:
 			jet.flares -= 1
@@ -440,6 +471,8 @@ func _process(delta: float) -> void:
 	pv.set_post("fog", clouds.fog_at(jet.position, delta) if jet.alive else 0.0)
 	flash = maxf(0.0, flash - delta * 2.0)
 	pv.set_post("flash", flash)
+	pv.set_post("gblack", jet.gloc if jet.alive and state == State.PLAY else 0.0)
+	pv.set_post("gred", jet.redout if jet.alive and state == State.PLAY else 0.0)
 	speed_lines.size = Vector2(pv.low)
 	speed_lines.strength = lerpf(speed_lines.strength, 1.0 if jet.boosting else 0.0, 1.0 - exp(-delta * 6.0))
 	if state == State.PLAY and match_rules.mode == Match.CITY:
@@ -659,6 +692,7 @@ func start_match() -> void:
 	jet.shots_fired = 0
 	jet.shots_hit = 0
 	kill_feed.clear()
+	_clear_pilot()
 	jet.pilot = Profile.player_name()
 	_life_kills = 0
 	_low_acc = 0.0
@@ -739,6 +773,7 @@ func _city_spawn(team: int) -> Array:
 
 
 func _respawn_player() -> void:
+	_clear_pilot()
 	var sp: Array = match_rules.spawn_point(0)
 	jet.reset(sp[0], sp[1])
 	jet.position = sp[0]
@@ -1033,41 +1068,57 @@ var _pilot_vel := Vector3.ZERO
 var _eject_t := 0.0
 
 
+var _pilot_stack: SpriteStack
+
+
+## Every death: the canopy blows off, the seat fires the pilot out, the chute
+## opens; the camera holds a close-up until the respawn (or game over).
 func _on_ejected(at: Vector3) -> void:
+	_clear_pilot()
 	pilot = Node3D.new()
-	var st := SpriteStack.new()
-	st.sheet = "parachute"
-	pilot.add_child(st)
+	_pilot_stack = SpriteStack.new()
+	_pilot_stack.sheet = "parachute"
+	_pilot_stack.stack_scale = 0.3
+	pilot.add_child(_pilot_stack)
 	world.add_child(pilot)
-	pilot.position = at + Vector3(0, 6, 0)
-	_pilot_vel = Vector3(0, 30, 0) + jet.forward() * 20.0
+	pilot.position = at + Vector3(0, 4, 0)
+	var up := jet.orient.y if jet.orient.y.y > -0.2 else Vector3.UP
+	_pilot_vel = up * 55.0 + jet.forward3() * jet.speed * 0.25
 	_eject_t = 0.0
+	fx.eject(at, up, jet.forward3() * jet.speed * 0.3)
+	Sfx.play("boost", -2.0, 1.2)
 	cam.override = pilot
-	show_banner("EJECTED", "Search and rescue inbound", 3.5)
+
+
+func _clear_pilot() -> void:
+	if pilot != null and is_instance_valid(pilot):
+		pilot.queue_free()
+	pilot = null
+	_pilot_stack = null
+	cam.override = null
 
 
 func _update_pilot(delta: float) -> void:
 	if pilot == null:
 		return
 	_eject_t += delta
-	_pilot_vel = _pilot_vel.lerp(Vector3(4.0, -7.0, 2.0), 1.0 - exp(-delta * 1.5))
+	if _eject_t < 0.7:
+		# rocket seat: fast climb with a fire trail
+		fx.spawn(pilot.position - _pilot_vel.normalized() * 2.0, -_pilot_vel * 0.2, 0.3, 2.0, Fx.FIRE)
+		_pilot_vel = _pilot_vel.lerp(Vector3(0, 10, 0), 1.0 - exp(-delta * 2.5))
+	else:
+		# chute opens over half a second, then a slow drift down
+		_pilot_stack.stack_scale = lerpf(0.3, 1.0, clampf((_eject_t - 0.7) / 0.5, 0.0, 1.0))
+		_pilot_vel = _pilot_vel.lerp(Vector3(4.0, -6.0, 2.0), 1.0 - exp(-delta * 1.8))
 	pilot.position += _pilot_vel * delta
 	pilot.rotation.y += delta * 0.4
 	if pilot.position.y < 1.0:
 		pilot.position.y = 1.0
-	if _eject_t > 4.5:
-		# rescued: back in a fresh jet
-		var p := pilot.position
-		pilot.queue_free()
-		pilot = null
-		cam.override = null
-		if match_rules.is_team_mode() and state == State.PLAY:
-			_respawn_player()
-		elif state == State.PLAY or state == State.TITLE:
-			score = maxi(0, score - 300)
-			jet.reset(p, jet.yaw)
-			trails.clear()
-			show_banner("RESCUED", "New jet  -300", 2.0)
+	if state == State.TITLE and _eject_t > 3.0:
+		# attract mode crashed into something: just start a new flight
+		_clear_pilot()
+		jet.reset(SPAWN, 0.0)
+		jet.autopilot = true
 
 
 func missiles_max() -> int:
@@ -1327,7 +1378,12 @@ func _open_game_over() -> void:
 ## Extra checks for the headless launch test (tests/run_tests.gd).
 func test_hook(t: Node) -> Array:
 	var errs: Array = []
+	# the touch tests fly the jet for real (it may have crashed): fresh start
+	start_game()
+	jet.position.y = 420.0
+	jet.invuln = 3.0
 	_start_wave(4)
+	between_t = 0.0
 	for i in 30:
 		spawn_cd = 0.0
 		_update_waves(0.016)
@@ -1402,15 +1458,16 @@ func test_hook(t: Node) -> Array:
 	var dmg_r := 0.0
 	# A single 15 s fight is noisy (an ace can whiff a pass); keep fighting
 	# up to 45 s total and judge the cumulative damage.
-	for attempt in 3:
-		for i in 60:
+	# a realistic turning fight takes ~30-60 s from the merge to first hits
+	for attempt in 4:
+		for i in 100:
 			await t.get_tree().create_timer(0.25).timeout
 			for b in aces + rookies:
 				if b.alive and b.position.y < 25.0:
 					low += 1
 		dmg_a = aces[0].damage_dealt + aces[1].damage_dealt
 		dmg_r = rookies[0].damage_dealt + rookies[1].damage_dealt
-		if dmg_a > dmg_r:
+		if dmg_a > dmg_r and dmg_a > 0.0:
 			break
 	print("    bots: aces dmg %.0f kills %d | rookies dmg %.0f kills %d | low %d" % [dmg_a, aces[0].kills + aces[1].kills, dmg_r, rookies[0].kills + rookies[1].kills, low])
 	if dmg_a + dmg_r <= 0.0:
@@ -1420,6 +1477,14 @@ func test_hook(t: Node) -> Array:
 	if low > 12:
 		errs.append("bots keep flying into the ground")
 	fleet.clear_bots()
+	# the long fight may have killed the test jet (mid-air collisions are
+	# fatal): start the next checks from a clean flight
+	if not jet.alive or state != State.PLAY:
+		start_game()
+		between_t = 0.0
+	tutorial.step = 99
+	wave_queue.clear()
+	jet.position.y = 420.0
 	jet.invuln = 0.0
 	tutorial.step = -1
 	# --- wave 5 brings a boss bomber; swarms spawn as groups of drones
@@ -1443,7 +1508,7 @@ func test_hook(t: Node) -> Array:
 	enemies.clear()
 	jet.autopilot = false
 	jet.position.y = 320.0
-	jet.pitch = 0.0
+	jet.set_attitude(jet.yaw)
 	jet.turn_rate = 0.0
 	jet.man = Jet.M_NONE
 	jet.roll_extra = 0.0
@@ -1462,6 +1527,7 @@ func test_hook(t: Node) -> Array:
 	await t.get_tree().create_timer(3.0).timeout
 	if kills <= k0:
 		errs.append("locked missile did not kill the target")
+
 	# --- enemy missile: roll as the rings meet -> dodge, counter volley armed
 	enemies.clear()
 	var d0 := missiles.dodges
@@ -1534,14 +1600,78 @@ func test_hook(t: Node) -> Array:
 	if jet.visible or cam.cockpit_blend < 0.9:
 		errs.append("cockpit view did not engage (blend %.2f, jet visible %s)" % [cam.cockpit_blend, jet.visible])
 	cam.mode = GameCamera.Mode.CHASE
-	# eject -> parachute close-up -> rescued in a new jet
-	jet._eject()
-	await t.get_tree().create_timer(0.5).timeout
-	if pilot == null or cam.override == null:
-		errs.append("eject did not spawn the pilot close-up")
-	await t.get_tree().create_timer(4.6).timeout
-	if not jet.alive or pilot != null:
-		errs.append("pilot was not rescued into a new jet")
+	# a crash is fatal: the pilot ejects (close-up), city defence ends
+	jet.position.y = float(jet.cfg["clearance"]) - 1.0
+	await t.get_tree().process_frame
+	await t.get_tree().process_frame
+	if jet.alive or pilot == null or cam.override == null or state != State.OVER:
+		errs.append("hitting the ground should kill and eject the pilot (alive %s, pilot %s)" % [jet.alive, pilot != null])
+	await t.get_tree().create_timer(1.5).timeout
+	if _pilot_stack == null or _pilot_stack.stack_scale < 0.9:
+		errs.append("parachute did not open")
+	start_game()
+	if pilot != null or cam.override != null:
+		errs.append("pilot close-up not cleared on restart")
+	# --- flight physics: energy, G, stall, class differences
+	start_game()
+	between_t = 99.0
+	tutorial.step = 99
+	wave_queue.clear()
+	fleet.process_mode = Node.PROCESS_MODE_DISABLED
+	jet.position = Vector3(0, 2500, 0)
+	jet.set_attitude(0.0)
+	jet.speed = jet.base_speed()
+	jet.invuln = 99.0
+	controls.reset()
+	jet.stick_override = Vector2(0, 1) # full pull, wings level
+	var v0 := jet.speed
+	var gmax := 0.0
+	for i in 60:
+		await t.get_tree().physics_frame
+		gmax = maxf(gmax, jet.g_load)
+	if gmax < float(jet.phys["max_g"]) * 0.8:
+		errs.append("full pull should reach high G (%.1f)" % gmax)
+	jet.stick_override = Vector2(1, 1) # hard banked turn
+	for i in 180:
+		await t.get_tree().physics_frame
+	if jet.speed > v0 - 15.0:
+		errs.append("a hard turn should bleed speed (%.0f -> %.0f)" % [v0, jet.speed])
+	if jet.gloc <= 0.0 and float(jet.phys["max_g"]) > 7.0:
+		errs.append("sustained high G should start a blackout")
+	# dive gains speed, climb loses it
+	jet.stick_override = Vector2.ZERO
+	jet.set_attitude(0.0, -0.8)
+	var vd := jet.speed
+	for i in 90:
+		await t.get_tree().physics_frame
+	if jet.speed <= vd:
+		errs.append("diving should gain speed (%.0f -> %.0f)" % [vd, jet.speed])
+	jet.position.y = 2500.0
+	jet.set_attitude(0.0, 1.2)
+	var vc := jet.speed
+	for i in 90:
+		await t.get_tree().physics_frame
+	if jet.speed >= vc:
+		errs.append("climbing should lose speed (%.0f -> %.0f)" % [vc, jet.speed])
+	# slow + nose up = stall
+	jet.position.y = 2500.0
+	jet.set_attitude(0.0, 0.3)
+	jet.speed = float(jet.phys["vs"]) * 0.9
+	jet.stick_override = Vector2(0, 1)
+	var stalled := false
+	for i in 40:
+		await t.get_tree().physics_frame
+		stalled = stalled or jet.stalling
+	if not stalled:
+		errs.append("flying below stall speed with the stick back should stall")
+	jet.stick_override = Vector2.INF
+	var lt := Planes.physics(Planes.index_of("wren"), {})
+	var at := Planes.physics(Planes.index_of("mattock"), {})
+	var ht := Planes.physics(Planes.index_of("bastion"), {})
+	if not (lt["roll"] > ht["roll"] and lt["roll"] > at["roll"] and ht["vab"] > lt["vab"] and at["vs"] < ht["vs"]):
+		errs.append("plane classes should fly differently")
+	fleet.process_mode = Node.PROCESS_MODE_INHERIT
+	start_game()
 	# --- maps: relief, carriers, borders
 	world_map.apply(1)
 	var relief := 0
@@ -1588,14 +1718,17 @@ func test_hook(t: Node) -> Array:
 		errs.append("player spawns on top of own carrier group (%.0f units)" % own_d)
 	if world_map.outside(jet.position) > -WorldMap.BORDER_WARN:
 		errs.append("ocean spawn is near the battle-area edge")
-	jet.position = Vector3(world_map.half + 700.0, 400.0, 0.0)
-	jet.yaw = -PI * 0.5 # flying +X, away from the area
+	jet.position = Vector3(world_map.half + 700.0, 600.0, 0.0)
+	jet.set_attitude(-PI * 0.5) # flying +X, away from the area
+	jet.invuln = 99.0
 	await t.get_tree().create_timer(0.3).timeout
 	if not jet.steer_home:
 		errs.append("leaving the battle area did not turn the plane back")
-	await t.get_tree().create_timer(2.5).timeout
-	if absf(wrapf(jet.yaw - atan2(jet.position.x, jet.position.z), -PI, PI)) > 0.8:
-		errs.append("plane not heading home (yaw %.2f)" % jet.yaw)
+	var off0 := absf(wrapf(jet.yaw - atan2(jet.position.x, jet.position.z), -PI, PI))
+	await t.get_tree().create_timer(4.0).timeout
+	var off1 := absf(wrapf(jet.yaw - atan2(jet.position.x, jet.position.z), -PI, PI))
+	if off1 > off0 - 0.6:
+		errs.append("plane not turning home (%.2f -> %.2f rad)" % [off0, off1])
 	world_map.apply(0)
 	# --- hangar: buy, select, upgrade, skins; the plane is used in battle
 	var backup: Dictionary = Profile.data.duplicate(true)
@@ -1621,7 +1754,7 @@ func test_hook(t: Node) -> Array:
 	Profile.set_tail(42)
 	_open_lobby(Match.DOGFIGHT)
 	start_match()
-	var want: float = float(Save.settings["speed"]) * Planes.stats(screens.sel, Profile.levels(screens.sel))["speed_mult"]
+	var want: float = Planes.physics(screens.sel, Profile.levels(screens.sel), float(Save.settings["speed"]) / 130.0)["vmil"]
 	if jet.plane != screens.sel or jet.skin != 2 or absf(jet.base_speed() - want) > 0.01 or Profile.tail() != 42:
 		errs.append("hangar plane / skin / upgrades not used in battle (plane %d skin %d)" % [jet.plane, jet.skin])
 	var red_skin := fleet.planes.filter(func(pl: Jet) -> bool: return pl.team == 1 and pl.skin == Planes.RED_SKIN).size()

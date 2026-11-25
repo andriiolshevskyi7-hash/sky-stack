@@ -335,7 +335,7 @@ func _dash(jet: Jet, w: float, h: float, top: float) -> void:
 	draw_line(Vector2(w * 0.16, top + 1), Vector2(w * 0.84, top + 1), F2, 1.0)
 	# warning lights row (orange / red, blink when urgent)
 	var m: Missiles = game.missiles
-	var warn := [jet.health < jet.max_health * 0.4, m.incoming_t < 3.0, jet.reloading > 0.0 or m.reload > 0.0, jet.boosting, jet.position.y < CityGen.LOW_ALT]
+	var warn := [jet.health < jet.max_health * 0.4, m.incoming_t < 3.0, jet.reloading > 0.0 or m.reload > 0.0, jet.boosting, jet.position.y < CityGen.LOW_ALT or jet.stalling]
 	var lw := 20.0
 	var lx := floorf(w * 0.5 - warn.size() * (lw + 3) * 0.5)
 	var blink := int(Time.get_ticks_msec() / 180) % 2 == 0

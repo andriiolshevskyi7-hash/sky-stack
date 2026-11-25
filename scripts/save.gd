@@ -2,7 +2,7 @@ extends Node
 ## Autoload "Save": high score + all settings in user://save.cfg
 
 const PATH := "user://save.cfg"
-const VERSION := 3
+const VERSION := 4
 var high_score := 0
 var settings := {}
 
@@ -42,6 +42,10 @@ func _ready() -> void:
 			# world became 2x bigger: altitudes/speed defaults changed
 			for k in ["speed", "cruise", "ceiling", "clearance"]:
 				settings[k] = SettingsScreen.defaults()[k]
+		if ver < 4:
+			# realistic flight: crashes are fatal and you may fly down to 4 m
+			settings["clearance"] = SettingsScreen.defaults()["clearance"]
+			settings["crashes"] = true
 		if ver < 3:
 			# calmer look for long sessions
 			for k in ["glow", "contrast", "vignette", "grain"]:

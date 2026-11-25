@@ -139,6 +139,25 @@ func step(delta: float) -> void:
 			continue
 		j.brain.think(delta)
 		j.step(delta)
+	_collisions()
+
+
+## Mid-air collisions (any two planes) and flying into a base structure or
+## ship: both are fatal.
+func _collisions() -> void:
+	var r2 := (Jet.RADIUS * 1.5) * (Jet.RADIUS * 1.5)
+	for i in planes.size():
+		var a: Jet = planes[i]
+		if not a.alive:
+			continue
+		for k in range(i + 1, planes.size()):
+			var b: Jet = planes[k]
+			if b.alive and a.position.distance_squared_to(b.position) < r2:
+				a.crash()
+				b.crash()
+				break
+		if a.alive and game != null and game.bases != null and game.bases.solid_at(a.position):
+			a.crash()
 
 
 func _respawn(j: Jet) -> void:

@@ -31,6 +31,34 @@ var cfg := {
 	"ceiling": 3000.0, "clearance": 14.0, "crashes": true, "cannon": 300, "reload": 5.0,
 }
 
+## --- flight model state (see step): full 3D orientation, speed along the
+## nose, throttle, afterburner heat, G load, blackout
+const G := 9.8
+const MAX_BANK := 1.4 # rad (80 deg)
+const THR_MIL := 0.85 # throttle 0..0.85 = idle..military
+const THR_AB := 0.92 # above this = afterburner
+const AB_HEAT := 13.0 # %/s while burning
+const AB_COOL := 9.0
+var orient := Basis.IDENTITY
+var phys := {}
+var throttle := THR_MIL
+var in_throttle := THR_MIL # bots
+var g_load := 1.0
+var gloc := 0.0 # 0..1 blackout
+var redout := 0.0
+var heat := 0.0
+var overheated := false
+var stalling := false
+var aoa := 0.0
+var _n := 1.0
+var _roll_rate := 0.0
+var _ki := 4000.0
+var _cd := 0.0001
+var _t_mil := 6.0
+var _t_ab := 9.0
+var _loop_state := 0
+var _loop_t0 := 0.0
+var _loop_turned := 0.0
 var yaw := 0.0
 var pitch := 0.0 # + = nose up (can go past 90 deg during loops)
 var roll := 0.0 # visual bank, + = left wing down
@@ -114,6 +142,8 @@ var trails: Trails
 
 
 func _ready() -> void:
+	if phys.is_empty():
+		set_physics(Planes.physics(0, {}, float(cfg["speed"]) / 130.0))
 	stack = SpriteStack.new()
 	stack.sheet = sheet_name
 	stack.variant = skin
@@ -122,12 +152,13 @@ func _ready() -> void:
 	position.y = ALT
 
 
+## Top level speed at military power / with afterburner (HUD, bots, camera).
 func base_speed() -> float:
-	return float(cfg["speed"]) * speed_mult
+	return float(phys.get("vmil", 150.0))
 
 
 func boost_speed() -> float:
-	return float(cfg["speed"]) * speed_mult * float(cfg["boost"])
+	return float(phys.get("vab", 200.0))
 
 
 ## Fly plane `p` of the aircraft tree with upgrade levels `lv` and a skin.
@@ -142,6 +173,7 @@ func apply_plane(p: int, lv: Dictionary, p_skin: int) -> void:
 	cfg["gun_dmg"] = st["gun"]
 	max_flares = st["flares"]
 	flares = max_flares
+	set_physics(Planes.physics(p, lv, float(cfg["speed"]) / 130.0))
 	sheet_name = Planes.sheet_of(p)
 	tint = Color.WHITE
 	if stack != null:
@@ -149,37 +181,73 @@ func apply_plane(p: int, lv: Dictionary, p_skin: int) -> void:
 		stack.tint = tint
 
 
+## Derive the drag polar and thrust from the plane's traits so that the
+## plane really tops out at vmil (military) / vab (afterburner) in level
+## flight: D/m = cd*V^2 + ki*n^2/V^2,  T_mil/m = tw*g.
+func set_physics(ph: Dictionary) -> void:
+	phys = ph
+	var vs: float = ph["vs"]
+	var vmil: float = ph["vmil"]
+	var vab: float = ph["vab"]
+	_ki = G * float(ph["ind"]) * vs * vs
+	_t_mil = float(ph["tw"]) * G
+	_cd = maxf(1e-6, (_t_mil - _ki / (vmil * vmil)) / (vmil * vmil))
+	_t_ab = _cd * vab * vab + _ki / (vab * vab)
+
+
 func forward() -> Vector3:
-	return Vector3(-sin(yaw), 0.0, -cos(yaw))
+	var f := forward3()
+	var h := Vector2(f.x, f.z)
+	if h.length() < 0.05:
+		return Vector3(-sin(yaw), 0.0, -cos(yaw))
+	h = h.normalized()
+	return Vector3(h.x, 0.0, h.y)
 
 
-## Nose direction including pitch.
+## Nose / flight-path direction (full 3D).
 func forward3() -> Vector3:
-	return Vector3(-sin(yaw) * cos(pitch), sin(pitch), -cos(yaw) * cos(pitch))
+	return -orient.z
 
 
 func right() -> Vector3:
-	return Vector3(cos(yaw), 0.0, -sin(yaw))
+	var f := forward()
+	return Vector3(-f.z, 0.0, f.x)
 
 
 func visual_basis() -> Basis:
-	var y := yaw
-	if Save.sprite_snap:
-		var st := TAU / 64.0
-		y = round(y / st) * st
-	return Basis.from_euler(Vector3(pitch, y, roll + roll_extra))
+	var b := orient
+	# angle of attack: the nose rides above the flight path as G builds
+	if aoa > 0.001:
+		b = b.rotated(b.x, aoa)
+	if roll_extra != 0.0:
+		b = b.rotated(-b.z, -roll_extra)
+	return b
+
+
+## Point the plane: heading yaw (0 = -Z), flight-path angle, wings level.
+func set_attitude(p_yaw: float, p_pitch: float = 0.0) -> void:
+	orient = Basis.from_euler(Vector3(p_pitch, p_yaw, 0.0))
+	_derive_angles()
 
 
 func reset(pos: Vector3, p_yaw: float) -> void:
 	position = Vector3(pos.x, float(cfg["cruise"]), pos.z)
-	yaw = p_yaw
-	pitch = 0.0
-	roll = 0.0
+	set_attitude(p_yaw)
 	roll_extra = 0.0
+	aoa = 0.0
 	man = M_NONE
 	ammo = float(cfg["cannon"])
 	reloading = 0.0
-	speed = base_speed()
+	speed = base_speed() * 0.9
+	throttle = THR_MIL
+	g_load = 1.0
+	_n = 1.0
+	_roll_rate = 0.0
+	gloc = 0.0
+	redout = 0.0
+	heat = 0.0
+	overheated = false
+	stalling = false
 	health = max_health
 	flares = max_flares
 	boost_energy = 100.0
@@ -192,6 +260,7 @@ func reset(pos: Vector3, p_yaw: float) -> void:
 	hits.clear()
 	last_hit_by = null
 	respawn_t = -1.0
+	_loop_state = 0
 
 
 func speed_ratio() -> float:
@@ -204,12 +273,14 @@ func in_maneuver() -> bool:
 
 # ------------------------------------------------------------------ tricks
 
+## Barrel roll: a fast 360 deg roll around the flight path (dodges missiles
+## in its first part). Works while the stick is held with another finger.
 func barrel_roll() -> void:
-	if not alive or man == M_LOOP or man == M_FRONT:
+	if not alive or man == M_LOOP or man == M_FRONT or man == M_ROLL:
 		return
 	man = M_ROLL
 	man_t = 0.0
-	man_dur = 0.6
+	man_dur = clampf(TAU / (float(phys.get("roll", 3.0)) * 1.6), 0.55, 1.2)
 	man_dir = -1.0 if _stick().x > 0.2 else 1.0
 	dodge_window = 0.8
 	if is_player:
@@ -217,26 +288,62 @@ func barrel_roll() -> void:
 	trick.emit("ROLL")
 
 
+## Loop: wings level, maximum pull until the nose has come all the way
+## round. Real physics: slow down too much at the top and it stalls.
 func loop(front: bool = false) -> void:
 	if not alive or man == M_LOOP or man == M_FRONT:
 		return
-	if front and position.y < 200.0:
-		return
-	man = M_FRONT if front else M_LOOP
+	man = M_LOOP
 	man_t = 0.0
-	man_dur = 2.4
-	_pitch0 = clampf(pitch, -0.3, 0.3)
+	man_dur = 12.0
+	_loop_turned = 0.0
 	if is_player:
 		Sfx.play("boost", -6.0, 0.8)
-	trick.emit("FRONT FLIP" if front else "LOOP")
+	trick.emit("LOOP")
 
 
 # ------------------------------------------------------------------ flight
 
+## Tests / scripted moments: forces the stick (Vector2.INF = off).
+var stick_override := Vector2.INF
+
+
 func _stick() -> Vector2:
+	if stick_override != Vector2.INF:
+		return stick_override
 	if brain != null:
 		return in_stick
 	return controls.stick if controls != null else Vector2.ZERO
+
+
+## yaw / pitch / roll from the orientation (HUD, camera, bots, cockpit).
+func _derive_angles() -> void:
+	var f := -orient.z
+	pitch = asin(clampf(f.y, -1.0, 1.0))
+	if Vector2(f.x, f.z).length() > 0.05:
+		yaw = atan2(-f.x, -f.z)
+	# bank: + = left wing down (same convention as before)
+	roll = atan2(orient.x.y, orient.y.y)
+
+
+## Pilot inputs -> stick (x = bank/turn, y = pull) and throttle.
+func _inputs(delta: float) -> Vector2:
+	var stick := _stick()
+	if autopilot:
+		var desired := _autopilot_heading(delta)
+		stick.x = clampf(-wrapf(desired - yaw, -PI, PI) * 2.5, -1.0, 1.0)
+		stick.y = clampf((float(cfg["cruise"]) - position.y) * 0.01 - forward3().y * 2.0, -0.6, 0.6)
+	elif brain == null:
+		stick.y *= -1.0 if invert_pitch else 1.0
+		if absf(stick.y) < 0.08:
+			stick.y = 0.0
+	if steer_home:
+		var home := atan2(position.x, position.z) # heading towards the origin
+		stick.x = clampf(-wrapf(home - yaw, -PI, PI) * 2.0, -1.0, 1.0)
+	# G-LOC: a blacked-out pilot loses control
+	if gloc > 0.75:
+		stick *= clampf(1.0 - (gloc - 0.75) * 4.0, 0.0, 1.0)
+	return stick
 
 
 func step(delta: float) -> void:
@@ -246,108 +353,146 @@ func step(delta: float) -> void:
 	invuln = maxf(0.0, invuln - delta)
 	dodge_window = maxf(0.0, dodge_window - delta)
 	flares_active = maxf(0.0, flares_active - delta)
-	var stick := _stick()
-	var turn_max := float(cfg["turn"]) * turn_mult * (0.8 if boosting else 1.0)
-	# ---- boost
-	var want_boost := (in_boost if brain != null else (controls != null and controls.boost)) and not autopilot
-	if want_boost and (boosting or boost_energy > 12.0) and boost_energy > 0.0:
+	var stick := _inputs(delta)
+	# ---- throttle + afterburner (heat: overheats, then cools before reuse)
+	var thr: float = throttle
+	if brain != null:
+		thr = in_throttle
+	elif controls != null and "throttle" in controls and controls.throttle >= 0.0:
+		thr = controls.throttle
+	var want_ab := thr >= THR_AB or (in_boost if brain != null else (controls != null and controls.boost))
+	if autopilot:
+		want_ab = false
+		thr = THR_MIL
+	if overheated and heat < 40.0:
+		overheated = false
+	var ab := want_ab and not overheated
+	if ab:
 		if not boosting and is_player:
 			Sfx.play("boost", -4.0)
-		boosting = true
-		boost_energy = maxf(0.0, boost_energy - 22.0 * delta)
+		heat = minf(100.0, heat + AB_HEAT * delta)
+		if heat >= 100.0:
+			overheated = true
 	else:
-		boosting = false
-		boost_energy = minf(100.0, boost_energy + 16.0 * delta)
-	speed = lerpf(speed, boost_speed() if boosting else base_speed(), 1.0 - exp(-delta * 2.2))
-	# ---- maneuvers
-	if man == M_LOOP or man == M_FRONT:
-		man_t += delta
-		var k := clampf(man_t / man_dur, 0.0, 1.0)
-		var e := k * k * (3.0 - 2.0 * k)
-		pitch = _pitch0 + (TAU if man == M_LOOP else -TAU) * e
-		turn_rate = lerpf(turn_rate, 0.0, 1.0 - exp(-delta * 4.0))
-		if k >= 1.0:
-			man = M_NONE
-			pitch = wrapf(pitch, -PI, PI)
-	else:
-		if man == M_ROLL:
+		heat = maxf(0.0, heat - AB_COOL * delta)
+	boosting = ab
+	boost_energy = 100.0 - heat
+	var thrust := _t_ab if ab else _t_mil * (0.06 + 0.94 * clampf(minf(thr, THR_MIL) / THR_MIL, 0.0, 1.0))
+	# ---- aerodynamics
+	var V := maxf(speed, 6.0)
+	var f := -orient.z
+	var vs: float = phys.get("vs", 55.0)
+	var max_g: float = phys.get("max_g", 7.0)
+	var agile: float = phys.get("agile", 4.0)
+	var n_avail := (V / vs) * (V / vs)
+	var soft := clampf((V / vs - 0.7) / 0.6, 0.15, 1.0) # controls go soft near the stall
+	var cos_g := sqrt(maxf(0.0, 1.0 - f.y * f.y))
+	var bank := atan2(orient.x.y, orient.y.y)
+	var roll_cmd := 0.0
+	var n_cmd := 1.0
+	match man:
+		M_LOOP:
+			man_t += delta
+			# roll wings level relative to the loop plane, then full pull
+			roll_cmd = 0.0
+			n_cmd = max_g
+			if _loop_turned >= TAU * 0.97 or man_t > man_dur:
+				man = M_NONE
+		M_ROLL:
 			man_t += delta
 			var k := clampf(man_t / man_dur, 0.0, 1.0)
 			roll_extra = man_dir * TAU * (k * k * (3.0 - 2.0 * k))
 			position += right() * (-man_dir) * sin(k * PI) * 30.0 * delta
+			n_cmd = cos_g / maxf(cos(bank), 0.35) if absf(bank) < PI * 0.5 else 1.0
 			if k >= 1.0:
 				man = M_NONE
 				roll_extra = 0.0
-		var target_rate := 0.0
-		var pitch_in := 0.0
-		if autopilot:
-			var desired := _autopilot_heading(delta)
-			target_rate = clampf(wrapf(desired - yaw, -PI, PI) * 4.0, -turn_max, turn_max)
-			pitch_in = clampf((float(cfg["cruise"]) - position.y) * 0.02, -1.0, 1.0)
-		else:
-			target_rate = -stick.x * turn_max
-			pitch_in = stick.y * (-1.0 if invert_pitch else 1.0)
-			if absf(pitch_in) < 0.12:
-				pitch_in = 0.0
-			if steer_home:
-				var home := atan2(position.x, position.z) # heading towards the origin
-				target_rate = clampf(wrapf(home - yaw, -PI, PI) * 3.0, -turn_max, turn_max)
-		turn_rate = lerpf(turn_rate, target_rate, 1.0 - exp(-delta * 4.5))
-		pitch = lerpf(pitch, pitch_in * MAX_PITCH, 1.0 - exp(-delta * 2.6))
-		# back flip: full climb + boost held; front flip: full dive + boost held
-		if not autopilot and brain == null and boosting and absf(pitch_in) > 0.9:
-			_flip_hold += delta
-			if _flip_hold > 0.35:
-				_flip_hold = 0.0
-				loop(pitch_in < 0.0)
-		else:
-			_flip_hold = 0.0
-		# eject: hold a dive into the ground with boost off
-		if not autopilot and is_player and bool(cfg["crashes"]) and not boosting and pitch_in < -0.85 and position.y < 60.0:
-			_eject_hold += delta
-			if _eject_hold > 0.45:
-				_eject_hold = 0.0
-				_eject()
-				return
-		else:
-			_eject_hold = 0.0
-	yaw = wrapf(yaw + turn_rate * delta, -PI, PI)
-	var bank := deg_to_rad(float(cfg["bank"]))
-	# smooth banking: roll leads into the turn and eases back out
-	var want_roll := clampf(turn_rate / maxf(0.1, float(cfg["turn"]) * turn_mult), -1.0, 1.0) * bank
-	roll = lerpf(roll, want_roll, 1.0 - exp(-delta * 3.4))
+		_:
+			# bank-to-turn: the stick commands a bank angle, the pilot pulls
+			# enough G for a level turn, and stick Y adds / removes G
+			if absf(f.y) < 0.96:
+				# the harder you pull, the more bank a level turn needs
+				# (acos 1/n): full stick + full pull = hard, slightly
+				# descending turn instead of a climbing spiral
+				var bank_lim := maxf(MAX_BANK, acos(1.0 / maxf(_n, 1.0)) + 0.06)
+				var target_bank := -stick.x * bank_lim
+				roll_cmd = clampf(wrapf(target_bank - bank, -PI, PI) * 4.0, -1.0, 1.0)
+			else:
+				roll_cmd = -stick.x # near vertical: plain roll
+			var n_level := cos_g / maxf(cos(bank), 0.35) if absf(bank) < PI * 0.5 else 0.0
+			if stick.y >= 0.0:
+				n_cmd = n_level + stick.y * (max_g - n_level)
+			else:
+				n_cmd = n_level + stick.y * (n_level + 2.5)
+	# roll with inertia
+	var roll_max: float = phys.get("roll", 3.0) * soft
+	_roll_rate = lerpf(_roll_rate, roll_cmd * roll_max, 1.0 - exp(-delta * agile * 1.6))
+	if man != M_ROLL:
+		orient = orient.rotated(f, -_roll_rate * delta) # positive rate rolls left wing down
+	# G with inertia, limited by lift available at this speed and by the airframe
+	var n_lim := minf(max_g, n_avail)
+	stalling = n_cmd > n_avail * 0.97 and V < vs * 1.25
+	if stalling:
+		n_lim = n_avail * 0.6 # past the critical angle: lift collapses
+	n_cmd = clampf(n_cmd, -minf(max_g * 0.45, n_avail * 0.6), n_lim)
+	if man == M_ROLL:
+		n_cmd = 0.0 # unloaded roll: the path stays straight
+	_n = lerpf(_n, n_cmd, 1.0 - exp(-delta * agile * 1.3))
+	g_load = _n
+	# visual angle of attack
+	aoa = lerpf(aoa, clampf(_n / maxf(n_avail, 0.2), -0.3, 1.2) * 0.22, 1.0 - exp(-delta * 6.0))
+	# forces per unit mass
+	var drag := _cd * V * V + _ki * _n * _n / (V * V)
+	var up := orient.y
+	var grav := Vector3(0, -G, 0)
+	if man == M_ROLL:
+		grav = Vector3.ZERO # (unloaded roll ignores the gravity turn)
+	var a_par := thrust - drag + grav.dot(f)
+	var a_perp := up * (_n * G) + (grav - f * grav.dot(f))
+	speed = maxf(4.0, speed + a_par * delta)
+	# turn the flight path (and the plane with it) by the perpendicular accel
+	var w := f.cross(a_perp) / V
+	var wl := w.length()
+	if wl > 1e-5:
+		orient = orient.rotated(w / wl, wl * delta).orthonormalized()
+		if man == M_LOOP:
+			_loop_turned += absf(w.dot(orient.x)) * delta
+	turn_rate = w.y
+	_derive_angles()
 	position += forward3() * speed * delta
+	_track_loop()
+	# ---- G-LOC (blackout) / redout
+	if g_load > 6.5:
+		gloc = minf(1.0, gloc + (g_load - 6.5) * 0.18 * delta)
+	else:
+		gloc = maxf(0.0, gloc - 0.35 * delta)
+	if g_load < -1.8:
+		redout = minf(1.0, redout + (-1.8 - g_load) * 0.4 * delta)
+	else:
+		redout = maxf(0.0, redout - 0.5 * delta)
+	# ---- ceiling
 	var ceiling := float(cfg["ceiling"])
 	if position.y > ceiling:
 		position.y = ceiling
-		if man == M_NONE:
-			pitch = minf(pitch, 0.0)
+		if f.y > 0.0:
+			orient = orient.rotated(orient.x, -f.y * 2.0 * delta)
+	# ---- collisions: the ground, the sea, buildings, cliffs = death
 	var floor_y := float(cfg["clearance"])
 	if position.y < floor_y:
-		# skim / scrape the ground or the sea
-		position.y = floor_y + 1.5
-		if man == M_NONE:
-			pitch = maxf(pitch, 0.25)
-		if invuln <= 0.0:
-			invuln = 1.0
-			damage(15.0)
-			if fx != null:
-				fx.sparks(position, 24)
-	# ---- buildings: collision + low-flying multiplier
+		if bool(cfg["crashes"]):
+			crash()
+			return
+		position.y = floor_y + 1.0
+		if f.y < 0.0:
+			orient = orient.rotated(orient.x, -f.y)
 	if chunks != null:
-		var push := chunks.collide(position.x, position.z, RADIUS, position.y - 2.0)
+		var push := chunks.collide(position.x, position.z, RADIUS * 0.6, position.y - 1.0)
 		if push != Vector2.ZERO:
+			if bool(cfg["crashes"]):
+				crash()
+				return
 			position.x += push.x
 			position.z += push.y
-			if invuln <= 0.0:
-				invuln = 0.8
-				speed *= 0.55
-				var n := push.normalized()
-				yaw = lerp_angle(yaw, atan2(-n.x, -n.y), 0.5)
-				damage(12.0)
-				hit_building.emit(12.0)
-				if fx != null:
-					fx.sparks(position - Vector3(n.x, 0, n.y) * RADIUS, 20)
 		near_tall = chunks.nearest_tall(position.x, position.z, position.y - 6.0, 90.0)
 		if position.y < CityGen.LOW_ALT and near_tall < 44.0:
 			lowfly_time += delta
@@ -357,6 +502,45 @@ func step(delta: float) -> void:
 			if lowfly_grace <= 0.0:
 				lowfly_time = maxf(0.0, lowfly_time - delta * 3.0)
 		multiplier = 1 + mini(3, int(lowfly_time / 1.2))
+	_guns_and_effects(delta)
+
+
+## Natural loops / flips (for tricks, missions): nose up past vertical, over
+## the top inverted, down, and back to level within 14 s.
+func _track_loop() -> void:
+	var f := forward3()
+	match _loop_state:
+		0:
+			if f.y > 0.85:
+				_loop_state = 1
+				_loop_t0 = _t
+		1:
+			if orient.y.y < -0.3:
+				_loop_state = 2
+		2:
+			if f.y < -0.4:
+				_loop_state = 3
+		3:
+			if absf(f.y) < 0.35 and orient.y.y > 0.5:
+				_loop_state = 0
+				if man != M_LOOP:
+					trick.emit("LOOP")
+	if _loop_state != 0 and _t - _loop_t0 > 14.0:
+		_loop_state = 0
+
+
+## Hitting anything is fatal.
+func crash() -> void:
+	if not alive:
+		return
+	# whoever was shooting at you in the last 6 s gets the kill
+	if last_hit_by != null and Time.get_ticks_msec() - int(hits.get(last_hit_by, 0)) > 6000:
+		last_hit_by = null
+	health = 0.0
+	_die(2.6)
+
+
+func _guns_and_effects(delta: float) -> void:
 	# ---- guns (300 rounds, then a reload)
 	fire_cd -= delta
 	if reloading > 0.0:
@@ -394,13 +578,17 @@ func step(delta: float) -> void:
 	stack.flash = 1.0 if (invuln > 0.0 and int(_t * 20.0) % 2 == 0 and invuln < 0.8) else 0.0
 
 
-func _eject() -> void:
+## Destroyed (shot down or crashed): explosion, debris; the pilot ejects.
+func _die(big: float = 2.2) -> void:
+	health = 0.0
 	alive = false
 	visible = false
 	if fx != null:
-		fx.explosion(position + forward3() * 30.0, 1.6)
-	Sfx.play("big_explode")
+		fx.explosion(position, big)
+		fx.debris(position, 14)
+	Sfx.play("big_explode", 0.0 if is_player else -6.0)
 	ejected.emit(position)
+	died.emit()
 
 
 var _ap_axis := 0.0
@@ -445,11 +633,4 @@ func damage(amount: float, attacker: Object = null) -> void:
 		if cam != null:
 			cam.add_shake(4.0 + amount * 0.25)
 	if health <= 0.0:
-		health = 0.0
-		alive = false
-		visible = false
-		if fx != null:
-			fx.explosion(position, 2.2)
-			fx.debris(position, 14)
-		Sfx.play("big_explode", 0.0 if is_player else -6.0)
-		died.emit()
+		_die()

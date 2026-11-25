@@ -71,6 +71,7 @@ func _draw() -> void:
 		_draw_toasts(vs)
 	if playing:
 		_draw_border_warning(vs)
+		_draw_flight(vs)
 		_draw_tags(vs)
 		_draw_feed(vs)
 		_draw_rings(vs)
@@ -347,6 +348,42 @@ func _draw_minimap(c: Vector2, r: float) -> void:
 		ctext(c.x, c.y + r + 18 * s, "RADAR DOWN", 13, Color(1, 0.5, 0.4))
 
 
+## Flight data strip (bottom centre, outside the cockpit): speed, altitude,
+## G load, throttle / afterburner heat; STALL warning everywhere.
+func _draw_flight(vs: Vector2) -> void:
+	var jet: Jet = game.jet
+	if not jet.alive:
+		return
+	if jet.stalling:
+		var on := fmod(Time.get_ticks_msec() / 1000.0, 0.5) < 0.3
+		ctext(vs.x * 0.5, vs.y * 0.62, "STALL", 34, Color(1, 0.3, 0.25) if on else Color(1, 0.75, 0.3))
+	if game.cam.cockpit_blend >= 0.5:
+		return
+	var w := 560.0 * s
+	var h := 40.0 * s
+	var r := Rect2(Vector2(vs.x * 0.5 - w * 0.5, vs.y - h - 14 * s), Vector2(w, h))
+	_panel(r)
+	var y := r.position.y + 28 * s
+	var cw := w / 4.0
+	text(Vector2(r.position.x + 12 * s, y), "%d" % int(jet.speed * 3.6) + " " + tr("KM/H"), 18)
+	text(Vector2(r.position.x + cw + 8 * s, y), tr("ALT %d") % int(jet.position.y), 18, C_TEXT if jet.position.y > 60.0 else Color(1, 0.6, 0.3))
+	var gcol := C_TEXT
+	if jet.g_load > 6.5 or jet.g_load < -1.8:
+		gcol = Color(1, 0.4, 0.3)
+	text(Vector2(r.position.x + cw * 2.0 + 8 * s, y), "%.1f G" % jet.g_load, 18, gcol)
+	# throttle / afterburner + heat
+	var tx := r.position.x + cw * 3.0 + 4 * s
+	var bar := Rect2(Vector2(tx, r.position.y + 10 * s), Vector2(cw - 16 * s, h - 20 * s))
+	draw_rect(bar, Color(0, 0, 0, 0.5))
+	var thr: float = jet.throttle
+	if game.controls != null and "throttle" in game.controls and game.controls.throttle >= 0.0:
+		thr = game.controls.throttle
+	var tcol := Color(1.0, 0.55, 0.15) if jet.boosting else Color(0.55, 0.8, 1.0)
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(1.0 if jet.boosting else thr / Jet.THR_MIL, 0.0, 1.0), bar.size.y * 0.55)), tcol)
+	# heat underneath (red when overheated)
+	draw_rect(Rect2(bar.position + Vector2(0, bar.size.y * 0.7), Vector2(bar.size.x * jet.heat / 100.0, bar.size.y * 0.3)), Color(1, 0.25, 0.2) if jet.overheated else Color(1, 0.7, 0.3))
+
+
 ## Red flashing warning near / outside the battle-area edge.
 func _draw_border_warning(vs: Vector2) -> void:
 	var wm: WorldMap = game.world_map
@@ -502,7 +539,7 @@ func _draw_arrows(vs: Vector2) -> void:
 		var k := minf(absf(ext.x / maxf(0.001, absf(d.x))), absf(ext.y / maxf(0.001, absf(d.y))))
 		var p := center + d * k
 		# keep markers off the top HUD strip (kills, score bar, timer, pause)
-		p.y = clampf(p.y, 120.0 * s, vs.y - margin)
+		p.y = clampf(p.y, 120.0 * s, vs.y - 80.0 * s) # above the flight strip
 		var et: int = -1 if e is Jet else e.type
 		var col := Color("ff5a4a") if et != 3 else Color("ffb43c")
 		var sz := (16.0 if et == 2 else 12.0) * s

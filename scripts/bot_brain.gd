@@ -167,6 +167,7 @@ func think(delta: float) -> void:
 		_:
 			_fly_engage(delta)
 	_avoid_ground()
+	_avoid_planes()
 	_keep_in_bounds()
 
 
@@ -214,14 +215,44 @@ func _decide() -> void:
 # ------------------------------------------------------------------ steering
 
 ## Steer the virtual stick towards a world point (same inputs as the player).
+## Pilot technique: roll the lift vector onto the target (target straight
+## "above" the canopy) and pull; inside ~7 deg track it with small bank / G
+## corrections.
 func _steer_to(p: Vector3, urgency: float = 1.0) -> float:
 	var to := p - plane.position
 	var desired_yaw := atan2(-to.x, -to.z)
 	var diff := wrapf(desired_yaw - plane.yaw, -PI, PI)
 	var flat := Vector2(to.x, to.z).length()
 	var desired_pitch := clampf(atan2(to.y, maxf(flat, 1.0)), -Jet.MAX_PITCH, Jet.MAX_PITCH)
-	var sx := clampf(-diff * lerpf(1.4, 2.6, skill) * urgency, -1.0, 1.0)
-	var sy := clampf(desired_pitch / Jet.MAX_PITCH, -1.0, 1.0)
+	var d := maxf(to.length(), 1.0)
+	var local: Vector3 = plane.orient.inverse() * to # x right, y up, -z ahead
+	var ang := acos(clampf(-local.z / d, -1.0, 1.0))
+	var sx := 0.0
+	var sy := 0.0
+	if ang > 0.12:
+		var lift_err := atan2(local.x, local.y)
+		var target_bank := clampf(plane.roll - lift_err, -1.52, 1.52)
+		# well off the nose: hard banked turn towards its side (don't zoom
+		# straight up and bleed all the energy, don't go inverted low down)
+		if ang > 1.0 or (absf(lift_err) > PI * 0.6 and plane.position.y < 600.0):
+			var side := signf(local.x) if absf(local.x) > 1.0 else (1.0 if flank >= 0.0 else -1.0)
+			target_bank = -side * Jet.MAX_BANK
+		sx = clampf(-target_bank / Jet.MAX_BANK, -1.1, 1.1)
+		var aligned := cos(wrapf(target_bank - plane.roll, -PI, PI))
+		sy = clampf(ang * lerpf(1.6, 3.0, skill), 0.0, 1.0) * maxf(0.0, aligned) * lerpf(0.35, 1.0, skill) * urgency
+		sy = maxf(sy, (desired_pitch - plane.pitch) * 1.5 * (1.0 - aligned))
+	else:
+		# fine tracking: small bank for left / right, G for up / down
+		sx = clampf(-plane.roll / Jet.MAX_BANK + local.x / d * lerpf(5.0, 9.0, skill), -1.0, 1.0)
+		sy = clampf(local.y / d * lerpf(8.0, 14.0, skill), -1.0, 1.0)
+	sx = clampf(sx, -1.0, 1.0)
+	# G management: good pilots ease off before they black out
+	if plane.gloc > lerpf(0.9, 0.25, skill):
+		sy = minf(sy, lerpf(1.0, 0.55, skill))
+	# energy: good pilots ease off before they stall; rookies don't
+	if plane.speed < float(plane.phys.get("vs", 55.0)) * lerpf(1.1, 1.6, skill):
+		sy = minf(sy, lerpf(0.9, 0.2, skill))
+		plane.in_boost = true
 	if _mistake > 0.0 and _mistake_kind == 2:
 		sx *= 0.4 # overshoot: lazy turn
 	_wobble = _wobble.lerp(Vector2(rng.randf_range(-1, 1), rng.randf_range(-1, 1)) * (1.0 - skill) * 0.25, 0.05)
@@ -246,11 +277,20 @@ func _fly_engage(delta: float) -> void:
 	var diff := _steer_to(aim, 1.0)
 	# energy management: boost to close/extend, don't bleed speed in the turn
 	var is_ground: bool = not (target is Jet) and "kind" in target
-	plane.in_boost = (d > 700.0 and skill > 0.2) or (absf(diff) < 0.25 and d > 400.0) or (plane.speed < plane.base_speed() * 0.9 and skill > 0.6)
+	# energy: fight near corner speed (best turn); burn only to close a
+	# long gap nose-on, or when slow. Rookies just keep it lit.
+	var corner := float(plane.phys.get("vs", 50.0)) * sqrt(float(plane.phys.get("max_g", 7.0)))
+	plane.in_boost = plane.speed < corner * lerpf(1.0, 0.95, skill) or (d > 1600.0 and absf(diff) < 0.3) or skill < 0.25
+	plane.in_throttle = Jet.THR_MIL if plane.speed < corner * 1.15 or skill < 0.5 else Jet.THR_MIL * 0.6
+	# on its tail and closing fast: throttle back so you don't overshoot
+	var closing := (plane.forward3() * plane.speed - tv).dot((tp - plane.position) / maxf(d, 1.0))
+	if d < 600.0 and absf(diff) < 0.4 and closing > 25.0 and skill > 0.4:
+		plane.in_throttle = 0.15
+		plane.in_boost = false
 	if _mistake > 0.0 and _mistake_kind == 2:
 		plane.in_boost = true
 	# guns
-	var tol := lerpf(0.16, 0.06, skill)
+	var tol := lerpf(0.12, 0.09, skill)
 	var to_lead := (lead - plane.position).normalized()
 	var facing := plane.forward3().dot(to_lead)
 	plane.in_fire = d < (700.0 if is_ground else 560.0) and facing > cos(tol) and not (_mistake > 0.0 and _mistake_kind == 0)
@@ -338,17 +378,47 @@ func _dodge_missiles() -> void:
 				fleet.fx.flares(plane.position, -plane.forward3(), plane.forward3() * plane.speed)
 
 
+## Mid-air collisions are fatal: break away from any plane that will pass
+## within ~40 m in the next 1.5 s (skill decides how early).
+func _avoid_planes() -> void:
+	var f := plane.forward3() * plane.speed
+	var look := lerpf(0.8, 1.6, skill)
+	for o in fleet.planes:
+		if o == plane or not o.alive:
+			continue
+		var rel: Vector3 = o.position - plane.position
+		if rel.length_squared() > 600.0 * 600.0:
+			continue
+		var rv: Vector3 = o.forward3() * o.speed - f
+		var tca := clampf(-rel.dot(rv) / maxf(1.0, rv.length_squared()), 0.0, look)
+		var miss: Vector3 = rel + rv * tca
+		if tca > 0.0 and miss.length() < 40.0:
+			# roll away from it and push / pull out of its plane
+			var side := -signf(rel.dot(plane.right())) if absf(rel.dot(plane.right())) > 1.0 else 1.0
+			plane.in_stick = Vector2(side, -0.6 if rel.y > 0.0 else 0.9)
+			return
+
+
 func _avoid_ground() -> void:
-	# keep clear of the ground/sea and of tall buildings ahead
+	# Hitting anything is fatal: look along the flight path 1..4 s ahead and,
+	# if it meets the ground, a building or a mountain, roll wings level,
+	# pull and light the afterburner.
 	var y := plane.position.y
-	var min_y := 60.0 if skill > 0.5 else 110.0
-	if y < min_y and plane.in_stick.y < 0.5:
-		plane.in_stick.y = 0.8
-	if fleet.chunks != null:
-		var ahead := plane.position + plane.forward() * 160.0
-		if fleet.chunks.nearest_tall(ahead.x, ahead.z, y - 10.0, 60.0) < 30.0:
-			plane.in_stick.y = 1.0
-		# mountains / mesas further ahead: start climbing early
-		var far := plane.position + plane.forward() * 340.0
-		if CityGen.feature != CityGen.FEAT_NONE and CityGen.relief_hw(far.x, far.z) > y - 40.0:
-			plane.in_stick.y = 1.0
+	var min_y := 70.0 if skill > 0.5 else 120.0
+	var f := plane.forward3()
+	var danger := y < min_y and f.y < 0.15
+	if not danger:
+		for t in [1.0, 2.0, 3.0, 4.0]:
+			var q: Vector3 = plane.position + f * plane.speed * t
+			if q.y < 30.0:
+				danger = true
+				break
+			if fleet.chunks != null and fleet.chunks.nearest_tall(q.x, q.z, q.y - 25.0, 40.0) < 30.0:
+				danger = true
+				break
+			if CityGen.feature != CityGen.FEAT_NONE and CityGen.relief_hw(q.x, q.z) > q.y - 45.0:
+				danger = true
+				break
+	if danger:
+		plane.in_stick = Vector2(0.0, 1.0)
+		plane.in_boost = true

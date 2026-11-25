@@ -214,7 +214,8 @@ func _process(delta: float) -> void:
 			continue
 		m.life -= delta
 		var tp := tpos(m.target)
-		var spd := minf(m.vel.length() + 160.0 * delta, 190.0 if m.enemy and m.shooter == null else 250.0)
+		# missiles must outrun any plane on afterburner (planes top out ~290)
+		var spd := minf(m.vel.length() + 300.0 * delta, 330.0 if m.enemy and m.shooter == null else 450.0)
 		if tp != Vector3.INF and not m.dodged:
 			var want := (tp - m.pos).normalized() * spd
 			m.vel = m.vel.lerp(want, 1.0 - exp(-delta * (2.6 if m.target is Jet else 5.0)))

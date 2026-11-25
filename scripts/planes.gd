@@ -103,6 +103,40 @@ static func stats(plane: int, lv: Dictionary) -> Dictionary:
 	}
 
 
+## Flight-model class traits (light / heavy / attack):
+##  vs     stall speed at 1 G (m/s)          vmil  top level speed, military
+##  vab    top level speed, afterburner      tw    thrust/weight at military
+##  max_g  structural / pilot G limit         roll  max roll rate (rad/s)
+##  ind    induced-drag factor (k * CLmax): how much speed a hard turn bleeds
+##  agile  control response (1/s): how fast roll / G build up (inertia)
+const CLASS_PHYS := [
+	{"vs": 46.0, "vmil": 150.0, "vab": 198.0, "tw": 0.62, "max_g": 9.0, "roll": 4.4, "ind": 0.10, "agile": 6.0},
+	{"vs": 56.0, "vmil": 172.0, "vab": 238.0, "tw": 0.58, "max_g": 7.5, "roll": 2.9, "ind": 0.13, "agile": 3.8},
+	{"vs": 42.0, "vmil": 136.0, "vab": 168.0, "tw": 0.50, "max_g": 6.5, "roll": 2.3, "ind": 0.11, "agile": 3.0},
+]
+
+
+## Physical flight parameters for a plane at given upgrade levels. Speed /
+## turn multipliers of the plane and the engine upgrade shape them; speeds
+## are scaled by `speed_scale` (debug tuning, 1 = as designed).
+static func physics(plane: int, lv: Dictionary, speed_scale: float = 1.0) -> Dictionary:
+	var p: Dictionary = LIST[plane]
+	var c: Dictionary = CLASS_PHYS[int(p["branch"])]
+	var eng := int(lv.get("engine", 0))
+	var sm: float = float(p["speed"]) / float([0.95, 1.04, 0.88][int(p["branch"])]) # relative to tier 1 of the class
+	var tm: float = float(p["turn"]) / float([1.12, 0.98, 1.0][int(p["branch"])])
+	return {
+		"vs": c["vs"] / sqrt(tm) * speed_scale,
+		"vmil": c["vmil"] * sm * (1.0 + 0.02 * eng) * speed_scale,
+		"vab": c["vab"] * sm * (1.0 + 0.025 * eng) * speed_scale,
+		"tw": c["tw"] * (1.0 + 0.04 * eng),
+		"max_g": c["max_g"] * (0.94 + 0.06 * tm),
+		"roll": c["roll"] * tm,
+		"ind": c["ind"],
+		"agile": c["agile"] * tm,
+	}
+
+
 ## 0..1 bars for the hangar.
 static func bars(plane: int, lv: Dictionary) -> Array:
 	var st := stats(plane, lv)

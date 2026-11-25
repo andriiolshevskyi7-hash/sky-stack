@@ -3,7 +3,7 @@ extends Node3D
 ## Pooled pixel particles: explosions, smoke trails, sparks, muzzle flashes,
 ## afterburner. Structure-of-arrays, swap-remove, zero per-frame allocations.
 
-enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL, SPARK_W }
+enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL, SPARK_W, CANOPY }
 const MAX := 1400
 
 var pos := PackedVector3Array()
@@ -93,6 +93,16 @@ func flares(p: Vector3, back: Vector3, plane_vel: Vector3) -> void:
 		spawn(p, v, rng.randf_range(1.2, 1.7), 2.4, FLASH)
 		spawn(p, v * 0.9, rng.randf_range(1.0, 1.4), 1.0, SPARK)
 		spawn(p + back * 2.0, v * 0.6, rng.randf_range(0.9, 1.6), 1.8, SMOKE)
+
+
+## Ejection: the canopy (glass shards) blows off upwards and tumbles away,
+## the seat rocket flashes.
+func eject(p: Vector3, up: Vector3, v: Vector3) -> void:
+	spawn(p, Vector3.ZERO, 0.15, 6.0, FLASH)
+	for i in 10:
+		spawn(p + up * 3.0, v + up * rng.randf_range(30.0, 50.0) + _rv(18.0), rng.randf_range(1.0, 1.8), rng.randf_range(1.0, 2.0), CANOPY)
+	for i in 8:
+		spawn(p, -up * 30.0 + _rv(15.0), rng.randf_range(0.2, 0.4), 2.5, FIRE)
 
 
 func smoke(p: Vector3, count: int = 1) -> void:
@@ -213,6 +223,9 @@ func _process(delta: float) -> void:
 				col = Color(1.0, 0.95, 0.6).lerp(Color(1.0, 0.45, 0.1), minf(1.0, t * 1.6))
 				col.a = 1.0 - t * 0.6
 				s *= 1.0 - t * 0.5
+			CANOPY:
+				v.y -= 50.0 * delta
+				col = Color(0.55, 0.85, 1.0) if int(t * 12.0 + i) % 2 == 0 else Color(0.9, 0.97, 1.0)
 			TRAIL:
 				col = Color(1, 1, 1, 1.0 if t < 0.6 else (1.0 - t) * 2.5)
 				s *= 1.0 + t * 0.8

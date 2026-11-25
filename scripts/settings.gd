@@ -16,7 +16,7 @@ const SCHEMA := [
 	["FLIGHT", "bank", "Bank angle", "f", 52.0, 0.0, 85.0, 1.0],
 	["FLIGHT", "cruise", "Cruising altitude", "f", 220.0, 60.0, 800.0, 10.0],
 	["FLIGHT", "ceiling", "Ceiling (highest it climbs)", "f", 3000.0, 400.0, 6000.0, 100.0],
-	["FLIGHT", "clearance", "Ground clearance (lowest it skims)", "f", 14.0, 4.0, 80.0, 1.0],
+	["FLIGHT", "clearance", "Ground clearance (lowest it skims)", "f", 4.0, 2.0, 80.0, 1.0],
 	["FLIGHT", "wingmen", "Wingmen", "f", 1.0, 0.0, 3.0, 1.0],
 	["FLIGHT", "invert", "Invert climb/dive (drag up climbs)", "b", false],
 	["FLIGHT", "crashes", "Crashes (dive into the ground to eject)", "b", true],

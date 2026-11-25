@@ -314,6 +314,14 @@ func target_for(plane: Jet) -> Object:
 	return best
 
 
+## Is this point inside any standing structure (planes crash into them)?
+func solid_at(p: Vector3) -> bool:
+	for s in structures:
+		if s.box.grow(2.0).has_point(p):
+			return true
+	return false
+
+
 ## Bullet hits on enemy structures.
 func hit_test(p: Vector3, team: int, dmg: float, src: Object) -> bool:
 	for s in structures:

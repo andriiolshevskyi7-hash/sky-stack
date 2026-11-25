@@ -399,3 +399,13 @@ Shoot down %d planes in light fighters,Shoot down %d planes in light fighters,З
 Shoot down %d planes in heavy fighters,Shoot down %d planes in heavy fighters,Збиті на важких винищувачах: %d
 Shoot down %d planes in attackers,Shoot down %d planes in attackers,Збиті на штурмовиках: %d
 QUICK PLAY,QUICK PLAY,ШВИДКА ГРА
+STALL,STALL,ЗВАЛЮВАННЯ
+KM/H,KM/H,КМ/Г
+ENERGY,ENERGY,ЕНЕРГІЯ
+"Climbing and hard turns cost speed, diving gains it","Climbing and hard turns cost speed, diving gains it","Набір висоти й круті віражі коштують швидкості, пікірування її додає"
+Too slow with the stick back: the nose drops,Too slow with the stick back: the nose drops,Замала швидкість зі стіком на себе: ніс падає
+AFTERBURNER,AFTERBURNER,ФОРСАЖ
+"Hold BOOST. It overheats, then needs to cool","Hold BOOST. It overheats, then needs to cool",Тримайте ФОРСАЖ. Він перегрівається й мусить охолонути
+"LOOP (flown for you), or pull fully back","LOOP (flown for you), or pull fully back",ПЕТЛЯ (виконується автоматично) або стік повністю на себе
+CRASH,CRASH,ЗІТКНЕННЯ
+Hitting anything is fatal: the pilot ejects,Hitting anything is fatal: the pilot ejects,Будь-яке зіткнення смертельне: пілот катапультується

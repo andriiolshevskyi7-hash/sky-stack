@@ -17,6 +17,8 @@ uniform float dither_amount = 0.02;
 uniform float contrast = 0.15;
 uniform float vignette = 0.3;
 uniform float grain = 0.25;
+uniform float gblack = 0.0; // G-LOC: vision tunnels and greys out
+uniform float gred = 0.0; // negative G: red-out
 
 vec3 bright(vec2 uv) {
 	vec3 c = texture(src_lin, uv).rgb;
@@ -52,6 +54,16 @@ void fragment() {
 	vec2 vq = UV * 2.0 - 1.0;
 	c *= 1.0 - vignette * 0.55 * smoothstep(0.35, 1.6, dot(vq, vq));
 	c += (hash12(FRAGCOORD.xy + fract(TIME * 7.13) * vec2(91.7, 53.3)) - 0.5) * grain * 0.1;
+	if (gblack > 0.0) {
+		// grey-out first, then the tunnel closes in
+		float r2 = dot(vq, vq);
+		c = mix(c, vec3(dot(c, vec3(0.3, 0.5, 0.2))), clamp(gblack * 1.6, 0.0, 1.0));
+		c *= 1.0 - smoothstep(1.6 - gblack * 1.9, 2.0 - gblack * 1.9, r2) * clamp(gblack * 1.2, 0.0, 1.0);
+		c *= 1.0 - gblack * gblack * 0.85;
+	}
+	if (gred > 0.0) {
+		c = mix(c, vec3(0.55, 0.04, 0.03) * (0.4 + dot(c, vec3(0.33))), clamp(gred * 0.9, 0.0, 0.9));
+	}
 	if (palette_mix > 0.0) {
 		vec3 cq = c + (bay - 0.5) * dither_amount;
 		vec3 best = vec3(0.0);
