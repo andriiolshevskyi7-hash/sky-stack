@@ -65,6 +65,8 @@ func _draw() -> void:
 	elif playing:
 		ctext(vs.x * 0.5, 96 * s, "%07d" % game.score, 22, Color(1, 1, 1, 0.85))
 	if playing:
+		_draw_tags(vs)
+		_draw_feed(vs)
 		_draw_rings(vs)
 		_draw_missile_arrow(vs)
 		_draw_popups()
@@ -139,6 +141,41 @@ func _draw_status(vs: Vector2) -> void:
 	_draw_lock(vs)
 
 
+## Pilot names over planes: blue = your team, red = enemy (+ health bar).
+func _draw_tags(vs: Vector2) -> void:
+	var cam: Camera3D = game.cam
+	for pl in game.fleet.planes:
+		if not pl.alive or pl == game.jet:
+			continue
+		if cam.is_position_behind(pl.position):
+			continue
+		var d: float = cam.global_position.distance_to(pl.position)
+		if d > 2200.0:
+			continue
+		var sp := _screen(pl.position)
+		if not Rect2(Vector2.ZERO, vs).has_point(sp):
+			continue
+		var ally: bool = pl.team == game.jet.team
+		var col := Color(0.45, 0.75, 1.0, 0.95) if ally else Color(1.0, 0.4, 0.35, 0.95)
+		var fs := 15.0 if d < 900.0 else 12.0
+		ctext(sp.x, sp.y - 34 * s, pl.pilot, fs, col)
+		if not ally and d < 1200.0:
+			var bw := 46.0 * s
+			draw_rect(Rect2(sp + Vector2(-bw * 0.5, -28 * s), Vector2(bw, 4 * s)), Color(0, 0, 0, 0.5))
+			draw_rect(Rect2(sp + Vector2(-bw * 0.5, -28 * s), Vector2(bw * pl.health / pl.max_health, 4 * s)), col)
+
+
+## Kill feed (top right, under the buttons).
+func _draw_feed(vs: Vector2) -> void:
+	var y := 120.0 * s
+	for kf in game.kill_feed:
+		var a := clampf(6.0 - float(kf[1]), 0.0, 1.0)
+		var c: Color = kf[2]
+		c.a = a
+		text(Vector2(vs.x - 520 * s, y), kf[0], 16, c, HORIZONTAL_ALIGNMENT_RIGHT, 500 * s)
+		y += 22 * s
+
+
 ## Red arrow around the screen centre pointing at the incoming missile.
 func _draw_missile_arrow(vs: Vector2) -> void:
 	var m: Missiles = game.missiles
@@ -189,9 +226,10 @@ func _screen(p: Vector3) -> Vector2:
 ## Lock-on box around the target: white while locking, red when locked.
 func _draw_lock(_vs: Vector2) -> void:
 	var m: Missiles = game.missiles
-	if m.lock_target == null or not m.lock_target.active or game.cam.is_position_behind(m.lock_target.pos):
+	var lpos: Vector3 = Missiles.tpos(m.lock_target)
+	if lpos == Vector3.INF or game.cam.is_position_behind(lpos):
 		return
-	var p := _screen(m.lock_target.pos)
+	var p := _screen(lpos)
 	var k := clampf(m.lock_t / Missiles.LOCK_TIME, 0.0, 1.0)
 	var half := lerpf(60.0, 28.0, k) * s
 	var col := Color(1, 0.25, 0.2) if m.locked else Color(1, 1, 1, 0.8)
@@ -288,11 +326,17 @@ func _draw_arrows(vs: Vector2) -> void:
 	var pv: PixelView = game.pv
 	var margin := 40.0 * s
 	var center := vs * 0.5
+	var objs: Array = []
 	for e in game.enemies.pool:
-		if not e.active:
-			continue
-		var behind := cam.is_position_behind(e.pos)
-		var sp: Vector2 = cam.unproject_position(e.pos) * pv.pixel_scale + pv.display.position
+		if e.active:
+			objs.append(e)
+	for pl in game.fleet.planes:
+		if pl.alive and pl.team != game.jet.team:
+			objs.append(pl)
+	for e in objs:
+		var epos: Vector3 = Missiles.tpos(e)
+		var behind := cam.is_position_behind(epos)
+		var sp: Vector2 = cam.unproject_position(epos) * pv.pixel_scale + pv.display.position
 		if not behind and Rect2(Vector2.ZERO, vs).grow(-10.0).has_point(sp):
 			continue
 		var d := (sp - center).normalized()
@@ -301,7 +345,8 @@ func _draw_arrows(vs: Vector2) -> void:
 		var ext := center - Vector2(margin, margin)
 		var k := minf(absf(ext.x / maxf(0.001, absf(d.x))), absf(ext.y / maxf(0.001, absf(d.y))))
 		var p := center + d * k
-		var col := Color("ff5a4a") if e.type != 3 else Color("ffb43c")
-		var sz := (16.0 if e.type == 2 else 12.0) * s
+		var et: int = -1 if e is Jet else e.type
+		var col := Color("ff5a4a") if et != 3 else Color("ffb43c")
+		var sz := (16.0 if et == 2 else 12.0) * s
 		draw_rect(Rect2(p - Vector2(sz, sz) - Vector2(2, 2) * s, Vector2(sz, sz) * 2.0 + Vector2(4, 4) * s), Color(0.05, 0.05, 0.1, 0.9))
 		draw_rect(Rect2(p - Vector2(sz, sz), Vector2(sz, sz) * 2.0), col)

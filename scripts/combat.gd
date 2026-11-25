@@ -14,6 +14,7 @@ var dmg := PackedFloat32Array()
 var owner_enemy := PackedByteArray()
 var kind := PackedInt32Array()
 var target := PackedInt64Array()
+var src: Array = [] # shooter (Jet) or null
 var n := 0
 var batch: PointBatch
 
@@ -22,6 +23,7 @@ var jet: Jet
 var enemies: Node
 var chunks: ChunkManager
 var fx: Fx
+var fleet: Node # Fleet: all planes (player + bots)
 
 
 func _ready() -> void:
@@ -32,6 +34,7 @@ func _ready() -> void:
 	owner_enemy.resize(MAX)
 	kind.resize(MAX)
 	target.resize(MAX)
+	src.resize(MAX)
 	batch = PointBatch.new().setup(MAX * 3)
 	batch.name = "BulletBatch"
 	add_child(batch)
@@ -41,9 +44,10 @@ func clear() -> void:
 	n = 0
 
 
-func _spawn(p: Vector3, v: Vector3, l: float, d: float, enemy: bool, k: int, t: int = -1) -> void:
+func _spawn(p: Vector3, v: Vector3, l: float, d: float, enemy: bool, k: int, t: int = -1, shooter: Object = null) -> void:
 	if n >= MAX:
 		return
+	src[n] = shooter
 	pos[n] = p
 	vel[n] = v
 	life[n] = l
@@ -54,17 +58,33 @@ func _spawn(p: Vector3, v: Vector3, l: float, d: float, enemy: bool, k: int, t: 
 	n += 1
 
 
-func player_shoot(p: Vector3, dir: Vector3, base_speed: float) -> void:
+## Cannon shot from any plane (player or bot). Same light aim assist for
+## everyone; bots add their own aim error (skill).
+func shoot(shooter: Jet, p: Vector3, dir: Vector3, base_speed: float) -> void:
 	var d := dir
-	if enemies != null:
-		var flat := Vector3(dir.x, 0.0, dir.z).normalized()
-		var aim: Vector3 = enemies.aim_target(p, flat, 0.22, 420.0)
-		if aim != Vector3.INF:
-			d = (aim - p).normalized()
-	_spawn(p, d * (PLAYER_SPEED + base_speed), 0.9, 1.0, false, BULLET)
+	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
+	var aim := Vector3.INF
+	if fleet != null:
+		aim = fleet.aim_target(p, flat, shooter.team, 0.22, 480.0)
+	if aim == Vector3.INF and shooter.team == 0 and enemies != null:
+		aim = enemies.aim_target(p, flat, 0.22, 480.0)
+	if aim != Vector3.INF:
+		d = (aim - p).normalized()
+	if shooter.brain != null:
+		var err: float = shooter.brain.aim_error()
+		d = (d + Vector3(randf_range(-err, err), randf_range(-err, err) * 0.6, randf_range(-err, err))).normalized()
+	var dmg_shot: float = float(shooter.cfg.get("gun_dmg", 1.0))
+	_spawn(p, d * (PLAYER_SPEED + base_speed), 0.95, dmg_shot, shooter.team == 1, BULLET, -1, shooter)
 	if fx != null:
 		fx.muzzle(p)
-	Sfx.play("shot", -8.0)
+	if shooter.is_player:
+		Sfx.play("shot", -8.0)
+	elif jet != null and p.distance_squared_to(jet.position) < 500.0 * 500.0:
+		Sfx.play("enemy_shot", -14.0)
+
+
+func player_shoot(p: Vector3, dir: Vector3, base_speed: float) -> void:
+	shoot(jet, p, dir, base_speed)
 
 
 func enemy_bullet(p: Vector3, dir: Vector3, speed: float, d: float) -> void:
@@ -89,7 +109,9 @@ func _trigger(i: int) -> void:
 		FLAK:
 			fx.explosion(p, 0.45)
 			Sfx.play("flak", -4.0)
-			if jet.alive and p.distance_to(jet.position) < 20.0 and jet.invuln <= 0.0:
+			if fleet != null:
+				fleet.splash(p, 22.0, 0, dmg[i], null)
+			elif jet.alive and p.distance_to(jet.position) < 20.0 and jet.invuln <= 0.0:
 				jet.damage(dmg[i])
 		BOMB, BLD_SHOT:
 			if kind[i] == BOMB:
@@ -113,19 +135,30 @@ func _process(delta: float) -> void:
 			if owner_enemy[i] == 1:
 				_trigger(i)
 			remove = true
-		elif owner_enemy[i] == 0:
-			if enemies != null and enemies.hit_test(p, dmg[i]):
+		elif kind[i] == BULLET:
+			var team := int(owner_enemy[i])
+			var s: Object = src[i] if is_instance_valid(src[i]) else null
+			if team == 0 and enemies != null and enemies.hit_test(p, dmg[i]):
 				fx.hit(p)
 				remove = true
-			elif chunks.collide(p.x, p.z, 0.5, p.y).x != 0.0 or chunks.collide(p.x, p.z, 0.5, p.y).y != 0.0:
-				fx.sparks(p, 3)
+				if s != null and "shots_hit" in s:
+					s.shots_hit += 1
+			elif fleet != null and fleet.hit_test(p, team, dmg[i], s):
+				fx.hit(p)
 				remove = true
-		elif kind[i] == BULLET and jet.alive:
-			if absf(p.y - jet.position.y) < 10.0 and Vector2(p.x - jet.position.x, p.z - jet.position.z).length() < 7.0:
+				if s != null and "shots_hit" in s:
+					s.shots_hit += 1
+			elif fleet == null and team == 1 and jet.alive and absf(p.y - jet.position.y) < 10.0 and Vector2(p.x - jet.position.x, p.z - jet.position.z).length() < 7.0:
 				if jet.invuln <= 0.0:
 					jet.damage(dmg[i])
 				fx.hit(p)
 				remove = true
+			elif p.y < 400.0 and chunks.collide(p.x, p.z, 0.5, p.y) != Vector2.ZERO:
+				fx.sparks(p, 3)
+				remove = true
+				# enemy attackers strafing the city damage the building they hit
+				if team == 1 and game != null and chunks.last_hit_id >= 0:
+					game.damage_building(chunks.last_hit_id, dmg[i] * 0.6, p)
 		if remove:
 			n -= 1
 			pos[i] = pos[n]
@@ -135,6 +168,8 @@ func _process(delta: float) -> void:
 			owner_enemy[i] = owner_enemy[n]
 			kind[i] = kind[n]
 			target[i] = target[n]
+			src[i] = src[n]
+			src[n] = null
 			continue
 		match kind[i]:
 			BULLET:

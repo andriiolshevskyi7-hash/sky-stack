@@ -84,6 +84,19 @@ func _process(_delta: float) -> void:
 	batch.end()
 
 
+## Is a point inside a cloud? (clouds block missile lock-on)
+func inside(pos: Vector3) -> bool:
+	if pos.y < BASE_Y - 10.0 or pos.y > BASE_Y + 14.0 * SCALE:
+		return false
+	for i in COUNT:
+		if anchors[i].x == INF:
+			continue
+		var w := world_pos(i)
+		if Vector2(w.x - pos.x, w.z - pos.z).length() < PUFF_R:
+			return true
+	return false
+
+
 ## Fog amount for the jet at pos (0..1).
 func fog_at(pos: Vector3, delta: float) -> float:
 	var inside := false

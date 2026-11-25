@@ -29,11 +29,13 @@ var sky_mat: ShaderMaterial
 var cockpit: Cockpit
 var trails: Trails
 var missiles: Missiles
-var wingmen: Wingmen
+var fleet: Fleet
+var kill_feed: Array = [] # [text, age, color]
 var intel: Intel
 var tutorial: Tutorial
 var settings_ui: SettingsScreen
 var enemy_jets := 3
+var wingmen_count := 1
 
 var score := 0
 var wave := 0
@@ -52,6 +54,9 @@ var spawn_cd := 0.0
 var between_t := 0.0
 var kills := 0
 const SWARM := 100
+const BOT_PAIR := 101
+const BOT_INTERCEPTOR := 102
+const BOT_ATTACKER := 103
 var popups: Array = [] # [world pos, text, age]
 var _hitstop_until := 0
 var _aa_fail := 0
@@ -121,9 +126,9 @@ func _ready() -> void:
 	missiles = Missiles.new()
 	missiles.name = "Missiles"
 	world.add_child(missiles)
-	wingmen = Wingmen.new()
-	wingmen.name = "Wingmen"
-	world.add_child(wingmen)
+	fleet = Fleet.new()
+	fleet.name = "Fleet"
+	world.add_child(fleet)
 	traffic = Traffic.new()
 	traffic.name = "Traffic"
 	world.add_child(traffic)
@@ -174,9 +179,23 @@ func _ready() -> void:
 	missiles.enemies = enemies
 	missiles.fx = fx
 	enemies.missiles = missiles
-	wingmen.jet = jet
-	wingmen.enemies = enemies
-	wingmen.combat = combat
+	fleet.game = self
+	fleet.chunks = chunks
+	fleet.combat = combat
+	fleet.fx = fx
+	fleet.enemies = enemies
+	fleet.missiles = missiles
+	fleet.clouds = clouds
+	fleet.cam = cam
+	fleet.add_player(jet)
+	fleet.spawn_point = func(team: int) -> Array:
+		var a := rng.randf() * TAU
+		var base := jet.position if team == 0 else jet.position + Vector3(cos(a), 0, sin(a)) * 1400.0
+		return [Vector3(base.x + rng.randf_range(-200, 200), 260.0, base.z + rng.randf_range(-200, 200)), rng.randf() * TAU]
+	fleet.plane_killed.connect(_on_plane_killed)
+	combat.fleet = fleet
+	missiles.fleet = fleet
+	missiles.clouds = clouds
 	tutorial = Tutorial.new()
 	tutorial.game = self
 	add_child(tutorial)
@@ -276,6 +295,10 @@ func _process(delta: float) -> void:
 		Engine.time_scale = 1.0
 	for pp in popups:
 		pp[2] += delta
+	for kf in kill_feed:
+		kf[1] += delta
+	while not kill_feed.is_empty() and kill_feed[0][1] > 6.0:
+		kill_feed.pop_front()
 	while not popups.is_empty() and popups[0][2] > 1.2:
 		popups.pop_front()
 	if state == State.PAUSE:
@@ -283,6 +306,8 @@ func _process(delta: float) -> void:
 	delta = minf(delta, 0.05)
 	jet.step(delta)
 	_update_pilot(delta)
+	if state == State.PLAY or state == State.TITLE or state == State.OVER:
+		fleet.step(delta)
 	cam.update_cam(delta, jet, jet.speed_ratio())
 	jet.visible = jet.alive and cam.cockpit_blend < 0.6
 	cockpit.size = Vector2(pv.low)
@@ -360,7 +385,7 @@ func start_game() -> void:
 	combat.clear()
 	missiles.clear()
 	tutorial.stop()
-	wingmen.reset()
+	_spawn_wingmen()
 	Engine.time_scale = 1.0
 	wave_queue.clear()
 	between_t = 3.0
@@ -375,11 +400,15 @@ func _start_wave(n: int) -> void:
 	# later waves mix the types: swarms, fighters, interceptors, bombers
 	for i in 1 + n / 2:
 		wave_queue.append(SWARM)
-	for i in mini(10, enemy_jets + (n - 1) / 2):
-		wave_queue.append(Enemies.JET)
+	# enemy fighters are real bots (same flight model as you), flying in pairs
+	for i in mini(5, (enemy_jets + (n - 1) / 2 + 1) / 2):
+		wave_queue.append(BOT_PAIR)
 	if n >= 3:
-		for i in mini(6, (n - 1) / 2):
-			wave_queue.append(Enemies.INTERCEPTOR)
+		for i in mini(3, (n - 1) / 2):
+			wave_queue.append(BOT_INTERCEPTOR)
+	if n >= 2:
+		for i in mini(3, n / 3):
+			wave_queue.append(BOT_ATTACKER)
 	if n >= 2:
 		for i in mini(4, n / 2):
 			wave_queue.append(Enemies.BOMBER)
@@ -424,21 +453,79 @@ func _update_waves(delta: float) -> void:
 			var a := rng.randf() * TAU
 			var p := jet.position + Vector3(cos(a), 0, sin(a)) * rng.randf_range(800.0, 1000.0)
 			p.y = clampf(jet.position.y + rng.randf_range(-80, 80), 80.0, 700.0)
-			if t == SWARM:
-				enemies.spawn_swarm(p, 5)
-				ok = true
-			else:
-				ok = enemies.spawn(t, p)
+			var yaw := atan2(-(jet.position.x - p.x), -(jet.position.z - p.z))
+			var sk := bot_skill()
+			ok = true
+			match t:
+				SWARM:
+					enemies.spawn_swarm(p, 5)
+				BOT_PAIR:
+					fleet.spawn_pair(1, sk, BotBrain.DOGFIGHTER, p, yaw)
+				BOT_INTERCEPTOR:
+					fleet.spawn_bot(1, sk, BotBrain.INTERCEPTOR, p, yaw)
+				BOT_ATTACKER:
+					var a_bot := fleet.spawn_bot(1, sk, BotBrain.ATTACKER, p, yaw)
+					a_bot.brain.ground_targets = _city_target
+				_:
+					ok = enemies.spawn(t, p)
 		if ok:
 			wave_queue.pop_front()
 		spawn_cd = rng.randf_range(0.6, 1.4)
-	if wave_queue.is_empty() and enemies.count_active() == 0:
+	if wave_queue.is_empty() and enemies.count_active() == 0 and fleet.count_alive(1) == 0:
 		var bonus := 500 * wave + int(city_hp / city_max * 500.0)
 		score += bonus
 		jet.health = minf(jet.max_health, jet.health + 20.0)
 		show_banner("WAVE %d CLEAR" % wave, "+%d bonus   +20 HP" % bonus, 3.0)
 		Sfx.play("clear")
 		between_t = 4.0
+
+
+# ------------------------------------------------------------------ bots
+
+## Bot skill for the current wave (later: matched to the player's rank).
+func bot_skill() -> float:
+	return clampf(0.2 + 0.07 * wave + rng.randf_range(-0.1, 0.1), 0.05, 0.95)
+
+
+func _spawn_wingmen() -> void:
+	fleet.clear_bots()
+	for i in wingmen_count:
+		var side := 1.0 if i % 2 == 0 else -1.0
+		var p := jet.position + jet.right() * side * 90.0 * (i / 2 + 1) - jet.forward() * 60.0
+		var w := fleet.spawn_bot(0, 0.6, BotBrain.ESCORT if i == 0 else BotBrain.DOGFIGHTER, p, jet.yaw)
+		w.brain.escort_of = jet
+		w.brain.partner = jet
+
+
+## Building target for enemy attacker bots (strafing the city).
+class CityTarget:
+	var pos := Vector3.ZERO
+	var active := true
+	var kind := 1
+	var id := -1
+
+
+func _city_target(plane: Jet) -> Object:
+	var b := chunks.random_building(plane.position, 1200.0, 30.0, rng)
+	if b.is_empty():
+		return null
+	var t := CityTarget.new()
+	t.pos = b["pos"] + Vector3(0, 10, 0)
+	t.id = b["id"]
+	return t
+
+
+func _on_plane_killed(victim: Jet, killer: Jet, assist: Jet) -> void:
+	var kn := killer.pilot if killer != null else "Crash"
+	var col := Color(0.5, 0.8, 1.0) if (killer != null and killer.team == 0) else Color(1.0, 0.45, 0.4)
+	kill_feed.append(["%s  >  %s" % [kn, victim.pilot], 0.0, col])
+	if kill_feed.size() > 5:
+		kill_feed.pop_front()
+	if killer == jet and victim != jet:
+		on_enemy_killed(Enemies.JET, victim.position, 300)
+	elif assist == jet:
+		score += 100
+		popups.append([victim.position, "ASSIST +100", 0.0])
 
 
 func on_enemy_killed(type: int, at: Vector3, value: int) -> void:
@@ -569,7 +656,7 @@ func end_tutorial() -> void:
 
 
 func enemies_left() -> int:
-	return wave_queue.size() + enemies.count_active()
+	return wave_queue.size() + enemies.count_active() + fleet.count_alive(1)
 
 
 func debug_extra() -> String:
@@ -629,7 +716,9 @@ func apply_settings(key: String) -> void:
 		missiles.ammo = missiles.max_missiles
 	if key == "cannon":
 		jet.ammo = float(st["cannon"])
-	wingmen.count = int(st["wingmen"])
+	wingmen_count = int(st["wingmen"])
+	for k in ["speed", "boost", "turn", "bank", "cruise", "ceiling", "clearance", "cannon", "reload"]:
+		fleet.plane_cfg[k] = st[k]
 	enemy_jets = int(st["enemy_jets"])
 	cam.transition = st["view_change"]
 	cam.overhead_follow = st["overhead_follow"]
@@ -745,6 +834,36 @@ func test_hook(t: Node) -> Array:
 			break
 	if kills != before + 1:
 		errs.append("enemy kill not registered")
+	# --- bots: aces vs rookies, same flight model as the player
+	wave_queue.clear()
+	tutorial.step = 99
+	enemies.clear()
+	fleet.clear_bots()
+	jet.invuln = 999.0
+	jet.position.y = 400.0
+	var c0 := jet.position + Vector3(0, 0, -900)
+	var aces := fleet.spawn_pair(0, 0.95, BotBrain.DOGFIGHTER, jet.position + Vector3(0, -100, -200), PI)
+	var rookies := fleet.spawn_pair(1, 0.1, BotBrain.DOGFIGHTER, c0, 0.0)
+	if float(aces[0].cfg["turn"]) != float(jet.cfg["turn"]) or float(rookies[0].cfg["speed"]) != float(jet.cfg["speed"]):
+		errs.append("bots do not share the player's flight model")
+	var low := 0
+	for i in 60:
+		await t.get_tree().create_timer(0.25).timeout
+		for b in aces + rookies:
+			if b.alive and b.position.y < 25.0:
+				low += 1
+	var dmg_a: float = aces[0].damage_dealt + aces[1].damage_dealt
+	var dmg_r: float = rookies[0].damage_dealt + rookies[1].damage_dealt
+	print("    bots: aces dmg %.0f kills %d | rookies dmg %.0f kills %d | low %d" % [dmg_a, aces[0].kills + aces[1].kills, dmg_r, rookies[0].kills + rookies[1].kills, low])
+	if dmg_a + dmg_r <= 0.0:
+		errs.append("bots never hit each other")
+	if dmg_a < dmg_r:
+		errs.append("aces did less damage than rookies")
+	if low > 12:
+		errs.append("bots keep flying into the ground")
+	fleet.clear_bots()
+	jet.invuln = 0.0
+	tutorial.step = -1
 	# --- wave 5 brings a boss bomber; swarms spawn as groups of drones
 	_start_wave(5)
 	if not wave_queue.has(Enemies.BOSS) or not wave_queue.has(SWARM):
@@ -759,7 +878,8 @@ func test_hook(t: Node) -> Array:
 		errs.append("boss not tracked")
 	wave_queue.clear()
 	# --- combat: lock-on + missile kill (wingman held back so it can't steal the kill)
-	wingmen.process_mode = Node.PROCESS_MODE_DISABLED
+	fleet.process_mode = Node.PROCESS_MODE_DISABLED
+	fleet.clear_bots()
 	wave_queue.clear()
 	tutorial.step = 99 # pause the wave director while testing
 	enemies.clear()
@@ -799,10 +919,11 @@ func test_hook(t: Node) -> Array:
 	if missiles.dodges <= d0 or missiles.counter_t <= 0.0:
 		errs.append("rolling as the rings meet did not dodge the missile")
 	Engine.time_scale = 1.0
-	wingmen.process_mode = Node.PROCESS_MODE_INHERIT
+	fleet.process_mode = Node.PROCESS_MODE_INHERIT
+	_spawn_wingmen()
 	await t.get_tree().process_frame
-	if wingmen.pos.size() != wingmen.count:
-		errs.append("wingman missing")
+	if fleet.count_alive(0) != 1 + wingmen_count:
+		errs.append("wingman bot missing")
 	tutorial.step = -1
 	# --- INTEL pauses, tap outside resumes
 	_on_intel()

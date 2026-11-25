@@ -68,6 +68,30 @@ var gun_side := 1
 var smoke_cd := 0.0
 var _t := 0.0
 
+## --- identity / team (player and bots share this class and flight model)
+var team := 0
+var pilot := "YOU"
+var is_player := true
+var brain: Object = null # BotBrain for bots
+var sheet_name := "jet"
+var tint := Color.WHITE
+## virtual inputs (bots write these; the player's come from Controls)
+var in_stick := Vector2.ZERO
+var in_boost := false
+var in_fire := false
+## per-plane combat stats (match results)
+var kills := 0
+var deaths := 0
+var assists := 0
+var damage_dealt := 0.0
+var shots_fired := 0
+var shots_hit := 0
+var last_hit_by: Object = null
+var hits := {} # attacker Jet -> time of last hit (assists)
+var respawn_t := -1.0
+var flares_active := 0.0 # > 0: flares out, incoming missiles are decoyed
+var flares := 0
+
 var stack: SpriteStack
 var controls: Controls
 var cam: GameCamera
@@ -79,7 +103,8 @@ var trails: Trails
 
 func _ready() -> void:
 	stack = SpriteStack.new()
-	stack.sheet = "jet"
+	stack.sheet = sheet_name
+	stack.tint = tint
 	add_child(stack)
 	position.y = ALT
 
@@ -131,6 +156,9 @@ func reset(pos: Vector3, p_yaw: float) -> void:
 	multiplier = 1
 	lowfly_time = 0.0
 	turn_rate = 0.0
+	hits.clear()
+	last_hit_by = null
+	respawn_t = -1.0
 
 
 func speed_ratio() -> float:
@@ -149,9 +177,10 @@ func barrel_roll() -> void:
 	man = M_ROLL
 	man_t = 0.0
 	man_dur = 0.6
-	man_dir = -1.0 if (controls != null and controls.stick.x > 0.2) else 1.0
+	man_dir = -1.0 if _stick().x > 0.2 else 1.0
 	dodge_window = 0.8
-	Sfx.play("boost", -10.0, 1.6)
+	if is_player:
+		Sfx.play("boost", -10.0, 1.6)
 	trick.emit("ROLL")
 
 
@@ -164,11 +193,18 @@ func loop(front: bool = false) -> void:
 	man_t = 0.0
 	man_dur = 2.4
 	_pitch0 = clampf(pitch, -0.3, 0.3)
-	Sfx.play("boost", -6.0, 0.8)
+	if is_player:
+		Sfx.play("boost", -6.0, 0.8)
 	trick.emit("FRONT FLIP" if front else "LOOP")
 
 
 # ------------------------------------------------------------------ flight
+
+func _stick() -> Vector2:
+	if brain != null:
+		return in_stick
+	return controls.stick if controls != null else Vector2.ZERO
+
 
 func step(delta: float) -> void:
 	_t += delta
@@ -176,12 +212,13 @@ func step(delta: float) -> void:
 		return
 	invuln = maxf(0.0, invuln - delta)
 	dodge_window = maxf(0.0, dodge_window - delta)
-	var stick := controls.stick if controls != null else Vector2.ZERO
+	flares_active = maxf(0.0, flares_active - delta)
+	var stick := _stick()
 	var turn_max := float(cfg["turn"]) * (0.8 if boosting else 1.0)
 	# ---- boost
-	var want_boost := controls != null and controls.boost and not autopilot
+	var want_boost := (in_boost if brain != null else (controls != null and controls.boost)) and not autopilot
 	if want_boost and (boosting or boost_energy > 12.0) and boost_energy > 0.0:
-		if not boosting:
+		if not boosting and is_player:
 			Sfx.play("boost", -4.0)
 		boosting = true
 		boost_energy = maxf(0.0, boost_energy - 22.0 * delta)
@@ -222,7 +259,7 @@ func step(delta: float) -> void:
 		turn_rate = lerpf(turn_rate, target_rate, 1.0 - exp(-delta * 4.5))
 		pitch = lerpf(pitch, pitch_in * MAX_PITCH, 1.0 - exp(-delta * 2.6))
 		# back flip: full climb + boost held; front flip: full dive + boost held
-		if not autopilot and boosting and absf(pitch_in) > 0.9:
+		if not autopilot and brain == null and boosting and absf(pitch_in) > 0.9:
 			_flip_hold += delta
 			if _flip_hold > 0.35:
 				_flip_hold = 0.0
@@ -230,7 +267,7 @@ func step(delta: float) -> void:
 		else:
 			_flip_hold = 0.0
 		# eject: hold a dive into the ground with boost off
-		if not autopilot and bool(cfg["crashes"]) and not boosting and pitch_in < -0.85 and position.y < 60.0:
+		if not autopilot and is_player and bool(cfg["crashes"]) and not boosting and pitch_in < -0.85 and position.y < 60.0:
 			_eject_hold += delta
 			if _eject_hold > 0.45:
 				_eject_hold = 0.0
@@ -290,7 +327,7 @@ func step(delta: float) -> void:
 		reloading -= delta
 		if reloading <= 0.0:
 			ammo = float(cfg["cannon"])
-	var want_fire := controls != null and controls.fire and not autopilot
+	var want_fire := (in_fire if brain != null else (controls != null and controls.fire)) and not autopilot
 	if want_fire and fire_cd <= 0.0 and combat != null and reloading <= 0.0 and ammo >= 1.0:
 		ammo -= 1.0
 		if ammo < 1.0:
@@ -298,7 +335,8 @@ func step(delta: float) -> void:
 		fire_cd = FIRE_INTERVAL
 		gun_side = -gun_side
 		var muzzle := position + forward3() * 16.0 + right() * (4.0 * gun_side)
-		combat.player_shoot(muzzle, forward3(), speed)
+		shots_fired += 1
+		combat.shoot(self, muzzle, forward3(), speed)
 	# ---- effects
 	if fx != null:
 		smoke_cd -= delta
@@ -309,7 +347,8 @@ func step(delta: float) -> void:
 		if trails != null:
 			trails.add(0, position + vb * Vector3(-17.0, 3.0, 9.0))
 			trails.add(1, position + vb * Vector3(17.0, 3.0, 9.0))
-		fx.afterburner(position + vb * Vector3(0.0, 2.5, 20.0), forward3(), boosting)
+		if is_player or cam == null or position.distance_squared_to(cam.global_position) < 2500.0 * 2500.0:
+			fx.afterburner(position + vb * Vector3(0.0, 2.5, 20.0), forward3(), boosting)
 		# sea spray when skimming the water
 		if position.y < 45.0 and CityGen.is_water_w(position.x, position.z):
 			fx.spray(Vector3(position.x, 0.5, position.z) - forward() * 10.0, 1.0 - position.y / 45.0)
@@ -355,19 +394,26 @@ func _autopilot_heading(delta: float) -> float:
 	return _ap_axis + clampf(off.dot(rgt) * 0.04, -0.6, 0.6)
 
 
-func damage(amount: float) -> void:
+func damage(amount: float, attacker: Object = null) -> void:
 	if not alive:
 		return
 	health -= amount
+	if attacker != null and attacker != self:
+		last_hit_by = attacker
+		hits[attacker] = Time.get_ticks_msec()
+		if "damage_dealt" in attacker:
+			attacker.damage_dealt += amount
 	damaged.emit(amount)
-	Sfx.play("hurt", -2.0)
-	if cam != null:
-		cam.add_shake(4.0 + amount * 0.25)
+	if is_player:
+		Sfx.play("hurt", -2.0)
+		if cam != null:
+			cam.add_shake(4.0 + amount * 0.25)
 	if health <= 0.0:
 		health = 0.0
 		alive = false
 		visible = false
 		if fx != null:
 			fx.explosion(position, 2.2)
-		Sfx.play("big_explode")
+			fx.debris(position, 14)
+		Sfx.play("big_explode", 0.0 if is_player else -6.0)
 		died.emit()

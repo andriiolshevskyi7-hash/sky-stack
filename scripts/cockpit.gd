@@ -121,10 +121,18 @@ func _hud(jet: Jet, c: Vector2, w: float, h: float, dash_top: float) -> void:
 			draw_line(p, p - Vector2(0, sy * 6.0), HUD, 1.0)
 	# target markers (yellow) + lead marker + red lock circle
 	var m: Missiles = game.missiles
-	for e in game.enemies.pool:
-		if not e.active or game.cam.is_position_behind(e.pos):
+	var tgts: Array = []
+	for e0 in game.enemies.pool:
+		if e0.active:
+			tgts.append(e0)
+	for pl in game.fleet.planes:
+		if pl.alive and pl.team != jet.team:
+			tgts.append(pl)
+	for e in tgts:
+		var ep: Vector3 = Missiles.tpos(e)
+		if game.cam.is_position_behind(ep):
 			continue
-		var sp: Vector2 = game.cam.unproject_position(e.pos).round()
+		var sp: Vector2 = game.cam.unproject_position(ep).round()
 		if sp.y > dash_top - 4 or sp.y < 14:
 			continue
 		var is_lock: bool = e == m.lock_target
@@ -133,15 +141,16 @@ func _hud(jet: Jet, c: Vector2, w: float, h: float, dash_top: float) -> void:
 			draw_line(sp + Vector2(6, 0), sp + Vector2(0, 6), YEL, 1.0)
 			draw_line(sp + Vector2(0, 6), sp + Vector2(-6, 0), YEL, 1.0)
 			draw_line(sp + Vector2(-6, 0), sp + Vector2(0, -6), YEL, 1.0)
-	if m.lock_target != null and m.lock_target.active and not game.cam.is_position_behind(m.lock_target.pos):
-		var tp: Vector2 = game.cam.unproject_position(m.lock_target.pos).round()
+	var lpos: Vector3 = Missiles.tpos(m.lock_target)
+	if lpos != Vector3.INF and not game.cam.is_position_behind(lpos):
+		var tp: Vector2 = game.cam.unproject_position(lpos).round()
 		var k := clampf(m.lock_t / Missiles.LOCK_TIME, 0.0, 1.0)
 		var rr := lerpf(34.0, 12.0, k)
 		draw_arc(tp, rr, 0, TAU, 28, RED if m.locked else YEL, 1.0)
 		# lead marker: where to point the nose for the cannon
 		var e = m.lock_target
-		var dist: float = jet.position.distance_to(e.pos)
-		var lead: Vector3 = e.pos + Vector3(-sin(e.yaw), 0, -cos(e.yaw)) * e.speed * dist / 600.0
+		var dist: float = jet.position.distance_to(lpos)
+		var lead: Vector3 = lpos + Vector3(-sin(e.yaw), 0, -cos(e.yaw)) * e.speed * dist / 600.0
 		if not game.cam.is_position_behind(lead):
 			var lp: Vector2 = game.cam.unproject_position(lead).round()
 			draw_arc(lp, 4.0, 0, TAU, 10, YEL, 1.0)
