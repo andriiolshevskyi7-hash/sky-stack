@@ -98,7 +98,7 @@ func flares(p: Vector3, back: Vector3, plane_vel: Vector3) -> void:
 ## Ejection: the canopy (glass shards) blows off upwards and tumbles away,
 ## the seat rocket flashes.
 func eject(p: Vector3, up: Vector3, v: Vector3) -> void:
-	spawn(p, Vector3.ZERO, 0.15, 6.0, FLASH)
+	spawn(p, Vector3.ZERO, 0.1, 3.0, FLASH)
 	for i in 10:
 		spawn(p + up * 3.0, v + up * rng.randf_range(30.0, 50.0) + _rv(18.0), rng.randf_range(1.0, 1.8), rng.randf_range(1.0, 2.0), CANOPY)
 	for i in 8:

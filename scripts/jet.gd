@@ -29,6 +29,10 @@ const BOOST_SPEED := BASE_SPEED * 1.8
 var cfg := {
 	"speed": 130.0, "boost": 1.8, "turn": 1.25, "bank": 52.0, "cruise": 220.0,
 	"ceiling": 3000.0, "clearance": 14.0, "crashes": true, "cannon": 300, "reload": 5.0,
+	# flight feel (debug sliders): arcade-sim defaults
+	"assist": 0.7, # turn assist: +turn / roll rate, smoother stick, lower stall speed
+	"g_tol": 8.0, # G at which the grey-out starts
+	"bleed": 0.6, # induced drag in turns (1 = full simulator)
 }
 
 ## --- flight model state (see step): full 3D orientation, speed along the
@@ -52,6 +56,7 @@ var stalling := false
 var aoa := 0.0
 var _n := 1.0
 var _roll_rate := 0.0
+var _stick_f := Vector2.ZERO
 var _ki := 4000.0
 var _cd := 0.0001
 var _t_mil := 6.0
@@ -340,10 +345,10 @@ func _inputs(delta: float) -> Vector2:
 	if steer_home:
 		var home := atan2(position.x, position.z) # heading towards the origin
 		stick.x = clampf(-wrapf(home - yaw, -PI, PI) * 2.0, -1.0, 1.0)
-	# G-LOC: a blacked-out pilot loses control
-	if gloc > 0.75:
-		stick *= clampf(1.0 - (gloc - 0.75) * 4.0, 0.0, 1.0)
-	return stick
+	# flight assist: smooth small corrections (the more assist, the softer)
+	var assist := float(cfg.get("assist", 0.7))
+	_stick_f = _stick_f.lerp(stick, 1.0 - exp(-delta * lerpf(30.0, 12.0, assist)))
+	return _stick_f
 
 
 func step(delta: float) -> void:
@@ -381,7 +386,9 @@ func step(delta: float) -> void:
 	# ---- aerodynamics
 	var V := maxf(speed, 6.0)
 	var f := -orient.z
-	var vs: float = phys.get("vs", 55.0)
+	var assist := float(cfg.get("assist", 0.7))
+	var turn_k := 1.0 + 0.5 * assist # assisted turn rate at the same G
+	var vs: float = float(phys.get("vs", 55.0)) * (1.0 - 0.2 * assist)
 	var max_g: float = phys.get("max_g", 7.0)
 	var agile: float = phys.get("agile", 4.0)
 	var n_avail := (V / vs) * (V / vs)
@@ -403,7 +410,7 @@ func step(delta: float) -> void:
 			var k := clampf(man_t / man_dur, 0.0, 1.0)
 			roll_extra = man_dir * TAU * (k * k * (3.0 - 2.0 * k))
 			position += right() * (-man_dir) * sin(k * PI) * 30.0 * delta
-			n_cmd = cos_g / maxf(cos(bank), 0.35) if absf(bank) < PI * 0.5 else 1.0
+			n_cmd = cos_g / (maxf(cos(bank), 0.35) * turn_k) if absf(bank) < PI * 0.5 else 1.0
 			if k >= 1.0:
 				man = M_NONE
 				roll_extra = 0.0
@@ -419,21 +426,23 @@ func step(delta: float) -> void:
 				roll_cmd = clampf(wrapf(target_bank - bank, -PI, PI) * 4.0, -1.0, 1.0)
 			else:
 				roll_cmd = -stick.x # near vertical: plain roll
-			var n_level := cos_g / maxf(cos(bank), 0.35) if absf(bank) < PI * 0.5 else 0.0
+			var n_level := cos_g / (maxf(cos(bank), 0.35) * turn_k) if absf(bank) < PI * 0.5 else 0.0
 			if stick.y >= 0.0:
 				n_cmd = n_level + stick.y * (max_g - n_level)
 			else:
 				n_cmd = n_level + stick.y * (n_level + 2.5)
 	# roll with inertia
-	var roll_max: float = phys.get("roll", 3.0) * soft
+	var roll_max: float = float(phys.get("roll", 3.0)) * soft * (1.0 + 0.5 * assist)
 	_roll_rate = lerpf(_roll_rate, roll_cmd * roll_max, 1.0 - exp(-delta * agile * 1.6))
 	if man != M_ROLL:
 		orient = orient.rotated(f, -_roll_rate * delta) # positive rate rolls left wing down
 	# G with inertia, limited by lift available at this speed and by the airframe
 	var n_lim := minf(max_g, n_avail)
-	stalling = n_cmd > n_avail * 0.97 and V < vs * 1.25
+	# stall only when really slow AND pulling hard; ease off = quick recovery
+	stalling = n_cmd > n_avail and V < vs and n_cmd > 1.2
 	if stalling:
-		n_lim = n_avail * 0.6 # past the critical angle: lift collapses
+		n_lim = n_avail * 0.75 # past the critical angle: lift collapses
+		soft = maxf(soft, 0.5)
 	n_cmd = clampf(n_cmd, -minf(max_g * 0.45, n_avail * 0.6), n_lim)
 	if man == M_ROLL:
 		n_cmd = 0.0 # unloaded roll: the path stays straight
@@ -442,13 +451,13 @@ func step(delta: float) -> void:
 	# visual angle of attack
 	aoa = lerpf(aoa, clampf(_n / maxf(n_avail, 0.2), -0.3, 1.2) * 0.22, 1.0 - exp(-delta * 6.0))
 	# forces per unit mass
-	var drag := _cd * V * V + _ki * _n * _n / (V * V)
+	var drag := _cd * V * V + _ki * float(cfg.get("bleed", 0.6)) * _n * _n / (V * V)
 	var up := orient.y
 	var grav := Vector3(0, -G, 0)
 	if man == M_ROLL:
 		grav = Vector3.ZERO # (unloaded roll ignores the gravity turn)
 	var a_par := thrust - drag + grav.dot(f)
-	var a_perp := up * (_n * G) + (grav - f * grav.dot(f))
+	var a_perp := up * (_n * G * turn_k) + (grav - f * grav.dot(f))
 	speed = maxf(4.0, speed + a_par * delta)
 	# turn the flight path (and the plane with it) by the perpendicular accel
 	var w := f.cross(a_perp) / V
@@ -461,13 +470,15 @@ func step(delta: float) -> void:
 	_derive_angles()
 	position += forward3() * speed * delta
 	_track_loop()
-	# ---- G-LOC (blackout) / redout
-	if g_load > 6.5:
-		gloc = minf(1.0, gloc + (g_load - 6.5) * 0.18 * delta)
+	# ---- G effects: a slow, light grey-out above the G tolerance (never a
+	# loss of control), a subtle red-out under strong negative G
+	var g_tol := float(cfg.get("g_tol", 8.0))
+	if g_load > g_tol:
+		gloc = minf(0.45, gloc + (g_load - g_tol) * 0.08 * delta)
 	else:
-		gloc = maxf(0.0, gloc - 0.35 * delta)
-	if g_load < -1.8:
-		redout = minf(1.0, redout + (-1.8 - g_load) * 0.4 * delta)
+		gloc = maxf(0.0, gloc - 0.5 * delta)
+	if g_load < -2.5:
+		redout = minf(0.25, redout + (-2.5 - g_load) * 0.15 * delta)
 	else:
 		redout = maxf(0.0, redout - 0.5 * delta)
 	# ---- ceiling

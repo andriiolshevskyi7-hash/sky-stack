@@ -295,7 +295,7 @@ func _draw_team_bar(vs: Vector2, mr: Match) -> void:
 	if mr.countdown > 0.0:
 		ctext(vs.x * 0.5, vs.y * 0.45, str(ceili(mr.countdown)), 96, Color(1, 0.9, 0.4))
 	if game._player_respawn > 0.0:
-		ctext(vs.x * 0.5, vs.y * 0.52, tr("RESPAWN %d") % ceili(game._player_respawn), 40, Color(1, 1, 1, 0.9))
+		ctext(vs.x * 0.5, vs.y * 0.84, tr("RESPAWN %d") % ceili(game._player_respawn), 32, Color(1, 1, 1, 0.9))
 
 
 ## Heading-up minimap: planes (blue/red), bases, your jet in the middle.
@@ -368,7 +368,7 @@ func _draw_flight(vs: Vector2) -> void:
 	text(Vector2(r.position.x + 12 * s, y), "%d" % int(jet.speed * 3.6) + " " + tr("KM/H"), 18)
 	text(Vector2(r.position.x + cw + 8 * s, y), tr("ALT %d") % int(jet.position.y), 18, C_TEXT if jet.position.y > 60.0 else Color(1, 0.6, 0.3))
 	var gcol := C_TEXT
-	if jet.g_load > 6.5 or jet.g_load < -1.8:
+	if jet.g_load > float(jet.cfg.get("g_tol", 8.0)) or jet.g_load < -2.5:
 		gcol = Color(1, 0.4, 0.3)
 	text(Vector2(r.position.x + cw * 2.0 + 8 * s, y), "%.1f G" % jet.g_load, 18, gcol)
 	# throttle / afterburner + heat

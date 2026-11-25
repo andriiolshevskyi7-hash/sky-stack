@@ -20,6 +20,9 @@ const SCHEMA := [
 	["FLIGHT", "wingmen", "Wingmen", "f", 1.0, 0.0, 3.0, 1.0],
 	["FLIGHT", "invert", "Invert climb/dive (drag up climbs)", "b", false],
 	["FLIGHT", "crashes", "Crashes (dive into the ground to eject)", "b", true],
+	["FLIGHT FEEL (DEBUG)", "assist", "Turn assist (0 = simulator)", "f", 0.7, 0.0, 1.0, 0.05],
+	["FLIGHT FEEL (DEBUG)", "g_tol", "G tolerance (grey-out starts)", "f", 8.0, 5.0, 12.0, 0.5],
+	["FLIGHT FEEL (DEBUG)", "bleed", "Speed bleed in turns (1 = simulator)", "f", 0.6, 0.2, 1.2, 0.05],
 	["COMBAT", "team_size", "Team size (bots per side)", "f", 4.0, 2.0, 8.0, 1.0],
 	["COMBAT", "cannon", "Cannon rounds before a reload", "f", 300.0, 50.0, 1000.0, 50.0],
 	["COMBAT", "missiles", "Missiles before a reload", "f", 6.0, 1.0, 20.0, 1.0],
@@ -119,6 +122,8 @@ func _layout() -> void:
 	var rh := 52.0 * s
 	var last := ""
 	for r in SCHEMA:
+		if str(r[0]).ends_with("(DEBUG)") and not OS.is_debug_build():
+			continue # tuning sliders exist only in debug builds
 		if r[0] != last:
 			last = r[0]
 			_rows.append([Rect2(Vector2(pr.position.x + 20 * s, y), Vector2(pr.size.x - 40 * s, 40 * s)), "section", last])

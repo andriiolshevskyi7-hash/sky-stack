@@ -32,6 +32,10 @@ var _fog := 0.0
 var _since_switch := 10.0
 ## when set, the camera frames this node in a close-up (ejection)
 var override: Node3D
+## close-up framing for the override (cinematics): camera offset and the
+## point it looks at, both relative to the override node
+var override_offset := Vector3(26.0, 10.0, 26.0)
+var override_look := Vector3(0, 4, 0)
 var overhead_follow := 0.6
 var chase_dist := 2.6 # jet lengths (1 length = 64 units incl. trail)
 var chase_height := 25.0
@@ -99,7 +103,7 @@ func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	var t := _target(mode, jet)
 	if override != null and is_instance_valid(override):
 		var op := override.global_position
-		t = Transform3D(Basis.IDENTITY, op + Vector3(26.0, 10.0, 26.0)).looking_at(op + Vector3(0, 4, 0), Vector3.UP)
+		t = Transform3D(Basis.IDENTITY, op + override_offset).looking_at(op + override_look, Vector3.UP)
 	var t_fov: float = FOV[mode] + 9.0 * speed_ratio
 	if override != null:
 		t_fov = 55.0

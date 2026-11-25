@@ -285,6 +285,8 @@ func _parse_args() -> void:
 			start_game()
 		elif a == "--botprobe":
 			_bot_probe.call_deferred()
+		elif a == "--crash":
+			_crash_test = true
 		elif a == "--fight":
 			_fight_test = true
 		elif a.begins_with("--team="):
@@ -371,6 +373,7 @@ func _bot_probe() -> void:
 
 
 var _fight_test := false
+var _crash_test := false
 var _stall_warn := 0.0
 
 
@@ -393,6 +396,9 @@ func _shot_tick() -> void:
 	if _shot_path == "":
 		return
 	_fight_tick()
+	if _crash_test and _frame == 30 and state == State.PLAY:
+		jet.position.y = 320.0
+		jet.crash()
 	_frame += 1
 	if _frame == _shot_frames:
 		var img := get_viewport().get_texture().get_image()
@@ -491,7 +497,7 @@ func _process(delta: float) -> void:
 			_score_acc -= int(_score_acc)
 	if state == State.OVER:
 		_over_t += delta
-		if _over_t > 1.6 and not menu.visible:
+		if _over_t > EJECT_TIME + 0.3 and not menu.visible:
 			_open_game_over()
 
 
@@ -1069,49 +1075,168 @@ var _eject_t := 0.0
 
 
 var _pilot_stack: SpriteStack
+var _ej := {} # ejection cinematic parts: seat, chute, canopy, wreck + velocities
+const EJECT_TIME := 2.6
 
 
-## Every death: the canopy blows off, the seat fires the pilot out, the chute
-## opens; the camera holds a close-up until the respawn (or game over).
+## Every death: a cinematic ejection (2.6 s, tap skips): short slow motion,
+## the canopy spins away, the rocket seat fires up out of the burning wreck
+## with flame and smoke, the seat falls away, the chute unfolds and swings;
+## the wreck falls separately, burning, and explodes on impact.
 func _on_ejected(at: Vector3) -> void:
 	_clear_pilot()
-	pilot = Node3D.new()
-	_pilot_stack = SpriteStack.new()
-	_pilot_stack.sheet = "parachute"
-	_pilot_stack.stack_scale = 0.3
-	pilot.add_child(_pilot_stack)
+	var up: Vector3 = jet.orient.y if jet.orient.y.y > -0.2 else Vector3.UP
+	var fwd: Vector3 = jet.forward3()
+	var vel: Vector3 = fwd * jet.speed
+	pilot = Node3D.new() # the pilot (+ chute later); camera follows it
 	world.add_child(pilot)
-	pilot.position = at + Vector3(0, 4, 0)
-	var up := jet.orient.y if jet.orient.y.y > -0.2 else Vector3.UP
-	_pilot_vel = up * 55.0 + jet.forward3() * jet.speed * 0.25
+	pilot.position = at + up * 3.0
+	_pilot_stack = SpriteStack.new()
+	_pilot_stack.sheet = "pilot"
+	_pilot_stack.visible = false
+	pilot.add_child(_pilot_stack)
+	var seat := SpriteStack.new()
+	seat.sheet = "eseat"
+	pilot.add_child(seat)
+	var chute := Node3D.new()
+	chute.position = Vector3(0, 2.0, 0)
+	chute.scale = Vector3(0.05, 0.2, 0.05)
+	chute.visible = false
+	var cs := SpriteStack.new()
+	cs.sheet = "chute"
+	chute.add_child(cs)
+	pilot.add_child(chute)
+	var canopy := Node3D.new()
+	var cn := SpriteStack.new()
+	cn.sheet = "canopy"
+	canopy.add_child(cn)
+	world.add_child(canopy)
+	canopy.global_transform = Transform3D(jet.orient, at + up * 2.0)
+	var wreck := Node3D.new()
+	var wk := SpriteStack.new()
+	wk.sheet = jet.sheet_name
+	wk.variant = jet.skin
+	wreck.add_child(wk)
+	world.add_child(wreck)
+	wreck.global_transform = Transform3D(jet.visual_basis(), at)
+	_ej = {
+		"seat": seat, "chute": chute, "canopy": canopy, "wreck": wreck,
+		"seat_v": Vector3.ZERO, "canopy_v": vel * 0.6 + up * 45.0 - fwd * 20.0,
+		"canopy_spin": Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * 9.0,
+		"wreck_v": vel * 0.85, "wreck_spin": Vector3(randf_range(-0.5, 0.5), randf_range(-1, 1), randf_range(-2.5, 2.5)),
+		"wreck_alive": true, "seat_sep": false,
+	}
+	_pilot_vel = vel * 0.4 + up * 70.0
 	_eject_t = 0.0
-	fx.eject(at, up, jet.forward3() * jet.speed * 0.3)
+	fx.eject(at, up, vel * 0.3)
 	Sfx.play("boost", -2.0, 1.2)
+	# short slow-motion moment
+	Engine.time_scale = 0.3
+	_hitstop_until = Time.get_ticks_msec() + 450
 	cam.override = pilot
+	cam.override_offset = -fwd * 60.0 + Vector3(0, -14, 0) + jet.right() * 30.0
+	cam.override_look = Vector3(0, 6, 0)
 
 
 func _clear_pilot() -> void:
+	for k in ["canopy", "wreck", "seat_node"]:
+		if _ej.has(k) and is_instance_valid(_ej[k]):
+			_ej[k].queue_free()
+	_ej.clear()
 	if pilot != null and is_instance_valid(pilot):
 		pilot.queue_free()
 	pilot = null
 	_pilot_stack = null
 	cam.override = null
+	cam.override_offset = Vector3(26.0, 10.0, 26.0)
+	cam.override_look = Vector3(0, 4, 0)
+
+
+## Tap during the ejection: jump to the end (chute open, wreck gone).
+func skip_eject() -> void:
+	if pilot == null or _eject_t >= EJECT_TIME:
+		return
+	Engine.time_scale = 1.0
+	_hitstop_until = 0
+	while _eject_t < EJECT_TIME:
+		_update_pilot(0.05)
+	if state == State.OVER:
+		_over_t = 99.0
 
 
 func _update_pilot(delta: float) -> void:
 	if pilot == null:
 		return
 	_eject_t += delta
-	if _eject_t < 0.7:
-		# rocket seat: fast climb with a fire trail
-		fx.spawn(pilot.position - _pilot_vel.normalized() * 2.0, -_pilot_vel * 0.2, 0.3, 2.0, Fx.FIRE)
-		_pilot_vel = _pilot_vel.lerp(Vector3(0, 10, 0), 1.0 - exp(-delta * 2.5))
+	var t := _eject_t
+	var seat: SpriteStack = _ej["seat"]
+	var chute: Node3D = _ej["chute"]
+	# --- canopy: spins away and falls
+	var canopy: Node3D = _ej.get("canopy")
+	if canopy != null and is_instance_valid(canopy):
+		_ej["canopy_v"] += Vector3(0, -30.0, 0) * delta
+		_ej["canopy_v"] *= 1.0 - 0.6 * delta
+		canopy.position += _ej["canopy_v"] * delta
+		var sp: Vector3 = _ej["canopy_spin"]
+		canopy.basis = canopy.basis.rotated(sp.normalized(), sp.length() * delta)
+		if canopy.position.y < 1.0 or t > 6.0:
+			canopy.queue_free()
+			_ej.erase("canopy")
+	# --- wreck: burning, tumbling, falls and explodes on impact
+	var wreck: Node3D = _ej.get("wreck")
+	if wreck != null and is_instance_valid(wreck):
+		_ej["wreck_v"] += Vector3(0, -G_WRECK, 0) * delta
+		_ej["wreck_v"] *= 1.0 - 0.25 * delta
+		wreck.position += _ej["wreck_v"] * delta
+		var wsp: Vector3 = _ej["wreck_spin"]
+		wreck.basis = (wreck.basis * Basis.from_euler(wsp * delta)).orthonormalized()
+		fx.spawn(wreck.position + Vector3(randf_range(-3, 3), 0, randf_range(-3, 3)), Vector3(0, 6, 0), randf_range(0.3, 0.6), randf_range(2.0, 3.5), Fx.FIRE)
+		fx.spawn(wreck.position, Vector3(0, 10, 0), randf_range(1.2, 2.2), randf_range(2.5, 4.0), Fx.SMOKE)
+		if wreck.position.y < 3.0 or (chunks.collide(wreck.position.x, wreck.position.z, 4.0, wreck.position.y) != Vector2.ZERO):
+			fx.explosion(wreck.position, 2.0)
+			fx.add_column(Vector3(wreck.position.x, maxf(1.0, wreck.position.y), wreck.position.z), 0.6)
+			Sfx.play("big_explode", -6.0)
+			wreck.queue_free()
+			_ej.erase("wreck")
+	# --- seat phase: rocket climb with flame + smoke trail
+	if t < 0.8:
+		var back := -_pilot_vel.normalized()
+		fx.spawn(pilot.position + back * 2.5, back * 25.0 + Vector3(randf_range(-4, 4), 0, randf_range(-4, 4)), 0.25, 2.6, Fx.FIRE)
+		fx.spawn(pilot.position + back * 3.5, back * 8.0, randf_range(0.8, 1.4), randf_range(1.6, 2.6), Fx.SMOKE)
+		_pilot_vel = _pilot_vel.lerp(Vector3(_pilot_vel.x * 0.5, 15.0, _pilot_vel.z * 0.5), 1.0 - exp(-delta * 2.0))
+		seat.basis = Basis(Vector3.RIGHT, sin(t * 6.0) * 0.15)
 	else:
-		# chute opens over half a second, then a slow drift down
-		_pilot_stack.stack_scale = lerpf(0.3, 1.0, clampf((_eject_t - 0.7) / 0.5, 0.0, 1.0))
-		_pilot_vel = _pilot_vel.lerp(Vector3(4.0, -6.0, 2.0), 1.0 - exp(-delta * 1.8))
+		if not _ej["seat_sep"]:
+			# seat separation: the seat tumbles away, the pilot hangs free
+			_ej["seat_sep"] = true
+			var sp_world := seat.global_transform
+			pilot.remove_child(seat)
+			world.add_child(seat)
+			seat.global_transform = sp_world
+			_ej["seat_node"] = seat
+			_ej["seat_v"] = _pilot_vel * 0.6 + Vector3(randf_range(-6, 6), -4, randf_range(-6, 6))
+			_pilot_stack.visible = true
+			chute.visible = true
+			# camera: below and to the side, looking up at the chute
+			cam.override_offset = Vector3(62.0, -16.0, 48.0)
+			cam.override_look = Vector3(0, 10, 0)
+		# chute unfolds over 0.7 s with a small overshoot, then breathes
+		var k := clampf((t - 0.8) / 0.7, 0.0, 1.0)
+		var e := 1.0 + 2.70158 * pow(k - 1.0, 3.0) + 1.70158 * pow(k - 1.0, 2.0) # ease-out-back
+		var w := lerpf(0.05, 1.0, e) * (1.0 + 0.03 * sin(t * 3.0))
+		chute.scale = Vector3(w, lerpf(0.2, 1.0, minf(1.0, k * 1.4)), w)
+		# swinging under the canopy
+		pilot.basis = Basis.from_euler(Vector3(sin(t * 1.7) * 0.18 * k, t * 0.25, cos(t * 1.3) * 0.12 * k))
+		_pilot_vel = _pilot_vel.lerp(Vector3(4.0, -6.0, 2.0), 1.0 - exp(-delta * 2.2 * maxf(k, 0.2)))
+		var sn: Node3D = _ej.get("seat_node")
+		if sn != null and is_instance_valid(sn):
+			_ej["seat_v"] += Vector3(0, -30.0, 0) * delta
+			sn.position += _ej["seat_v"] * delta
+			sn.basis = sn.basis.rotated(Vector3(1, 0.3, 0.2).normalized(), 5.0 * delta)
+			if sn.position.y < 1.0 or t > 5.0:
+				sn.queue_free()
+				_ej.erase("seat_node")
 	pilot.position += _pilot_vel * delta
-	pilot.rotation.y += delta * 0.4
 	if pilot.position.y < 1.0:
 		pilot.position.y = 1.0
 	if state == State.TITLE and _eject_t > 3.0:
@@ -1119,6 +1244,9 @@ func _update_pilot(delta: float) -> void:
 		_clear_pilot()
 		jet.reset(SPAWN, 0.0)
 		jet.autopilot = true
+
+
+const G_WRECK := 22.0
 
 
 func missiles_max() -> int:
@@ -1177,6 +1305,12 @@ func _on_cam() -> void:
 	if menu.visible and state == State.PAUSE:
 		_open_pause()
 	Sfx.play("ui")
+
+
+func _input(event: InputEvent) -> void:
+	var tap: bool = (event is InputEventScreenTouch and event.pressed) or (event is InputEventMouseButton and event.pressed and event.device != InputEvent.DEVICE_ID_EMULATION)
+	if tap and pilot != null and _eject_t < EJECT_TIME and (state == State.PLAY or state == State.OVER) and not menu.visible:
+		skip_eject()
 
 
 ## Android back gesture / button and app switching.
@@ -1254,7 +1388,7 @@ func _open_settings() -> void:
 ## changed ("" = all).
 func apply_settings(key: String) -> void:
 	var st: Dictionary = Save.settings
-	for k in ["speed", "boost", "turn", "bank", "cruise", "ceiling", "clearance", "crashes", "cannon", "reload"]:
+	for k in ["speed", "boost", "turn", "bank", "cruise", "ceiling", "clearance", "crashes", "cannon", "reload", "assist", "g_tol", "bleed"]:
 		jet.cfg[k] = st[k]
 	jet.invert_pitch = st["invert"]
 	missiles.max_missiles = plane_missiles()
@@ -1265,7 +1399,7 @@ func apply_settings(key: String) -> void:
 	if key == "cannon":
 		jet.ammo = float(st["cannon"])
 	wingmen_count = int(st["wingmen"])
-	for k in ["speed", "boost", "turn", "bank", "cruise", "ceiling", "clearance", "cannon", "reload"]:
+	for k in ["speed", "boost", "turn", "bank", "cruise", "ceiling", "clearance", "cannon", "reload", "assist", "g_tol", "bleed"]:
 		fleet.plane_cfg[k] = st[k]
 	enemy_jets = int(st["enemy_jets"])
 	cam.transition = st["view_change"]
@@ -1606,9 +1740,17 @@ func test_hook(t: Node) -> Array:
 	await t.get_tree().process_frame
 	if jet.alive or pilot == null or cam.override == null or state != State.OVER:
 		errs.append("hitting the ground should kill and eject the pilot (alive %s, pilot %s)" % [jet.alive, pilot != null])
-	await t.get_tree().create_timer(1.5).timeout
-	if _pilot_stack == null or _pilot_stack.stack_scale < 0.9:
+	await t.get_tree().create_timer(2.2).timeout
+	if not _ej.has("chute") or not _ej["chute"].visible or _ej["chute"].scale.x < 0.9:
 		errs.append("parachute did not open")
+	if not _ej.get("seat_sep", false):
+		errs.append("ejection seat did not separate")
+	start_game()
+	jet.position.y = 320.0
+	jet.crash()
+	skip_eject()
+	if _eject_t < EJECT_TIME or _over_t < 50.0:
+		errs.append("tap should skip the ejection")
 	start_game()
 	if pilot != null or cam.override != null:
 		errs.append("pilot close-up not cleared on restart")
@@ -1636,8 +1778,10 @@ func test_hook(t: Node) -> Array:
 		await t.get_tree().physics_frame
 	if jet.speed > v0 - 15.0:
 		errs.append("a hard turn should bleed speed (%.0f -> %.0f)" % [v0, jet.speed])
-	if jet.gloc <= 0.0 and float(jet.phys["max_g"]) > 7.0:
-		errs.append("sustained high G should start a blackout")
+	if jet.gloc <= 0.0 and float(jet.phys["max_g"]) > float(jet.cfg["g_tol"]):
+		errs.append("sustained G above the tolerance should start a grey-out")
+	if jet.gloc > 0.46:
+		errs.append("grey-out must never become a full blackout")
 	# dive gains speed, climb loses it
 	jet.stick_override = Vector2.ZERO
 	jet.set_attitude(0.0, -0.8)
@@ -1656,7 +1800,7 @@ func test_hook(t: Node) -> Array:
 	# slow + nose up = stall
 	jet.position.y = 2500.0
 	jet.set_attitude(0.0, 0.3)
-	jet.speed = float(jet.phys["vs"]) * 0.9
+	jet.speed = float(jet.phys["vs"]) * 0.6
 	jet.stick_override = Vector2(0, 1)
 	var stalled := false
 	for i in 40:

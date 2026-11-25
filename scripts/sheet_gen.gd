@@ -30,6 +30,10 @@ const DEFS := {
 	"fountain": [18, 18, 4, 1, "_fountain"],
 	"cloud": [64, 64, 14, 3, "_cloud"],
 	"parachute": [26, 26, 14, 1, "_parachute"],
+	"chute": [48, 48, 24, 1, "_chute"],
+	"pilot": [14, 14, 11, 1, "_pilot"],
+	"eseat": [18, 18, 12, 1, "_eseat"],
+	"canopy": [16, 26, 4, 1, "_canopy"],
 }
 
 
@@ -692,3 +696,121 @@ static func _parachute(p: Painter, s: int, v: int) -> void:
 			var a0 := TAU * seg / 8.0
 			var a1 := TAU * (seg + 1) / 8.0
 			p.poly(PackedVector2Array([Vector2(13, 13), Vector2(13 + cos(a0) * r, 13 + sin(a0) * r), Vector2(13 + cos(a1) * r, 13 + sin(a1) * r)]), col)
+
+
+# ------------------------------------------------------------------ ejection
+
+## Round parachute: 12 orange / white gores with dark seams, a vent at the
+## top, hollow underside, suspension lines converging on the harness point.
+static func _chute(p: Painter, s: int, v: int) -> void:
+	var c := 24.0
+	var orange := Color("f0580e")
+	var white := Color("f2efe8")
+	if s < 13:
+		# lines: from the harness (centre) out to the canopy rim
+		var r := 1.0 + 20.0 * pow(float(s) / 12.0, 1.15)
+		for k in 12:
+			var a := TAU * (k + 0.5) / 12.0
+			p.px(int(round(c + cos(a) * r)), int(round(c + sin(a) * r)), Color("d8d4cc") if s % 3 else Color("a9a59c"))
+		if s < 2:
+			p.rect(22, 22, 4, 4, Color("3a3d44")) # risers / harness link
+		return
+	var k := float(s - 13) / 10.0
+	var r_out := 21.5 * sqrt(maxf(0.0, 1.0 - k * k))
+	var r_in := maxf(0.0, r_out - (2.5 if s < 20 else 99.0)) # hollow underneath
+	var shade := lerpf(0.78, 1.0, k) # underside darker
+	for y in 48:
+		for x in 48:
+			var dx := x + 0.5 - c
+			var dy := y + 0.5 - c
+			var d := sqrt(dx * dx + dy * dy)
+			if d > r_out or d < r_in:
+				continue
+			if s == 23 and d < 2.5:
+				continue # vent
+			var a := fposmod(atan2(dy, dx), TAU)
+			var gore := int(a / (TAU / 12.0))
+			var col := orange if gore % 2 == 0 else white
+			var edge := fposmod(a, TAU / 12.0)
+			if edge < 0.06 or edge > TAU / 12.0 - 0.06:
+				col = col.darkened(0.35) # seam
+			if d > r_out - 1.0:
+				col = col.darkened(0.18) # rim
+			p.px(x, y, Color(col.r * shade, col.g * shade, col.b * shade))
+
+
+## Pilot hanging in the harness (front = up in the image).
+static func _pilot(p: Painter, s: int, v: int) -> void:
+	var suit := Color("e2611f")
+	match s:
+		0, 1:
+			p.rect(4, 6, 2, 3, Color("2a2a2e"))
+			p.rect(8, 6, 2, 3, Color("2a2a2e"))
+		2, 3, 4:
+			p.rect(4, 5, 2, 4, Color("6b6a4a"))
+			p.rect(8, 5, 2, 4, Color("6b6a4a"))
+		5, 6, 7:
+			p.rect(4, 4, 6, 5, suit)
+			p.rect(4, 4, 6, 1, suit.lightened(0.2))
+			p.rect(6, 4, 2, 5, Color("4a4c55")) # harness strap
+			if s == 6:
+				p.rect(2, 5, 2, 2, suit)
+				p.rect(10, 5, 2, 2, suit)
+		8:
+			p.rect(4, 4, 6, 4, suit.darkened(0.1))
+			p.rect(3, 5, 1, 2, Color("4a4c55"))
+			p.rect(10, 5, 1, 2, Color("4a4c55"))
+		9, 10:
+			p.rect(5, 4, 4, 4, Color("eeeeea"))
+			p.rect(5, 4, 4, 1, Color("1b2c3a")) # visor (front)
+			if s == 10:
+				p.rect(6, 5, 2, 2, Color("ffffff"))
+
+
+## Rocket ejection seat with the pilot strapped in.
+static func _eseat(p: Painter, s: int, v: int) -> void:
+	var frame := Color("4d5058")
+	var suit := Color("e2611f")
+	match s:
+		0, 1:
+			p.rect(6, 7, 6, 6, Color("2b2d33"))
+			p.erect(8, 9, 2, 2, Color("ffb43c"), Painter.EM_ALWAYS) # rocket nozzle
+		2, 3:
+			p.rect(5, 5, 8, 9, frame)
+			p.rect(5, 5, 8, 1, frame.lightened(0.25))
+			if s == 3:
+				for x in range(6, 12, 2):
+					p.px(x, 4, Color("f2c400"))
+					p.px(x + 1, 4, Color("111111"))
+		4, 5, 6:
+			p.rect(5, 11, 8, 3, frame) # seat back
+			p.rect(6, 6, 6, 6, suit)
+			p.rect(8, 6, 2, 6, Color("4a4c55"))
+		7, 8, 9:
+			p.rect(5, 11, 8, 3, frame.lightened(0.1))
+			p.rect(6, 8, 6, 4, suit.darkened(0.1))
+		10:
+			p.rect(5, 11, 8, 3, frame)
+			p.rect(7, 7, 4, 4, Color("eeeeea"))
+			p.rect(7, 7, 4, 1, Color("1b2c3a"))
+		11:
+			p.rect(6, 12, 6, 2, Color("6c6f78")) # headrest
+			p.rect(8, 8, 2, 2, Color("ffffff"))
+
+
+## Canopy: framed bubble with glass highlights.
+static func _canopy(p: Painter, s: int, v: int) -> void:
+	var frame := Color("3e424c")
+	var glass := Color("6fb8d8")
+	match s:
+		0:
+			p.rect(2, 1, 12, 24, frame)
+			p.rect(4, 3, 8, 20, Color(0, 0, 0, 0))
+		1, 2:
+			p.rect(3, 2, 10, 22, glass if s == 1 else glass.lightened(0.15))
+			p.rect(3, 9, 10, 1, frame)
+			p.rect(3, 16, 10, 1, frame)
+			p.rect(5, 3, 1, 5, Color(1, 1, 1, 0.9)) # glint
+		3:
+			p.rect(5, 4, 6, 18, glass.lightened(0.3))
+			p.rect(6, 5, 1, 4, Color.WHITE)

@@ -409,3 +409,7 @@ AFTERBURNER,AFTERBURNER,ФОРСАЖ
 "LOOP (flown for you), or pull fully back","LOOP (flown for you), or pull fully back",ПЕТЛЯ (виконується автоматично) або стік повністю на себе
 CRASH,CRASH,ЗІТКНЕННЯ
 Hitting anything is fatal: the pilot ejects,Hitting anything is fatal: the pilot ejects,Будь-яке зіткнення смертельне: пілот катапультується
+FLIGHT FEEL (DEBUG),FLIGHT FEEL (DEBUG),ВІДЧУТТЯ ПОЛЬОТУ (НАЛАГОДЖЕННЯ)
+Turn assist (0 = simulator),Turn assist (0 = simulator),Допомога у віражах (0 = симулятор)
+G tolerance (grey-out starts),G tolerance (grey-out starts),Витривалість до перевантажень (G)
+Speed bleed in turns (1 = simulator),Speed bleed in turns (1 = simulator),Втрата швидкості у віражах (1 = симулятор)
