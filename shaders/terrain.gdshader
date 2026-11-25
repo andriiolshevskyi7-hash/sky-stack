@@ -60,6 +60,7 @@ void fragment() {
 		vec2 cell = floor(q / vec2(9.0, 5.0));
 		vec2 local = q - cell * vec2(9.0, 5.0);
 		if (depth > 0.03 && hash12(cell) > 0.93 && local.y < 1.0 && local.x < 3.0) col = mix(col, FOAM, 0.55);
+		if (depth > 0.02) col = water_light(col, wpos, p);
 	} else if (h < 0.525) {
 		col = h < 0.506 ? SAND_WET : SAND;
 	} else {

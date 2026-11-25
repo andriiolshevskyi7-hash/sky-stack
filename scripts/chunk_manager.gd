@@ -96,6 +96,18 @@ func _task(k: Vector2i, snapshot: Dictionary) -> void:
 	_mutex.unlock()
 
 
+## Sun shadows of buildings on the ground (graphics quality).
+var shadows := true
+
+
+func set_shadows(on: bool) -> void:
+	shadows = on
+	for k in chunks:
+		var n: Node = chunks[k]["node"].get_node_or_null("Shadows")
+		if n != null:
+			n.visible = on
+
+
 func _mesh_node(arrays: Array, mat: Material, node_name: String) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.name = node_name
@@ -127,6 +139,10 @@ func _finish(data: Dictionary) -> void:
 		node.add_child(_mesh_node(data["props"], Stacks.static_mat, "Props"))
 	if not data["glow"].is_empty():
 		node.add_child(_mesh_node(data["glow"], Stacks.glow_mat, "Glow"))
+	if not data["shadow"].is_empty():
+		var shn := _mesh_node(data["shadow"], Stacks.shadow_mat, "Shadows")
+		shn.visible = shadows
+		node.add_child(shn)
 	add_child(node)
 	if chunks.has(k):
 		chunks[k]["node"].queue_free()

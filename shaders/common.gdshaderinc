@@ -2,6 +2,7 @@
 // ordered dithering and the "building hides the jet" dither fade.
 
 global uniform float night;
+global uniform float gfx_quality;   // 0 low, 1 medium, 2 high
 global uniform vec3 ambient;
 global uniform vec2 sun_shift;      // horizontal shadow offset per unit of height
 global uniform vec3 jet_pos;
@@ -108,4 +109,22 @@ bool fade_hides(vec3 view_pos, mat4 view_m, vec2 frag) {
 	if (d > fade_radius) return false;
 	float f = 1.0 - smoothstep(fade_radius * 0.55, fade_radius, d);
 	return bayer4(frag) < f * 0.8;
+}
+
+
+// Water: sky reflection growing towards the horizon (Fresnel) and twinkling
+// sun glints where the sun reflects towards the camera (medium+ quality).
+vec3 water_light(vec3 col, vec3 w, vec2 p) {
+	if (gfx_quality < 0.5) return col;
+	vec3 v = normalize(cam_pos - w);
+	float fres = pow(1.0 - clamp(v.y, 0.0, 1.0), 4.0);
+	col = mix(col, fog_color * 1.05, fres * 0.5 * (1.0 - night * 0.5));
+	vec3 sd = normalize(vec3(-sun_shift.x, 1.0, -sun_shift.y));
+	vec3 r = vec3(-v.x, v.y, -v.z);
+	float spec = pow(max(dot(r, sd), 0.0), 70.0);
+	float tw = step(0.7, hash12(floor(p / 3.0) + floor(TIME * 5.0)));
+	col += vec3(1.0, 0.94, 0.8) * spec * tw * (1.0 - night) * 2.0;
+	// broad soft sheen around the reflection
+	col += vec3(1.0, 0.9, 0.75) * pow(max(dot(r, sd), 0.0), 12.0) * 0.12 * (1.0 - night);
+	return col;
 }

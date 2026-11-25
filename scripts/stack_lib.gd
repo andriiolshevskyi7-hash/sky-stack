@@ -61,6 +61,7 @@ var static_mat: ShaderMaterial
 var building_mat: ShaderMaterial
 var ground_mat: ShaderMaterial
 var glow_mat: ShaderMaterial
+var shadow_mat: ShaderMaterial
 var fx_mat: ShaderMaterial
 var beam_mat: ShaderMaterial
 var _batch_mats := {}
@@ -726,6 +727,8 @@ func _build_materials() -> void:
 
 	glow_mat = ShaderMaterial.new()
 	glow_mat.shader = preload("res://shaders/glow.gdshader")
+	shadow_mat = ShaderMaterial.new()
+	shadow_mat.shader = preload("res://shaders/shadow.gdshader")
 
 	fx_mat = ShaderMaterial.new()
 	fx_mat.shader = preload("res://shaders/fx.gdshader")

@@ -81,7 +81,6 @@ const G_SLABS := 15
 
 enum { PK_TOWER, PK_MID, PK_HOUSE, PK_FLAT }
 
-const LAMP_GLOW := Color(1.0, 0.8, 0.5, 0.42)
 
 ## Flat ground layers (virtual units; world = x2). Every layer is a fixed step
 ## apart so no two coplanar surfaces ever share a depth value: at the far edge
@@ -95,6 +94,7 @@ const Y_LOT := 0.34 # lot surface: grass, plaza, slabs
 const Y_DETAIL := 0.42 # park paths, stadium pitch
 const Y_PROP := Y_LOT + 0.04 # props standing on a lot
 const Y_GLOW := 0.5 # additive light pools (no depth write)
+const Y_SHADOW := 0.46 # sun shadows on the ground (multiply, no depth write)
 const NEON := [Color(1.0, 0.25, 0.8, 0.8), Color(0.2, 0.9, 1.0, 0.8), Color(0.7, 0.35, 1.0, 0.8), Color(1.0, 0.55, 0.15, 0.7)]
 
 # ---- per-map generation parameters (set on the main thread by WorldMap
@@ -123,6 +123,7 @@ class Build:
 	var b := MeshBuf.new()
 	var p := MeshBuf.new()
 	var gl := MeshBuf.new()
+	var sh := MeshBuf.new() # sun shadows of boxes (projected in the shader)
 	var boxes := PackedFloat32Array()
 	var ids := PackedInt64Array()
 	var roofs := PackedFloat32Array()
@@ -375,6 +376,7 @@ static func generate_chunk(cx: int, cz: int, sheets: Dictionary, destroyed: Dict
 		"build": cb.b.to_arrays() if not cb.b.is_empty() else [],
 		"props": cb.p.to_arrays() if not cb.p.is_empty() else [],
 		"glow": cb.gl.to_arrays() if not cb.gl.is_empty() else [],
+		"shadow": cb.sh.to_arrays() if not cb.sh.is_empty() else [],
 		"boxes": cb.boxes,
 		"ids": cb.ids,
 		"roofs": cb.roofs,
@@ -434,6 +436,8 @@ static func _wall(cb: Build, a: Vector3, b: Vector3, top: float, shade: float, b
 
 ## Collapsed stack: 4 textured walls (texture rows = slices) + roof.
 static func _box(cb: Build, x0: float, z0: float, x1: float, z1: float, y0: float, y1: float, style: int, roof: int, seed: float, ground: bool) -> void:
+	if y1 > 3.5:
+		_shadow(cb, x0, z0, x1, z1, y1)
 	var fuv := _facade_uv(style)
 	var bot := 0.72 if ground else 1.0
 	# south (+Z, faces default camera), west (lit), east, north
@@ -451,6 +455,22 @@ static func _box(cb: Build, x0: float, z0: float, x1: float, z1: float, y0: floa
 		var c := Color(1, 1, 1, seed)
 		cb.b.quad(Vector3(x0 + i, y, z0 + i), Vector3(x1 - i, y, z0 + i), Vector3(x1 - i, y, z1 - i), Vector3(x0 + i, y, z1 - i),
 			Vector2(x0 + i, z0 + i) / 32.0, Vector2(x1 - i, z0 + i) / 32.0, Vector2(x1 - i, z1 - i) / 32.0, Vector2(x0 + i, z1 - i) / 32.0, c, ruv)
+
+
+## Sun shadow of a box on the ground: the hull of the footprint and the
+## footprint shifted along the sun by the height. The sun always comes from
+## -X -Z (shadows fall to +X +Z), so the hull is this hexagon; UV.x holds the
+## height and the shader scales the shift by the current sun length.
+static func _shadow(cb: Build, x0: float, z0: float, x1: float, z1: float, h: float) -> void:
+	var y := Y_SHADOW
+	var b00 := Vector3(x0, y, z0)
+	var b10 := Vector3(x1, y, z0)
+	var b01 := Vector3(x0, y, z1)
+	var c := Color.WHITE
+	var u0 := Vector2(0, 0)
+	var uh := Vector2(h, 0)
+	cb.sh.quad(b00, b10, b10, Vector3(x1, y, z1), u0, u0, uh, uh, c)
+	cb.sh.quad(b00, Vector3(x1, y, z1), b01, b01, u0, uh, uh, u0, c)
 
 
 static func _reg(cb: Build, id: int, x0: float, z0: float, x1: float, z1: float, h: float) -> void:
@@ -558,12 +578,8 @@ static func _lamps(cb: Build, lx0: float, lz0: float, lx1: float, lz1: float) ->
 		]
 		for s in spots:
 			var yaw := atan2(-s[3], s[2])
+			# posts only: no light pools, no glowing bulbs (they flickered)
 			cb.p.add_stack(lamp, 0, Vector3(s[0], Y_WALK + 0.04, s[1]), yaw, 1.0, Color.WHITE, 2)
-			var gc: Color = LAMP_GLOW
-			if neon and hashi(int(s[0]), int(s[1]), 9) % 6 == 0:
-				gc = NEON[hashi(int(s[0]), int(s[1]), 10) % NEON.size()]
-				gc.a = 0.35 # occasional subtle neon pool
-			_glow(cb, s[0] + s[2] * 3.5, s[1] + s[3] * 3.5, 15.0, gc)
 
 
 static func _trees(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, avoid: Array[Rect2], pine_bias: float = 0.25) -> void:
@@ -578,7 +594,11 @@ static func _trees(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, avoi
 		if not ok or island_h(x, z) < URBAN_H - 0.03:
 			continue
 		var v := 1 if rng.randf() < pine_bias else (2 if rng.randf() < 0.12 else 0)
-		_stack(cb, "tree", v, Vector3(x, Y_PROP, z), rng.randf() * TAU, rng.randf_range(0.8, 1.25))
+		var sc := rng.randf_range(0.8, 1.25)
+		_stack(cb, "tree", v, Vector3(x, Y_PROP, z), rng.randf() * TAU, sc)
+		# small sun shadow of the crown
+		var cr := 3.6 * sc
+		_shadow(cb, x - cr, z - cr, x + cr, z + cr, 7.0 * sc)
 
 
 # ------------------------------------------------------------------ blocks

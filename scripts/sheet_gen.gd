@@ -516,7 +516,7 @@ static func _lamp(p: Painter, s: int, v: int) -> void:
 		p.rect(2, 4, 5, 1, pole)
 	else:
 		p.rect(4, 3, 3, 3, P(Pal.DGRAY))
-		p.erect(5, 4, 1, 1, P(Pal.WARM))
+		p.px(5, 4, P(Pal.LGRAY)) # unlit lens
 
 
 static func _ac(p: Painter, s: int, v: int) -> void:

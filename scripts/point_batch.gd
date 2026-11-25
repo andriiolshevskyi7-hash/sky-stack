@@ -38,7 +38,7 @@ func begin() -> void:
 	count = 0
 
 
-func push(p: Vector3, size: float, c: Color) -> void:
+func push(p: Vector3, size: float, c: Color, style: float = 0.0) -> void:
 	if count >= capacity:
 		return
 	var o := count * STRIDE
@@ -50,6 +50,7 @@ func push(p: Vector3, size: float, c: Color) -> void:
 	buf[o + 14] = c.b
 	buf[o + 15] = c.a
 	buf[o + 16] = size
+	buf[o + 17] = style
 	count += 1
 
 

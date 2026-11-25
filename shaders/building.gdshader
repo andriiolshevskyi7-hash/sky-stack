@@ -36,6 +36,10 @@ void fragment() {
 	vec2 g = UV * tile;
 	vec3 base = atlas(facade_tex, uv, g).rgb * COLOR.rgb;
 	vec3 col = lit(base, wpos);
+	if (!roof && gfx_quality > 0.5) {
+		// contact shadow: walls darken towards the ground (ambient occlusion)
+		col *= mix(0.7, 1.0, smoothstep(0.5, 16.0, wpos.y));
+	}
 	float d = distance(wpos, cam_pos);
 	if (!roof && night > 0.02) {
 		vec4 em = atlas(facade_emit, uv, g);

@@ -32,6 +32,7 @@ var env: Environment
 var sky_mat: ShaderMaterial
 var cockpit: Cockpit
 var cockpit3d: Cockpit3D
+var quality := 2 # graphics quality 0 low, 1 medium, 2 high
 var trails: Trails
 var missiles: Missiles
 var fleet: Fleet
@@ -495,7 +496,7 @@ func _process(delta: float) -> void:
 	cockpit3d.set_size(pv.low)
 	cockpit3d.update(delta, cockpit.alpha)
 	pv.post_mat.set_shader_parameter("cockpit_alpha", cockpit.alpha if cockpit3d.active else 0.0)
-	chunks.radius = 2 if cam.mode == GameCamera.Mode.OVERHEAD else 3
+	chunks.radius = 2 if cam.mode == GameCamera.Mode.OVERHEAD or quality == 0 else 3
 	var gf := ground_focus()
 	chunks.focus = gf
 	traffic.focus = gf
@@ -1496,7 +1497,14 @@ func apply_settings(key: String) -> void:
 	clouds.cover = cover
 	RenderingServer.global_shader_parameter_set("cloud_cover", cover)
 	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(Stacks.get_sheet("jet").w) if st["jet_shadow"] else 0.0001)
-	pv.set_post("bloom", float(st["glow"]) * 0.55)
+	# graphics quality: low = no sun shadows / bloom / soft effects,
+	# medium = shadows + bloom, high = soft shadows, richer smoke and water
+	quality = int(st.get("quality", 2))
+	chunks.set_shadows(quality >= 1)
+	Stacks.shadow_mat.set_shader_parameter("soft", 1.0 if quality >= 2 else 0.0)
+	RenderingServer.global_shader_parameter_set("gfx_quality", float(quality))
+	fx.quality = quality
+	pv.set_post("bloom", float(st["glow"]) * 0.55 if quality >= 1 else 0.0)
 	pv.set_post("contrast", st["contrast"])
 	pv.set_post("vignette", st["vignette"])
 	pv.set_post("grain", st["grain"])
@@ -1802,6 +1810,17 @@ func test_hook(t: Node) -> Array:
 	await t.get_tree().create_timer(2.5).timeout
 	if jet.visible or cam.cockpit_blend < 0.9:
 		errs.append("cockpit view did not engage (blend %.2f, jet visible %s)" % [cam.cockpit_blend, jet.visible])
+	# a few slow vessels on the water
+	var fast := 0.0
+	for bt in traffic.river_boats + traffic.sea_boats:
+		fast = maxf(fast, bt.w)
+	if traffic.river_boats.size() != 3 or traffic.sea_boats.size() != 1 or fast > 21.0:
+		errs.append("too many / too fast vessels (%d + %d, top %.0f)" % [traffic.river_boats.size(), traffic.sea_boats.size(), fast])
+	# graphics quality: low turns the sun shadows off, high back on
+	settings_ui.set_value("quality", 0)
+	if chunks.shadows or quality != 0:
+		errs.append("low quality did not switch shadows off")
+	settings_ui.set_value("quality", 2)
 	# 3D cockpit: rendered, small HUD combiner in the upper middle, panel
 	# below the centre, the stick follows the input
 	var hs: Array = cockpit3d.hud_screen()

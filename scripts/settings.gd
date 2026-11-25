@@ -41,6 +41,7 @@ const SCHEMA := [
 	["WORLD", "seed", "World seed", "f", 7.0, 1.0, 99.0, 1.0],
 	["WORLD", "jet_shadow", "Jet shadow", "b", true],
 	["WORLD", "traffic", "Traffic", "c", 1, ["off", "low", "normal"]],
+	["LOOK", "quality", "Graphics quality", "c", 2, ["q_low", "q_medium", "q_high"]],
 	["LOOK", "glow", "Glow (fire, sun, engines, glints)", "f", 0.6, 0.0, 2.0, 0.05],
 	["LOOK", "contrast", "Colour depth and contrast", "f", 0.05, 0.0, 1.0, 0.05],
 	["LOOK", "vignette", "Darkened corners", "f", 0.2, 0.0, 1.0, 0.05],

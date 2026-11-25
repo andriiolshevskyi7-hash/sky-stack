@@ -38,6 +38,7 @@ void fragment() {
 	vec2 tile = vec2(float(idx % 8), float(idx / 8));
 	vec3 col = texture(ground_tex, (tile + f) * vec2(0.125, 0.5)).rgb * COLOR.rgb;
 	col = lit(col, wpos);
+	if (water) col = water_light(col, wpos, floor(wpos.xz));
 	if (water && night > 0.1) {
 		// city lights reflecting on water
 		float h = hash12(floor(wpos.xz * 0.5) + floor(TIME * 3.0));

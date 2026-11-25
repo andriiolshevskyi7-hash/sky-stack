@@ -53,9 +53,10 @@ func _ready() -> void:
 		add_child(b)
 	for i in CARS:
 		_respawn_car(i)
-	for i in 10:
+	# a few slow vessels (3x fewer than before)
+	for i in 3:
 		river_boats.append(Vector4(0, 0, 0, -1))
-	for i in 2:
+	for i in 1:
 		sea_boats.append(Vector4(0, 0, 0, -1))
 
 
@@ -228,15 +229,22 @@ func _boats(delta: float) -> void:
 				var px := focus.x + cos(a) * r
 				var pz := focus.z + sin(a) * r
 				if CityGen.island_hw(px, pz) < (0.42 if big else 0.47):
-					b = Vector4(px, pz, rng.randf() * TAU, rng.randf_range(28.0, 44.0) if big else rng.randf_range(36.0, 68.0))
+					b = Vector4(px, pz, rng.randf() * TAU, rng.randf_range(9.0, 14.0) if big else rng.randf_range(12.0, 20.0))
 					break
 			if b.w < 0.0:
 				arr[k] = b
 				continue
+		# slow, wide turns: look far ahead, turn gently towards open water
 		var fwd := Vector2(-sin(b.z), -cos(b.z))
-		var ahead := Vector2(b.x, b.y) + fwd * (140.0 if big else 60.0)
-		if CityGen.island_hw(ahead.x, ahead.y) > 0.46:
-			b.z += delta * 1.2 # steer away from the shore
+		var look := 520.0 if big else 260.0
+		var ahead := Vector2(b.x, b.y) + fwd * look
+		if CityGen.island_hw(ahead.x, ahead.y) > 0.44:
+			var l := Vector2(-sin(b.z + 0.5), -cos(b.z + 0.5))
+			var lp := Vector2(b.x, b.y) + l * look
+			var turn := 1.0 if CityGen.island_hw(lp.x, lp.y) < CityGen.island_hw(ahead.x, ahead.y) else -1.0
+			b.z += turn * delta * (0.09 if big else 0.16)
+		else:
+			b.z += sin(Time.get_ticks_msec() / 9000.0 + k * 2.3) * delta * 0.02 # lazy wander
 		b.x += fwd.x * b.w * delta
 		b.y += fwd.y * b.w * delta
 		arr[k] = b
@@ -244,7 +252,10 @@ func _boats(delta: float) -> void:
 			ship_batch.push(Vector3(b.x, 0.6, b.y), b.z, 0, Color.WHITE, 0.0, 0.0, 1.0)
 		else:
 			boat_batch.push(Vector3(b.x, 0.6, b.y), b.z, k % 2, Color.WHITE, 0.0, 0.0, 1.0)
-			if fx != null and Engine.get_process_frames() % 4 == 0:
-				fx.wake(Vector3(b.x, 0.5, b.y) - Vector3(fwd.x, 0, fwd.y) * 32.0)
+		# long V-shaped wake behind the stern
+		if fx != null and Engine.get_process_frames() % 18 == i % 18:
+			var side := Vector2(-fwd.y, fwd.x)
+			var stern := Vector2(b.x, b.y) - fwd * (40.0 if big else 14.0)
+			fx.wake_v(Vector3(stern.x, 0.5, stern.y), Vector3(side.x, 0, side.y), 18.0 if big else 10.0, big)
 	boat_batch.end()
 	ship_batch.end()

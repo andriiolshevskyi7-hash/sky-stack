@@ -25,7 +25,9 @@ uniform float cockpit_alpha = 0.0;
 vec3 bright(vec2 uv) {
 	vec3 c = texture(src_lin, uv).rgb;
 	float l = max(c.r, max(c.g, c.b));
-	return c * smoothstep(threshold, 1.0, l);
+	// warm saturated pixels (fire, engines, explosions) bloom a bit earlier
+	float warm = clamp((c.r - c.b) * 1.6, 0.0, 1.0) * step(0.55, c.g);
+	return c * max(smoothstep(threshold, 1.0, l), smoothstep(threshold - 0.1, 1.0, l) * warm);
 }
 
 void fragment() {

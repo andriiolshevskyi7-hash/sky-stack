@@ -168,6 +168,8 @@ func test_world_gen() -> void:
 	var b := CityGen.generate_chunk(0, 0, Stacks.sheets, {})
 	check(a["quads"] == b["quads"] and a["boxes"] == b["boxes"], "chunk generation is deterministic")
 	check(a["boxes"].size() > 0, "origin chunk has buildings (%d)" % (a["boxes"].size() / 5))
+	check((a["glow"] as Array).is_empty(), "street lamps cast no light pools")
+	check(not (a["shadow"] as Array).is_empty(), "buildings and trees cast sun shadows")
 	var total_boxes := 0
 	var tall := 0
 	var t0 := Time.get_ticks_msec()

@@ -66,6 +66,10 @@ textures/vram_compression/import_etc2_astc=true
 
 [shader_globals]
 
+gfx_quality={
+"type": "float",
+"value": 2.0
+}
 night={
 "type": "float",
 "value": 0.0

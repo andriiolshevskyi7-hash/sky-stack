@@ -3,7 +3,7 @@ extends Node3D
 ## Pooled pixel particles: explosions, smoke trails, sparks, muzzle flashes,
 ## afterburner. Structure-of-arrays, swap-remove, zero per-frame allocations.
 
-enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL, SPARK_W, CANOPY }
+enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL, SPARK_W, CANOPY, WAKE }
 const MAX := 1400
 
 var pos := PackedVector3Array()
@@ -22,6 +22,7 @@ var sparks_mult := 0.6
 var burner_mult := 0.75
 var spray_mult := 1.0
 var realistic_flames := false
+var quality := 2 # graphics quality (smoke detail)
 var _col_t := 0.0
 
 const C_YELLOW := Color(1.0, 0.95, 0.55)
@@ -152,6 +153,15 @@ func wake(p: Vector3) -> void:
 	spawn(p + _rv(1.5), Vector3.ZERO, 1.6, 2.0, TRAIL)
 
 
+## Ship wake: foam at the stern plus two arms spreading slowly sideways,
+## lasting a long time (a long V on the water).
+func wake_v(p: Vector3, side: Vector3, life_s: float, big: bool) -> void:
+	var w := 2.6 if big else 1.6
+	spawn(p + _rv(1.0), Vector3.ZERO, life_s, w * 1.3, WAKE)
+	spawn(p + side * w, side * (1.6 if big else 1.2), life_s, w, WAKE)
+	spawn(p - side * w, -side * (1.6 if big else 1.2), life_s, w, WAKE)
+
+
 ## White wingtip vapour trail (one puff per frame per wingtip).
 func contrail(p: Vector3) -> void:
 	spawn(p, Vector3.ZERO, 1.1, 2.0, TRAIL)
@@ -209,7 +219,7 @@ func _process(delta: float) -> void:
 				v *= 1.0 - 1.0 * delta
 				col = C_SMOKE.lerp(C_DARK, t)
 				col.a = 0.85 * (1.0 - t)
-				s *= 1.0 + t * 1.5
+				s *= 1.0 + t * (2.4 if quality >= 2 else 1.5)
 			SPARK:
 				v.y -= 140.0 * delta
 				col = C_YELLOW
@@ -226,6 +236,9 @@ func _process(delta: float) -> void:
 			CANOPY:
 				v.y -= 50.0 * delta
 				col = Color(0.55, 0.85, 1.0) if int(t * 12.0 + i) % 2 == 0 else Color(0.9, 0.97, 1.0)
+			WAKE:
+				col = Color(0.92, 0.96, 1.0, 0.85 * (1.0 - t))
+				s *= 1.0 + t * 2.2
 			TRAIL:
 				col = Color(1, 1, 1, 1.0 if t < 0.6 else (1.0 - t) * 2.5)
 				s *= 1.0 + t * 0.8
@@ -241,6 +254,12 @@ func _process(delta: float) -> void:
 					spawn(pos[i], Vector3(0, 4, 0), rng.randf_range(0.5, 1.0), rng.randf_range(1.5, 2.5), SMOKE)
 		vel[i] = v
 		pos[i] += v * delta
-		batch.push(pos[i], s, col)
+		var stl := 0.0
+		if quality >= 1 and s >= 2.0:
+			if k == SMOKE or k == WAKE:
+				stl = 1.0
+			elif k == FIRE or k == FLASH:
+				stl = 2.0
+		batch.push(pos[i], s, col, stl)
 		i += 1
 	batch.end()
