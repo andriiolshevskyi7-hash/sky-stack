@@ -5,11 +5,15 @@ extends Node3D
 ## enemy planes; while a team's radar stands, that team sees enemies on the
 ## minimap. Built from the same collapsed stacks as the city.
 
-enum { AIRFIELD, AA, RADAR, BUNKER, HANGAR }
-const KIND_NAMES := ["AIRFIELD", "AA GUN", "RADAR", "BUNKER", "HANGAR"]
-const NAVAL_NAMES := ["CARRIER", "AA GUN", "RADAR", "FRIGATE", "DESTROYER"]
+enum { AIRFIELD, AA, RADAR, BUNKER, HANGAR, FUEL }
+const KIND_NAMES := ["AIRFIELD", "AA GUN", "RADAR", "BUNKER", "HANGAR", "FUEL TANK"]
+const HP := [90.0, 30.0, 50.0, 40.0, 60.0, 25.0]
+## Scenery mode (TEAM DOGFIGHT / DUEL on military maps): AA guns stay quiet.
+var passive := false
+## Concrete pads with only a hint of team colour (calm, not neon).
+const TEAM_PAD := [Color(0.86, 0.9, 0.98), Color(0.98, 0.88, 0.86)]
+const NAVAL_NAMES := ["CARRIER", "AA GUN", "RADAR", "FRIGATE", "DESTROYER", "FUEL TANK"]
 var naval := false
-const HP := [90.0, 30.0, 50.0, 40.0, 60.0]
 
 class Structure:
 	var kind := 0
@@ -35,6 +39,7 @@ class Structure:
 			bases.destroyed(self, src)
 
 var structures: Array[Structure] = []
+var _scenery: Array[Node] = []
 var centers := [Vector3.ZERO, Vector3.ZERO]
 var game: Node
 var fleet: Fleet
@@ -49,12 +54,17 @@ func kind_name(k: int) -> String:
 
 func clear() -> void:
 	naval = false
+	passive = false
 	for s in structures:
 		if is_instance_valid(s.node):
 			s.node.queue_free()
 		if is_instance_valid(s.rubble):
 			s.rubble.queue_free()
 	structures.clear()
+	for n in _scenery:
+		if is_instance_valid(n):
+			n.queue_free()
+	_scenery.clear()
 
 
 ## Find solid land near p (bases look odd in the sea); falls back to p.
@@ -68,13 +78,13 @@ static func find_land(p: Vector3) -> Vector3:
 	return Vector3(p.x, 0, p.z)
 
 
-func build(team: int, center: Vector3, facing: float) -> void:
+func build(team: int, center: Vector3, facing: float, fuel: bool = false) -> void:
 	centers[team] = center
 	var S := CityGen.S
 	var c := Vector2(center.x, center.z) / S
 	var f := Vector2(-sin(facing), -cos(facing)) # towards the enemy
 	var r := Vector2(f.y, -f.x)
-	var team_col := Color(0.55, 0.75, 1.0) if team == 0 else Color(1.0, 0.55, 0.5)
+	var team_col: Color = TEAM_PAD[team]
 	# airfield: tinted pad + runway (ground mesh)
 	var g := CityGen.Build.new()
 	g.sheets = Stacks.sheets
@@ -106,6 +116,9 @@ func build(team: int, center: Vector3, facing: float) -> void:
 		var sz := 1.0 if k < 2 else -1.0
 		var p := c + r * sx * 150.0 + f * sz * 150.0
 		_add_box(team, AA, p, Vector2(12, 12), 5.0, CityGen.F_WAREHOUSE, CityGen.R_CONCRETE, "aagun")
+	if fuel:
+		for k in 3:
+			_fuel_tank(team, c - r * 130.0 - f * (20.0 - k * 22.0))
 
 
 ## Carrier battle group at sea: the carrier (deck = airfield, island = radar,
@@ -148,6 +161,54 @@ func build_naval(team: int, center: Vector3, facing: float) -> void:
 		var sz := Vector2(44, 10) if along_x else Vector2(10, 44)
 		_add_box(team, BUNKER, p, sz, 5.0, CityGen.F_HULL, CityGen.R_METAL, "", 0.0, func(cb: CityGen.Build) -> void:
 			CityGen._box(cb, p.x - 4, p.y - 4, p.x + 4, p.y + 4, 5.0, 12.0, CityGen.F_WHITE, CityGen.R_METAL, 0.6, false))
+
+
+## Fuel tank: concrete pad + big tank (target).
+func _fuel_tank(team: int, p: Vector2) -> Structure:
+	return _add_box(team, FUEL, p, Vector2(14, 14), 1.0, CityGen.F_WAREHOUSE, CityGen.R_CONCRETE, "", 0.0, func(cb: CityGen.Build) -> void:
+		cb.p.add_stack(Stacks.get_sheet("water_tank"), 0, Vector3(p.x, 1.2, p.y), 0.0, 1.5, Color(0.85, 0.82, 0.7), 2))
+
+
+## Small outpost (canyon floor / valley): AA gun, bunker, two fuel tanks.
+func build_outpost(team: int, at: Vector3) -> void:
+	var c := Vector2(at.x, at.z) / CityGen.S
+	var g := CityGen.Build.new()
+	g.sheets = Stacks.sheets
+	g.g.ground_rect(c.x - 40, c.y - 40, c.x + 40, c.y + 40, 0.3, CityGen.G_SLABS, TEAM_PAD[team])
+	var gm := MeshInstance3D.new()
+	gm.mesh = g.g.commit()
+	gm.material_override = Stacks.ground_mat
+	gm.scale = Vector3.ONE * CityGen.S
+	add_child(gm)
+	_scenery.append(gm)
+	_add_box(team, AA, c + Vector2(24, -20), Vector2(10, 10), 4.0, CityGen.F_WAREHOUSE, CityGen.R_CONCRETE, "aagun")
+	_add_box(team, BUNKER, c + Vector2(-18, -14), Vector2(16, 14), 6.0, CityGen.F_WAREHOUSE, CityGen.R_CONCRETE)
+	_fuel_tank(team, c + Vector2(-16, 18))
+	_fuel_tank(team, c + Vector2(4, 22))
+
+
+## Flat, relief-free land spots for outposts on one team's half of the map.
+func outpost_spots(team: int, n: int, rng_seed: int) -> Array:
+	var out: Array = []
+	var r := RandomNumberGenerator.new()
+	r.seed = rng_seed + team * 977
+	var tries := 0
+	while out.size() < n and tries < 400:
+		tries += 1
+		var p := Vector3(r.randf_range(-4200, 4200), 0, r.randf_range(900, 4600) * (1.0 if team == 0 else -1.0))
+		var ok := CityGen.island_hw(p.x, p.z) > 0.56
+		for dx in [-90.0, 0.0, 90.0]:
+			for dz in [-90.0, 0.0, 90.0]:
+				if CityGen.relief_hw(p.x + dx, p.z + dz) > 0.0:
+					ok = false
+		for q in out:
+			if p.distance_to(q) < 1400.0:
+				ok = false
+		if p.distance_to(centers[team]) < 1200.0:
+			ok = false
+		if ok:
+			out.append(p)
+	return out
 
 
 func _add(team: int, kind: int, vpos: Vector3, vsize: Vector3, node: MeshInstance3D) -> Structure:
@@ -263,7 +324,7 @@ func hit_test(p: Vector3, team: int, dmg: float, src: Object) -> bool:
 
 
 func _process(delta: float) -> void:
-	if fleet == null:
+	if fleet == null or passive:
 		return
 	for s in structures:
 		if not s.active or s.kind != AA:

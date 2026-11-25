@@ -571,8 +571,18 @@ func start_match() -> void:
 	# team modes
 	between_t = 0.0
 	tutorial.step = -1
+	var military: bool = world_map.current().get("military", false)
+	if military:
+		# desert / snow: airfields + outposts in every team mode; targets in
+		# BASE STRIKE, quiet scenery otherwise
+		bases.build(0, Bases.find_land(Vector3(0, 0, 3200)), 0.0, true)
+		bases.build(1, Bases.find_land(Vector3(0, 0, -3200)), PI, true)
+		for t in 2:
+			for p in bases.outpost_spots(t, 3, int(world_map.current()["seed"])):
+				bases.build_outpost(t, p)
+		bases.passive = match_rules.mode != Match.BASE
 	if match_rules.mode == Match.BASE:
-		if not bases.naval:
+		if not bases.naval and not military:
 			bases.build(0, Bases.find_land(Vector3(0, 0, 3200)), 0.0)
 			bases.build(1, Bases.find_land(Vector3(0, 0, -3200)), PI)
 		fleet.extra_targets = func(team: int) -> Array: return bases.alive_targets(1 - team)
@@ -1320,6 +1330,23 @@ func test_hook(t: Node) -> Array:
 		errs.append("desert has too few mesas (%d)" % relief)
 	if CityGen.relief_hw(0.0, 2400.0) > 0.0:
 		errs.append("desert relief on the spawn point")
+	var urban := 0
+	for bz in range(-20, 20):
+		for bx in range(-20, 20):
+			if CityGen.is_urban(bx * 4, bz * 4):
+				urban += 1
+	if urban > 0:
+		errs.append("desert canyon still has city blocks (%d)" % urban)
+	_open_lobby(Match.BASE)
+	start_match()
+	match_rules.countdown = 0.0
+	var fuel := bases.structures.filter(func(st: Bases.Structure) -> bool: return st.kind == Bases.FUEL).size()
+	if bases.passive or bases.structures.size() < 2 * 14 + 8 or fuel < 6:
+		errs.append("desert base strike: bases/outposts missing (%d structures, %d fuel)" % [bases.structures.size(), fuel])
+	_open_lobby(Match.DOGFIGHT)
+	start_match()
+	if not bases.passive or bases.structures.is_empty():
+		errs.append("desert dogfight: bases should be quiet scenery")
 	world_map.apply(2)
 	var peak := 0.0
 	for bz in range(-40, 40):

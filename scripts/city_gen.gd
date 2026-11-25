@@ -740,7 +740,7 @@ static func _nature(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, d: 
 	if feature == FEAT_MESA:
 		# desert floor: dry bushes and the odd boulder
 		var r0 := Rect2(bx * BLOCK, bz * BLOCK, BLOCK, BLOCK)
-		for i in rng.randi_range(0, 3):
+		for i in (1 if rng.randf() < 0.35 else 0):
 			var x := r0.position.x + rng.randf() * BLOCK
 			var z := r0.position.y + rng.randf() * BLOCK
 			if island_h(x, z) > SAND_TOP + 0.01:

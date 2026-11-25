@@ -16,8 +16,8 @@ const LIST := [
 	},
 	{
 		"id": "desert", "name": "DESERT CANYON", "seed": 21, "land": 0.86, "feature": FEAT_MESA,
-		"city": 0.35, "towns": 0.6, "time": 0.66, "clouds": 0.15, "half": 5600.0, "alt": 420.0,
-		"carriers": false, "info": "Mesas and canyons to fly through.",
+		"city": 0.0, "towns": 0.0, "time": 0.66, "clouds": 0.15, "half": 5600.0, "alt": 420.0,
+		"carriers": false, "military": true, "info": "Mesas, canyons and desert outposts.",
 		"pal": {"deepest": Color(0.10, 0.35, 0.55), "deep": Color(0.16, 0.48, 0.66), "shallow": Color(0.32, 0.66, 0.70),
 			"sand": Color(0.93, 0.74, 0.48), "sand_wet": Color(0.80, 0.60, 0.40), "grass": Color(0.88, 0.66, 0.42),
 			"grass_light": Color(0.95, 0.78, 0.52), "forest": Color(0.70, 0.46, 0.30), "frozen": false},
@@ -25,8 +25,8 @@ const LIST := [
 	},
 	{
 		"id": "snow", "name": "SNOW MOUNTAINS", "seed": 33, "land": 0.8, "feature": FEAT_PEAK,
-		"city": 0.3, "towns": 0.5, "time": 0.31, "clouds": 0.55, "half": 5600.0, "alt": 700.0,
-		"carriers": false, "info": "Peaks, valleys and a frozen lake.",
+		"city": 0.0, "towns": 0.0, "time": 0.31, "clouds": 0.55, "half": 5600.0, "alt": 700.0,
+		"carriers": false, "military": true, "info": "Peaks, valleys, a frozen lake, mountain bases.",
 		"pal": {"deepest": Color(0.55, 0.70, 0.82), "deep": Color(0.66, 0.80, 0.90), "shallow": Color(0.78, 0.88, 0.95),
 			"sand": Color(0.86, 0.90, 0.95), "sand_wet": Color(0.74, 0.80, 0.88), "grass": Color(0.93, 0.95, 0.98),
 			"grass_light": Color(0.98, 0.99, 1.0), "forest": Color(0.26, 0.42, 0.34), "frozen": true},
