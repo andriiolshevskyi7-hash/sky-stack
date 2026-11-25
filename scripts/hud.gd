@@ -61,7 +61,7 @@ func _draw() -> void:
 	var playing: bool = game.state == game.State.PLAY
 	if (playing or game.state == game.State.PAUSE) and game.cam.cockpit_blend < 0.5:
 		_draw_status(vs)
-	elif playing:
+	elif playing and not game.match_rules.is_team_mode():
 		ctext(vs.x * 0.5, 96 * s, "%07d" % game.score, 22, Color(1, 1, 1, 0.85))
 	if playing and game.match_rules.is_team_mode():
 		_draw_team_bar(vs, game.match_rules)
@@ -80,7 +80,8 @@ func _draw() -> void:
 	if c != null and game.state == game.State.PLAY and game.touch_buttons_visible():
 		_draw_touch(c)
 	if game.state == game.State.PLAY:
-		_draw_arrows(vs)
+		if game.cam.cockpit_blend < 0.5:
+			_draw_arrows(vs) # the cockpit HUD has its own seeker circle
 		_draw_small_buttons(c)
 	# banner
 	if game.banner_time > 0.0 and game.banner != "":
@@ -170,6 +171,8 @@ func _draw_tags(vs: Vector2) -> void:
 		var sp := _screen(pl.position)
 		if not Rect2(Vector2.ZERO, vs).has_point(sp):
 			continue
+		if game.cam.cockpit_blend > 0.5 and sp.y > vs.y * Cockpit.DASH_FRAC - 6.0 * s:
+			continue # behind the dashboard
 		var ally: bool = pl.team == game.jet.team
 		var col := Color(0.45, 0.75, 1.0, 0.95) if ally else Color(1.0, 0.4, 0.35, 0.95)
 		var fs := 15.0 if d < 900.0 else 12.0
@@ -291,7 +294,7 @@ func _draw_team_bar(vs: Vector2, mr: Match) -> void:
 	if mr.countdown > 0.0:
 		ctext(vs.x * 0.5, vs.y * 0.45, str(ceili(mr.countdown)), 96, Color(1, 0.9, 0.4))
 	if game._player_respawn > 0.0:
-		ctext(vs.x * 0.5, vs.y * 0.45, tr("RESPAWN %d") % ceili(game._player_respawn), 40, Color(1, 1, 1, 0.9))
+		ctext(vs.x * 0.5, vs.y * 0.52, tr("RESPAWN %d") % ceili(game._player_respawn), 40, Color(1, 1, 1, 0.9))
 
 
 ## Heading-up minimap: planes (blue/red), bases, your jet in the middle.
@@ -498,6 +501,8 @@ func _draw_arrows(vs: Vector2) -> void:
 		var ext := center - Vector2(margin, margin)
 		var k := minf(absf(ext.x / maxf(0.001, absf(d.x))), absf(ext.y / maxf(0.001, absf(d.y))))
 		var p := center + d * k
+		# keep markers off the top HUD strip (kills, score bar, timer, pause)
+		p.y = clampf(p.y, 120.0 * s, vs.y - margin)
 		var et: int = -1 if e is Jet else e.type
 		var col := Color("ff5a4a") if et != 3 else Color("ffb43c")
 		var sz := (16.0 if et == 2 else 12.0) * s

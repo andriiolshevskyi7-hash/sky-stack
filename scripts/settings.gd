@@ -82,7 +82,7 @@ var _confirm := false # reset confirmation dialog open
 var _yes := Rect2()
 var _no := Rect2()
 ## Keys that RESET TO DEFAULTS keeps (not settings in the schema sense).
-const KEEP_ON_RESET := ["map", "lang"]
+const KEEP_ON_RESET := ["map", "lang", "last_mode", "last_duel"]
 
 
 func _ready() -> void:

@@ -334,6 +334,8 @@ func _dodge_missiles() -> void:
 		if plane.flares > 0 and rng.randf() < skill:
 			plane.flares -= 1
 			plane.flares_active = 1.5
+			if fleet.fx != null:
+				fleet.fx.flares(plane.position, -plane.forward3(), plane.forward3() * plane.speed)
 
 
 func _avoid_ground() -> void:

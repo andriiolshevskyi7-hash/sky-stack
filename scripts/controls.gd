@@ -65,7 +65,7 @@ func _layout() -> void:
 	var m := 22.0 * ui_scale
 	var bw := 128.0 * ui_scale
 	var bh := 84.0 * ui_scale
-	var gap := 14.0 * ui_scale
+	var gap := 20.0 * ui_scale
 	btn = {
 		"view": Rect2(Vector2(m, s.y - m - bh), Vector2(bw, bh)),
 		"loop": Rect2(Vector2(m, s.y - m - bh * 2.0 - gap), Vector2(bw, bh)),

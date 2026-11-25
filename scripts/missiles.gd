@@ -244,8 +244,8 @@ func _process(delta: float) -> void:
 						if slowmo_s > 0.0:
 							Engine.time_scale = 0.35
 							_slowmo_until = Time.get_ticks_msec() + int(slowmo_s * 1000.0)
-				elif tj.flares_active > 0.0:
-					m.dodged = true
+				elif tj.flares_active > 0.0 or tj.invuln > 0.0:
+					m.dodged = true # flares, or spawn protection
 				else:
 					if tj == jet:
 						hits_taken += 1

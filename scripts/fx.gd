@@ -83,6 +83,18 @@ func hit(p: Vector3) -> void:
 	sparks(p, 4)
 
 
+## Flares: a fan of bright burning decoys dropping behind and below the
+## plane, each with a short smoke tail.
+func flares(p: Vector3, back: Vector3, plane_vel: Vector3) -> void:
+	var side := back.cross(Vector3.UP).normalized()
+	for i in 8:
+		var k := (i - 3.5) / 3.5
+		var v := plane_vel * 0.35 + back * 40.0 + side * k * 55.0 + Vector3(0, -18.0 - absf(k) * 10.0, 0)
+		spawn(p, v, rng.randf_range(1.2, 1.7), 2.4, FLASH)
+		spawn(p, v * 0.9, rng.randf_range(1.0, 1.4), 1.0, SPARK)
+		spawn(p + back * 2.0, v * 0.6, rng.randf_range(0.9, 1.6), 1.8, SMOKE)
+
+
 func smoke(p: Vector3, count: int = 1) -> void:
 	for i in count:
 		spawn(p + _rv(2.0), Vector3(0, 6, 0) + _rv(4.0), rng.randf_range(0.6, 1.2), rng.randf_range(1.5, 2.5), SMOKE)

@@ -250,7 +250,11 @@ func test_touch(main: Node) -> void:
 	_touch(start, false)
 	await _frames(3)
 	check(main.state == main.State.TITLE and main.menu.title == "CHOOSE MODE", "tap on title opens the mode menu")
-	var city_btn: Vector2 = main.menu.button_center(2)
+	var city_i := 0
+	for i in main.menu.items.size():
+		if str(main.menu.items[i][0]) == "CITY DEFENCE":
+			city_i = i
+	var city_btn: Vector2 = main.menu.button_center(city_i)
 	_touch(city_btn, true)
 	await _frames(3)
 	_touch(city_btn, false)

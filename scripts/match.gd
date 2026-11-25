@@ -78,7 +78,7 @@ func configure(p_mode: int, p_team_size: int, p_skill_center: float, p_duel_skil
 	for t in 2:
 		for i in n:
 			if t == 0 and i == 0:
-				roster[0].append({"name": Profile.data.get("name", "YOU"), "skill": 1.0, "role": BotBrain.DOGFIGHTER, "player": true})
+				roster[0].append({"name": Profile.player_name(), "skill": 1.0, "role": BotBrain.DOGFIGHTER, "player": true})
 				continue
 			var sk := duel_skill if mode == DUEL else clampf(skill_center + rng.randf_range(-0.18, 0.18), 0.05, 0.98)
 			roster[t].append({"name": BotNames.make(rng), "skill": sk, "role": _role_for(i, n), "player": false})

@@ -283,6 +283,10 @@ func _parse_args() -> void:
 			_shot_frames = int(a.substr(9))
 		elif a == "--play":
 			start_game()
+		elif a == "--fight":
+			_fight_test = true
+		elif a.begins_with("--team="):
+			Save.settings["team_size"] = int(a.substr(7))
 		elif a == "--hangar":
 			_open_hangar()
 		elif a == "--missions":
@@ -339,14 +343,39 @@ func _parse_args() -> void:
 			_start_wave(int(a.substr(7)))
 
 
+var _fight_test := false
+
+
+## --fight (screenshots only): sit behind an enemy and shoot, so combat
+## effects and HUD markers show up in review captures.
+func _fight_tick() -> void:
+	if not _fight_test or state != State.PLAY:
+		return
+	jet.invuln = 999.0
+	if _frame == _shot_frames / 3 or _frame == _shot_frames * 2 / 3:
+		for pl in fleet.planes:
+			if pl.alive and pl.team == 1:
+				jet.position = pl.position - pl.forward3() * 110.0 + Vector3(0, 6, 0)
+				jet.yaw = pl.yaw
+				jet.pitch = pl.pitch
+				break
+	controls.fire = _frame > _shot_frames * 2 / 3
+
+
 func _shot_tick() -> void:
 	if _shot_path == "":
 		return
+	_fight_tick()
 	_frame += 1
 	if _frame == _shot_frames:
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(_shot_path)
 		print("screenshot saved: ", _shot_path)
+		print("REVIEW draws=%d objects=%d prims=%dk planes=%d mem=%dMB" % [
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1000,
+			fleet.planes.size(), OS.get_static_memory_usage() / 1048576])
 		get_tree().quit()
 
 
@@ -379,6 +408,8 @@ func _process(delta: float) -> void:
 		if jet.alive and jet.flares > 0 and jet.flares_active <= 0.0 and missiles.incoming_t < 0.45:
 			jet.flares -= 1
 			jet.flares_active = 1.5
+			fx.flares(jet.position, -jet.forward3(), jet.forward3() * jet.speed)
+			Sfx.play("boost", -6.0, 2.2)
 			Profile.track("flare_save")
 			popups.append([jet.position, "FLARES", 0.0])
 		match_rules.update(delta)
@@ -500,7 +531,13 @@ func _open_settings_from_title() -> void:
 func _open_mode_menu() -> void:
 	state = State.TITLE
 	screens.close()
-	menu.open("CHOOSE MODE", "Bots fly the same planes you do", [
+	var items: Array = []
+	if Save.settings.has("last_mode"):
+		var lm := int(Save.settings["last_mode"])
+		var ld := float(Save.settings.get("last_duel", 0.5))
+		items.append([func() -> String: return tr("QUICK PLAY") + ": " + tr(Match.MODE_NAMES[lm]) + " - " + tr(world_map.current()["name"]),
+			func() -> void: _open_lobby(lm, ld)])
+	menu.open("CHOOSE MODE", "Bots fly the same planes you do", items + [
 		["TEAM DOGFIGHT", func() -> void: _open_map_menu(Match.DOGFIGHT)],
 		["BASE STRIKE", func() -> void: _open_map_menu(Match.BASE)],
 		["CITY DEFENCE", func() -> void: _open_map_menu(Match.CITY)],
@@ -545,13 +582,21 @@ func rank_skill() -> float:
 	return clampf(0.2 + Profile.rank() / 15.0 * 0.7, 0.2, 0.9)
 
 
+## Missiles per load for the hangar plane: its rack (with upgrades) scaled
+## by the settings slider (6 = as designed).
+func plane_missiles() -> int:
+	var p := Profile.plane_index()
+	var st := Planes.stats(p, Profile.levels(p))
+	return maxi(1, roundi(float(st["missiles"]) * float(Save.settings["missiles"]) / 6.0))
+
+
 ## Put the player in the plane chosen in the hangar (stats, skin, missiles).
 func apply_player_plane() -> void:
 	var p := Profile.plane_index()
 	var lv := Profile.levels(p)
 	jet.apply_plane(p, lv, Profile.skin_of(p))
 	var st := Planes.stats(p, lv)
-	missiles.max_missiles = maxi(1, roundi(float(st["missiles"]) * float(Save.settings["missiles"]) / 6.0))
+	missiles.max_missiles = plane_missiles()
 	missiles.ammo = missiles.max_missiles
 	missiles.lock_time = st["lock_time"]
 	Stacks.set_player_shadow(p)
@@ -562,6 +607,8 @@ var _lobby_duel := 0.5
 
 
 func _open_lobby(mode: int, duel_skill: float = 0.5) -> void:
+	Save.settings["last_mode"] = mode
+	Save.settings["last_duel"] = duel_skill
 	_lobby_mode = mode
 	_lobby_duel = duel_skill
 	menu.close()
@@ -612,6 +659,7 @@ func start_match() -> void:
 	jet.shots_fired = 0
 	jet.shots_hit = 0
 	kill_feed.clear()
+	jet.pilot = Profile.player_name()
 	_life_kills = 0
 	_low_acc = 0.0
 	_dodges_seen = missiles.dodges
@@ -1080,6 +1128,47 @@ func _on_cam() -> void:
 	Sfx.play("ui")
 
 
+## Android back gesture / button and app switching.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		_go_back()
+	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		# leaving the app: keep progress and pause a running battle
+		Profile.flush()
+		Save.store()
+		if state == State.PLAY:
+			_open_pause()
+
+
+## Back = one step back: closes overlays, pauses a battle, returns from
+## screens to the title; on the title it saves and quits.
+func _go_back() -> void:
+	if settings_ui.visible:
+		settings_ui.visible = false
+		Save.store()
+		if state == State.PAUSE:
+			_open_pause()
+		else:
+			_to_title()
+	elif intel.visible:
+		intel.visible = false
+		_open_pause()
+	elif state == State.PLAY:
+		_open_pause()
+	elif state == State.PAUSE:
+		_resume()
+	elif screens.visible and screens.page == "skins":
+		screens.page = "hangar"
+	elif screens.visible or state == State.LOBBY or state == State.RESULTS or state == State.OVER:
+		_to_title()
+	elif menu.visible and menu.title != "SKY STACK":
+		_to_title()
+	else:
+		Profile.flush()
+		Save.store()
+		get_tree().quit()
+
+
 func _on_pause() -> void:
 	if state == State.PLAY:
 		_open_pause()
@@ -1117,7 +1206,7 @@ func apply_settings(key: String) -> void:
 	for k in ["speed", "boost", "turn", "bank", "cruise", "ceiling", "clearance", "crashes", "cannon", "reload"]:
 		jet.cfg[k] = st[k]
 	jet.invert_pitch = st["invert"]
-	missiles.max_missiles = int(st["missiles"])
+	missiles.max_missiles = plane_missiles()
 	missiles.reload_time = st["reload"]
 	missiles.slowmo_s = st["slowmo"]
 	if key == "missiles" or key == "":
@@ -1213,7 +1302,8 @@ func _on_jet_died() -> void:
 		return
 	if match_rules.is_team_mode():
 		_player_respawn = match_rules.respawn_delay(0)
-		show_banner("SHOT DOWN", tr("Respawn in %d s") % int(_player_respawn), _player_respawn)
+		# the HUD shows the RESPAWN countdown; the banner only says what happened
+		show_banner("SHOT DOWN", "", 1.4)
 		return
 	state = State.OVER
 	_over_t = 0.0
@@ -1230,7 +1320,8 @@ func _open_game_over() -> void:
 	menu.open("GAME OVER", tr(over_reason) + (("   -   " + tr("NEW HIGH SCORE!")) if record else ""), [
 		["RETRY", start_game],
 		["TITLE", _to_title],
-	], [tr("KILLS  %d      WAVES  %d") % [kills, wave], tr("SCORE  %d      BEST  %d") % [score, Save.high_score], "TAP ANYWHERE TO RETRY"], 0.55, true)
+	], [tr("KILLS  %d      WAVES  %d") % [kills, wave], tr("SCORE  %d      BEST  %d") % [score, Save.high_score],
+		tr("+%d XP     +%d COINS") % [int(res["xp"]), int(res["coins"])], res.get("rank_text", ""), "TAP ANYWHERE TO RETRY"], 0.55, true)
 
 
 ## Extra checks for the headless launch test (tests/run_tests.gd).
@@ -1538,6 +1629,18 @@ func test_hook(t: Node) -> Array:
 		errs.append("red team should fly the aggressor scheme (%d)" % red_skin)
 	if Profile.rank_of(0)[0] != 0 or Profile.rank_of(999999)[0] != Profile.RANKS.size() - 1:
 		errs.append("rank table wrong")
+	# --- Android back: pause / resume a battle, step back from screens
+	start_game()
+	_go_back()
+	var paused_ok := state == State.PAUSE
+	_go_back()
+	if not paused_ok or state != State.PLAY:
+		errs.append("back gesture should pause and resume a battle")
+	_to_title()
+	_open_missions()
+	_go_back()
+	if screens.visible or state != State.TITLE:
+		errs.append("back from a screen should return to the title")
 	# --- missions, weekly challenges, achievements
 	Profile.data["missions"]["day"] = "1999-01-01" # yesterday's list
 	var dl: Array = Profile.daily()
