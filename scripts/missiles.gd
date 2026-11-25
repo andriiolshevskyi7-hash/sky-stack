@@ -95,7 +95,7 @@ func fire_player() -> void:
 		var side := float(i - (n - 1) * 0.5)
 		var p := jet.position + jet.right() * side * 10.0 - Vector3(0, 3, 0)
 		_spawn(jet.team == 1, p, jet.forward3() * (jet.speed + 40.0) + jet.right() * side * 25.0, tgt, jet)
-	Sfx.play("boost", -2.0, 1.4)
+	Sfx.play("launch", 0.0)
 	if ammo <= 0:
 		reload = reload_time
 	if volley:
@@ -105,8 +105,7 @@ func fire_player() -> void:
 ## Missile from any plane (bots use this after their own lock-on).
 func fire_from(plane: Jet, target: Object) -> void:
 	_spawn(plane.team == 1, plane.position - Vector3(0, 3, 0), plane.forward3() * (plane.speed + 40.0), target, plane)
-	if jet != null and plane.position.distance_squared_to(jet.position) < 800.0 * 800.0:
-		Sfx.play("boost", -10.0, 1.4)
+	Sfx.play_at("launch", plane.position, -2.0)
 
 
 ## Missile from an enemy unit (boss / fighters of city defence) at the player.
@@ -192,16 +191,7 @@ func _process(delta: float) -> void:
 		return
 	if jet.alive:
 		_update_lock(delta)
-	# lock-on audio: beeps speed up and rise while locking, steady tone when locked
-	_beep_t -= delta
-	if lock_target != null and jet.alive and _beep_t <= 0.0:
-		var k := clampf(lock_t / lock_time, 0.0, 1.0)
-		if locked:
-			Sfx.play("tone", -12.0, 1.0)
-			_beep_t = 0.18
-		else:
-			Sfx.play("beep", -14.0, 0.8 + k * 0.7)
-			_beep_t = lerpf(0.3, 0.08, k)
+	# lock-on audio: seeker growl / lock tone are continuous (SoundScape)
 	# incoming missile warning
 	_warn_t -= delta
 	if incoming_t < 3.0 and _warn_t <= 0.0:

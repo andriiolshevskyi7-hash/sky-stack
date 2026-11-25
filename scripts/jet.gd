@@ -597,7 +597,10 @@ func _die(big: float = 2.2) -> void:
 	if fx != null:
 		fx.explosion(position, big)
 		fx.debris(position, 14)
-	Sfx.play("big_explode", 0.0 if is_player else -6.0)
+	if is_player:
+		Sfx.play("big_explode", 0.0)
+	else:
+		Sfx.play_at("big_explode", position, 2.0)
 	ejected.emit(position)
 	died.emit()
 

@@ -336,7 +336,7 @@ func _kill(e: E) -> void:
 	var big := 3.0 if e.type == BOSS else (2.0 if e.type == BOMBER else 1.2)
 	fx.explosion(e.pos, big)
 	fx.debris(e.pos, int(10 * big))
-	Sfx.play("big_explode" if big > 1.5 else "explode", -2.0)
+	Sfx.play_at("big_explode" if big > 1.5 else "explode", e.pos, 2.0)
 	if e == boss:
 		boss = null
 	if game != null:

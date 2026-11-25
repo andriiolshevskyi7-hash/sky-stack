@@ -24,6 +24,7 @@ var enemies: Node
 var chunks: ChunkManager
 var fx: Fx
 var fleet: Node # Fleet: all planes (player + bots)
+var sound: Node # SoundScape (cannon burst loop)
 var bases: Node # Bases (base strike)
 
 
@@ -79,9 +80,12 @@ func shoot(shooter: Jet, p: Vector3, dir: Vector3, base_speed: float) -> void:
 	if fx != null:
 		fx.muzzle(p)
 	if shooter.is_player:
-		Sfx.play("shot", -8.0)
-	elif jet != null and p.distance_squared_to(jet.position) < 500.0 * 500.0:
-		Sfx.play("enemy_shot", -14.0)
+		if sound != null:
+			sound.gun_shot()
+		else:
+			Sfx.play("shot", -8.0)
+	else:
+		Sfx.play_at("enemy_shot", p, -6.0)
 
 
 func player_shoot(p: Vector3, dir: Vector3, base_speed: float) -> void:
@@ -99,7 +103,7 @@ func lob(p: Vector3, at: Vector3, speed: float, d: float, k: int, building_id: i
 	var t := maxf(0.05, dist / speed)
 	_spawn(p, (at - p) / t, t, d, team == 1, k, building_id)
 	if k == FLAK:
-		Sfx.play("flak", -6.0, 1.3)
+		Sfx.play_at("flak", p, -6.0, 1.3)
 	elif k == BOMB:
 		Sfx.play("bomb", -8.0)
 
@@ -109,7 +113,7 @@ func _trigger(i: int) -> void:
 	match kind[i]:
 		FLAK:
 			fx.explosion(p, 0.45)
-			Sfx.play("flak", -4.0)
+			Sfx.play_at("flak", p, 0.0)
 			if fleet != null:
 				fleet.splash(p, 24.0, 0 if owner_enemy[i] == 1 else 1, dmg[i], null)
 			elif jet.alive and p.distance_to(jet.position) < 20.0 and jet.invuln <= 0.0:
@@ -117,7 +121,7 @@ func _trigger(i: int) -> void:
 		BOMB, BLD_SHOT:
 			if kind[i] == BOMB:
 				fx.explosion(p, 0.8)
-				Sfx.play("explode", -6.0)
+				Sfx.play_at("explode", p, 0.0)
 			else:
 				fx.hit(p)
 			if target[i] >= 0 and game != null:

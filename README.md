@@ -148,6 +148,27 @@ enemy missile comes, two rings close in around your jet — roll exactly as
 they meet to dodge (short slow motion); a MISSILE straight after a dodge fires
 three for free. An AI wingman flies with you.
 
+## Sound
+
+Everything is synthesised in code (`scripts/sfx.gd`, `scripts/sound_scape.gd`):
+
+* **Engine**: core rumble + turbine whine; the RPM spools up and down behind
+  the throttle and sets pitch and level; the afterburner roar fades in with
+  the flame
+* **Wind** grows with speed squared, with buffeting under high G and in a
+  stall; a two-tone **stall horn** sounds while stalling
+* **Pilot**: breathing that quickens and deepens with G, a straining grunt
+  above ~6.5 G (cockpit view)
+* **Weapons**: cannon burst loop with a tail, missile launch whoosh, seeker
+  growl while locking (rising as it locks) and a steady lock tone; incoming
+  missile warning
+* **Explosions and other planes** are attenuated and delayed by distance;
+  far blasts switch to a muffled rumble; planes flashing past make a
+  Doppler whoosh
+* **Cockpit vs outside**: in the cockpit the outside sounds are low-passed
+  and quieter, the whine, instruments and the pilot louder; outside, the
+  burner and wind are louder. A hard limiter keeps the mix from clipping.
+
 ## Settings (pause menu → SETTINGS)
 
 The player's page has only: language, graphics quality (low / medium /

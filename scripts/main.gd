@@ -36,6 +36,7 @@ var quality := 2 # graphics quality 0 low, 1 medium, 2 high
 var plane_shadows: PlaneShadows
 var menu_stage: MenuStage
 var music: Music
+var sound: SoundScape
 var _stage_a := 0.0
 var trails: Trails
 var missiles: Missiles
@@ -176,6 +177,11 @@ func _ready() -> void:
 	plane_shadows.player = jet
 	plane_shadows.daynight = daynight
 	world.add_child(plane_shadows)
+	sound = SoundScape.new()
+	sound.name = "SoundScape"
+	sound.game = self
+	add_child(sound)
+	combat.sound = sound
 	music = Music.new()
 	music.name = "Music"
 	add_child(music)
@@ -487,8 +493,7 @@ func _process(delta: float) -> void:
 		_stall_warn -= delta
 		if jet.alive and jet.stalling and _stall_warn <= 0.0:
 			_stall_warn = 0.35
-			Sfx.play("warn", -4.0, 0.8)
-			Controls.haptic(25, 0.4)
+			Controls.haptic(25, 0.4) # the stall horn is a loop (SoundScape)
 		if missiles.locked and not _was_locked:
 			Controls.haptic(20, 0.3)
 		_was_locked = missiles.locked
@@ -1141,7 +1146,7 @@ func damage_building(id: int, amount: float, at: Vector3) -> void:
 		city_hp = maxf(0.0, city_hp - 25.0)
 		fx.explosion(at, 2.0)
 		fx.add_column(at, 0.7)
-		Sfx.play("big_explode", -3.0)
+		Sfx.play_at("big_explode", at, 2.0)
 		if Vector2(at.x - jet.position.x, at.z - jet.position.z).length() < 250.0:
 			cam.add_shake(4.0)
 	if city_hp <= 0.0:
@@ -1288,7 +1293,7 @@ func _update_pilot(delta: float) -> void:
 		if wreck.position.y < 3.0 or (chunks.collide(wreck.position.x, wreck.position.z, 4.0, wreck.position.y) != Vector2.ZERO):
 			fx.explosion(wreck.position, 2.0)
 			fx.add_column(Vector3(wreck.position.x, maxf(1.0, wreck.position.y), wreck.position.z), 0.6)
-			Sfx.play("big_explode", -6.0)
+			Sfx.play_at("big_explode", wreck.position, 0.0)
 			wreck.queue_free()
 			_ej.erase("wreck")
 	# --- seat phase: rocket climb with flame + smoke trail
@@ -1854,6 +1859,29 @@ func test_hook(t: Node) -> Array:
 		mpeak = maxi(mpeak, absi(pcm.decode_s16(i)))
 	if pcm.size() < Music.RATE * 2 * 8 or mpeak < 3000:
 		errs.append("music did not render (%d bytes, peak %d)" % [pcm.size(), mpeak])
+	# Phase F: flight sound loops are clean (no clipping, seamless) and
+	# follow the plane: engine + burner at full throttle, stall horn, lock tone
+	var wait := 0
+	while not Sfx.loops_ready and wait < 60:
+		await t.get_tree().process_frame
+		wait += 1
+	for ln in SoundScape.LOOPS:
+		var ws: AudioStreamWAV = Sfx.streams.get(ln)
+		if ws == null:
+			errs.append("sound loop %s missing" % ln)
+			continue
+		var dd := ws.data
+		var lpk := 0
+		for i in range(0, dd.size(), 8):
+			lpk = maxi(lpk, absi(dd.decode_s16(i)))
+		var seam := absi(dd.decode_s16(0) - dd.decode_s16(dd.size() - 2))
+		if lpk < 1500 or lpk > 32000 or seam > 9000:
+			errs.append("sound loop %s: peak %d, seam jump %d" % [ln, lpk, seam])
+	controls.throttle = 1.0
+	await t.get_tree().create_timer(0.8).timeout
+	if not sound._p["eng_rumble"].playing or not sound._p["burner"].playing or not sound._p["wind"].playing:
+		errs.append("engine / afterburner / wind sound not playing at full throttle")
+	controls.throttle = Jet.THR_MIL
 	# a few slow vessels on the water
 	var fast := 0.0
 	for bt in traffic.river_boats + traffic.sea_boats:

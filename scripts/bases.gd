@@ -261,7 +261,7 @@ func destroyed(s: Structure, src: Object) -> void:
 	fx.explosion(s.pos, 2.5 if s.kind != AA else 1.5)
 	fx.debris(s.pos, 18)
 	fx.add_column(s.pos, 0.8)
-	Sfx.play("big_explode", -4.0)
+	Sfx.play_at("big_explode", s.pos, 2.0)
 	if s.kind != AIRFIELD and is_instance_valid(s.node):
 		s.node.scale.y = CityGen.S * 0.18 # flattened into rubble
 	if src != null and is_instance_valid(src) and "ground_kills" in src:
