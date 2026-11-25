@@ -60,6 +60,9 @@ func _draw() -> void:
 	var vs := get_viewport_rect().size
 	s = clampf(vs.y / 720.0, 0.6, 3.0)
 	_open_t += get_process_delta_time()
+	if status_bar:
+		_draw_main(vs)
+		return
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.02, 0.03, 0.08, dim))
 	var off := UI.slide(_open_t, s)
 	var y := vs.y * 0.2 + off
@@ -82,6 +85,36 @@ func _draw() -> void:
 			_badge(r.position + Vector2(r.size.x - 10 * s, 10 * s))
 	if status_bar:
 		_draw_status(vs)
+
+
+## Main menu (War Thunder style): the 3D plane fills the screen behind;
+## buttons in a column on the left over a soft dark gradient, the game title
+## above them, the selected plane's name and class bottom right.
+func _draw_main(vs: Vector2) -> void:
+	var gw := 560.0 * s
+	for i in 16:
+		var a := 0.62 * (1.0 - i / 16.0)
+		draw_rect(Rect2(i * gw / 16.0, 0, gw / 16.0 + 1, vs.y), Color(0.02, 0.03, 0.08, a))
+	var off := UI.slide(_open_t, s)
+	UI.text(self, Vector2(48 * s, 150 * s + off), tr(title), 56 * s, UI.GOLD, HORIZONTAL_ALIGNMENT_LEFT, -1, maxi(2, int(4 * s)))
+	if subtitle != "":
+		UI.text(self, Vector2(50 * s, 188 * s + off), tr(subtitle), 20 * s, UI.TEXT, HORIZONTAL_ALIGNMENT_LEFT, -1, 2)
+	layout()
+	for i in _rects.size():
+		var r := _rects[i]
+		r.position.x += off
+		var label := tr(_str(items[i][0]))
+		var kind := UI.SELECTED if i == _hover else (UI.PRIMARY if i == 0 else UI.NORMAL)
+		UI.button(self, r, label, s, kind, 26, "menu_%d" % i)
+		if items[i].size() > 2 and (items[i][2] as Callable).call():
+			_badge(r.position + Vector2(r.size.x - 10 * s, 10 * s))
+	# selected plane: name, code and class
+	var pi := Profile.plane_index()
+	var d: Dictionary = Planes.LIST[pi]
+	var name_y := vs.y - 70 * s
+	UI.text(self, Vector2(0, name_y), str(d["name"]), 48 * s, Color.WHITE, HORIZONTAL_ALIGNMENT_RIGHT, vs.x - 48 * s, maxi(2, int(4 * s)))
+	UI.text(self, Vector2(0, name_y + 36 * s), "%s  ·  %s" % [d["code"], tr(Planes.BRANCH_NAMES[int(d["branch"])])], 20 * s, UI.MUTED, HORIZONTAL_ALIGNMENT_RIGHT, vs.x - 50 * s, 2)
+	_draw_status(vs)
 
 
 ## Red "something to claim" dot, pixel style.
@@ -111,6 +144,16 @@ func _draw_status(vs: Vector2) -> void:
 func layout() -> void:
 	var vs := get_viewport_rect().size
 	s = clampf(vs.y / 720.0, 0.6, 3.0)
+	_rects.clear()
+	if status_bar:
+		# main menu: one column on the left
+		var bw0 := 400.0 * s
+		var bh0 := 62.0 * s
+		var y0 := 226.0 * s
+		var gap := minf(14.0 * s, (vs.y - y0 - 24.0 * s - bh0 * items.size()) / maxf(1.0, items.size() - 1))
+		for i in items.size():
+			_rects.append(Rect2(Vector2(48 * s, y0 + i * (bh0 + gap)), Vector2(bw0, bh0)))
+		return
 	var y := vs.y * 0.2 + 46 * s
 	if subtitle != "":
 		y += 34 * s

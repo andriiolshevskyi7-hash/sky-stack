@@ -61,6 +61,7 @@ const SCHEMA := [
 	["LANGUAGE", "lang", "Language", "c", 0, ["auto", "English", "Українська"]],
 	["SOUND", "sound", "Sound", "b", true],
 	["SOUND", "volume", "Volume", "f", 0.6, 0.0, 1.0, 0.05],
+	["SOUND", "music", "Music volume", "f", 0.45, 0.0, 1.0, 0.05],
 ]
 
 
@@ -86,6 +87,50 @@ var _reset := Rect2()
 var _confirm := false # reset confirmation dialog open
 var _yes := Rect2()
 var _no := Rect2()
+## The player's settings page: [section, key, label]. Everything else lives
+## on the DEBUG page, which exists only in debug builds.
+const PLAYER := [
+	["LANGUAGE", "lang", "Language"],
+	["GRAPHICS", "quality", "Graphics quality"],
+	["SOUND", "volume", "Sound volume"],
+	["SOUND", "music", "Music volume"],
+	["CONTROLS", "invert", "Invert climb / dive"],
+	["CONTROLS", "stick_indicator", "Stick indicator"],
+	["CONTROLS", "vibration", "Vibration"],
+]
+var debug_page := false
+var _debug_btn := Rect2()
+var _back := Rect2()
+
+
+static func _schema_row(key: String) -> Array:
+	for r in SCHEMA:
+		if r[1] == key:
+			return r
+	return []
+
+
+## Rows shown on the current page: [section, schema row (label may differ)].
+func page_rows() -> Array:
+	var out: Array = []
+	if not debug_page:
+		for pr in PLAYER:
+			var r: Array = _schema_row(pr[1]).duplicate()
+			r[0] = pr[0]
+			r[2] = pr[2]
+			out.append(r)
+		return out
+	var keys: Array = []
+	for pr in PLAYER:
+		keys.append(pr[1])
+	for r in SCHEMA:
+		if not keys.has(r[1]):
+			var d: Array = r.duplicate()
+			d[0] = "DEBUG · " + str(r[0]).replace(" (DEBUG)", "")
+			out.append(d)
+	return out
+
+
 ## Keys that RESET TO DEFAULTS keeps (not settings in the schema sense).
 const KEEP_ON_RESET := ["map", "lang", "last_mode", "last_duel"]
 
@@ -99,6 +144,7 @@ func _ready() -> void:
 
 
 func open() -> void:
+	debug_page = false
 	scroll = 0.0
 	_open_t = 0.0
 	_confirm = false
@@ -120,21 +166,25 @@ func _panel_rect() -> Rect2:
 func _layout() -> void:
 	var pr := _panel_rect()
 	_rows.clear()
-	var y := pr.position.y + 70 * s - scroll
-	var rh := 52.0 * s
+	var y := pr.position.y + 76 * s - scroll
+	var rh := 66.0 * s
 	var last := ""
-	for r in SCHEMA:
-		if str(r[0]).ends_with("(DEBUG)") and not OS.is_debug_build():
-			continue # tuning sliders exist only in debug builds
+	for r in page_rows():
 		if r[0] != last:
 			last = r[0]
-			_rows.append([Rect2(Vector2(pr.position.x + 20 * s, y), Vector2(pr.size.x - 40 * s, 40 * s)), "section", last])
-			y += 40 * s
+			_rows.append([Rect2(Vector2(pr.position.x + 20 * s, y), Vector2(pr.size.x - 40 * s, 44 * s)), "section", last])
+			y += 44 * s
 		_rows.append([Rect2(Vector2(pr.position.x + 20 * s, y), Vector2(pr.size.x - 40 * s, rh - 8 * s)), r])
 		y += rh
-	_content_h = y + scroll - (pr.position.y + 70 * s)
+	_debug_btn = Rect2()
+	if not debug_page and OS.is_debug_build():
+		y += 16 * s
+		_debug_btn = Rect2(Vector2(pr.position.x + 20 * s, y), Vector2(360 * s, 56 * s))
+		y += 72 * s
+	_content_h = y + scroll - (pr.position.y + 76 * s)
 	_done = Rect2(Vector2(pr.end.x - 170 * s, pr.position.y + 12 * s), Vector2(150 * s, 46 * s))
-	_reset = Rect2(Vector2(_done.position.x - 250 * s, _done.position.y), Vector2(234 * s, 46 * s))
+	_reset = Rect2(Vector2(_done.position.x - 290 * s, _done.position.y), Vector2(274 * s, 46 * s))
+	_back = Rect2(Vector2(_reset.position.x - 166 * s, _done.position.y), Vector2(150 * s, 46 * s)) if debug_page else Rect2()
 	var cw := 520.0 * s
 	var cc := pr.get_center()
 	_yes = Rect2(Vector2(cc.x + 10 * s, cc.y + 20 * s), Vector2(cw * 0.5 - 30 * s, 56 * s))
@@ -177,7 +227,7 @@ func _draw() -> void:
 				var kx := roundf(tr0.position.x + tr0.size.x * clampf(fr, 0.0, 1.0) - 6 * s)
 				var kn := Rect2(Vector2(kx, r.get_center().y - 10 * s), Vector2(12 * s, 20 * s))
 				UI.panel(self, kn, s, UI.WHITE_FILL, Color.WHITE)
-				_tfit(Vector2(r.position.x + 16 * s, ty), sc[2], 18, UI.TEXT, r.size.x * 0.47)
+				_tfit(Vector2(r.position.x + 16 * s, ty), sc[2], 18, UI.TEXT, r.size.x * 0.46)
 				var txt := str(int(v)) if float(sc[7]) >= 1.0 else ("%.2f" % v).rstrip("0").rstrip(".")
 				_t(Vector2(r.end.x - 110 * s, ty), txt, 18, UI.TEXT, 96 * s, HORIZONTAL_ALIGNMENT_RIGHT)
 			"b":
@@ -189,15 +239,19 @@ func _draw() -> void:
 				draw_rect(Rect2(Vector2(kx, tg.position.y + 4 * s).round(), Vector2(20 * s, 18 * s).round()), Color.WHITE)
 			"c":
 				var opts: Array = sc[5]
-				var ow := 118.0 * s
+				var ow := _opt_w(opts)
 				_tfit(Vector2(r.position.x + 16 * s, ty), sc[2], 18, UI.TEXT, r.size.x - ow * opts.size() - 30 * s)
 				var cur: int = int(_val(key))
 				for i in opts.size():
 					var orr := _opt_rect(r, opts.size(), i, ow)
 					UI.button(self, orr, tr(opts[i]), s, UI.SELECTED if i == cur else UI.NORMAL, 16, "opt_%s_%d" % [key, i])
+	if _debug_btn.size.x > 0.0 and _debug_btn.position.y > clip_top and _debug_btn.end.y < clip_bot:
+		UI.button(self, _debug_btn, tr("DEBUG SETTINGS"), s, UI.NORMAL, 18, "DEBUG SETTINGS")
 	# header (drawn last so it covers scrolled rows)
 	draw_rect(Rect2(pr.position + Vector2(2, 2) * s, Vector2(pr.size.x - 4 * s, 62 * s)), Color(0.04, 0.06, 0.14))
-	_t(Vector2(pr.position.x + 24 * s, pr.position.y + 44 * s), "SETTINGS", 32, UI.TEXT)
+	_t(Vector2(pr.position.x + 24 * s, pr.position.y + 44 * s), "DEBUG" if debug_page else "SETTINGS", 32, UI.TEXT)
+	if debug_page:
+		UI.button(self, _back, tr("BACK"), s, UI.NORMAL, 18, "BACK")
 	UI.button(self, _done, tr("DONE"), s, UI.PRIMARY, 20, "DONE")
 	UI.button(self, _reset, tr("RESET TO DEFAULTS"), s, UI.NORMAL, 16, "RESET TO DEFAULTS")
 	if _confirm:
@@ -206,10 +260,18 @@ func _draw() -> void:
 		var box := Rect2(Vector2(cc.x - 280 * s, cc.y - 90 * s), Vector2(560 * s, 196 * s))
 		UI.panel(self, box, s, UI.NAVY_HI, UI.BORDER)
 		var q := tr("Reset all settings to their default values?")
-		UI.text(self, Vector2(box.position.x, box.position.y + 56 * s), q, UI.fit(q, 20 * s, box.size.x - 30 * s), UI.TEXT, HORIZONTAL_ALIGNMENT_CENTER, box.size.x)
+		UI.text_wrap(self, Vector2(box.position.x + 15 * s, box.position.y + 62 * s), q, 20 * s, UI.TEXT, box.size.x - 30 * s, HORIZONTAL_ALIGNMENT_CENTER)
 		UI.button(self, _yes, tr("RESET"), s, UI.PRIMARY, 20, "RESET")
 		UI.button(self, _no, tr("CANCEL"), s, UI.NORMAL, 20, "CANCEL")
 	draw_set_transform(Vector2.ZERO)
+
+
+## Option button width: fits the longest (translated) option.
+func _opt_w(opts: Array) -> float:
+	var w := 118.0 * s
+	for o in opts:
+		w = maxf(w, UI.width(tr(str(o)), UI.px(16 * s)) + 30.0 * s)
+	return w
 
 
 func _opt_rect(r: Rect2, n: int, i: int, ow: float) -> Rect2:
@@ -220,10 +282,9 @@ func _t(p: Vector2, txt: String, size: float, col: Color, w: float = -1.0, al: H
 	UI.text(self, p, tr(txt), size * s, col, al, w)
 
 
-## Label that shrinks (on the pixel grid) to fit a width.
+## Label in a fixed width: wraps onto a second line instead of shrinking.
 func _tfit(p: Vector2, txt: String, size: float, col: Color, w: float) -> void:
-	var t := tr(txt)
-	UI.text(self, p, t, UI.fit(t, size * s, w), col)
+	UI.text_wrap(self, p, tr(txt), size * s, col, w)
 
 
 func set_value(key: String, v: Variant) -> void:
@@ -276,6 +337,16 @@ func _press(p: Vector2) -> void:
 		UI.press("RESET TO DEFAULTS")
 		_confirm = true
 		return
+	if debug_page and _back.has_point(p):
+		UI.press("BACK")
+		debug_page = false
+		scroll = 0.0
+		return
+	if _debug_btn.size.x > 0.0 and _debug_btn.has_point(p):
+		UI.press("DEBUG SETTINGS")
+		debug_page = true
+		scroll = 0.0
+		return
 	if _done.has_point(p):
 		UI.press("DONE")
 		visible = false
@@ -304,7 +375,7 @@ func _release(p: Vector2) -> void:
 				"c":
 					var opts: Array = sc[5]
 					for k in opts.size():
-						if _opt_rect(_rows[i][0], opts.size(), k, 118.0 * s).has_point(p):
+						if _opt_rect(_rows[i][0], opts.size(), k, _opt_w(opts)).has_point(p):
 							set_value(sc[1], k)
 				"f":
 					_slider_at(i, p.x)

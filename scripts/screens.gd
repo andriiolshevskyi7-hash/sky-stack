@@ -299,7 +299,7 @@ func _draw_hangar(vs: Vector2) -> void:
 		else:
 			status = tr("COINS %d") % int(p["price"])
 			sc = GOLD
-		_fit_txt(Vector2(tx, r.end.y - 10 * s), status, 12, sc, tww)
+		_fit_txt(Vector2(tx, r.end.y - 10 * s), status, 12, sc, tww, -1)
 	# --- preview + stats
 	var p: Dictionary = Planes.LIST[sel]
 	var owned_sel := Profile.owns(sel)
@@ -358,8 +358,9 @@ func _draw_hangar(vs: Vector2) -> void:
 
 
 ## Text that shrinks to fit a width (long translations).
-func _fit_txt(p: Vector2, t: String, size: float, col: Color, w: float) -> void:
-	UI.text(self, p, tr(t), UI.fit(tr(t), size * s, w), col)
+## Text in a fixed width: wraps onto a second line instead of shrinking.
+func _fit_txt(p: Vector2, t: String, size: float, col: Color, w: float, grow: int = 0) -> void:
+	UI.text_wrap(self, p, tr(t), size * s, col, w, HORIZONTAL_ALIGNMENT_LEFT, 2, grow)
 
 
 func _small_button(r: Rect2, label: String, cb: Callable, col: Color) -> void:

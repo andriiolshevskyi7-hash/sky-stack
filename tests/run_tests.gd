@@ -276,6 +276,10 @@ func test_touch(main: Node) -> void:
 	await _frames(2)
 	print("    viewport %s" % main.get_viewport().get_visible_rect().size)
 	check(main.state == main.State.TITLE and main.menu.visible, "title menu shown")
+	var labels: Array = []
+	for it in main.menu.items:
+		labels.append(str(it[0]))
+	check(not labels.has("SKINS") and labels.has("HANGAR"), "main menu: no SKINS button (skins live in the hangar)")
 	var start: Vector2 = main.menu.button_center(0)
 	_touch(start, true)
 	await _frames(3)

@@ -21,6 +21,8 @@ uniform float gblack = 0.0; // G-LOC: vision tunnels and greys out
 uniform float gred = 0.0; // negative G: red-out
 uniform sampler2D cockpit_tex : filter_nearest; // 3D cockpit (premultiplied alpha)
 uniform float cockpit_alpha = 0.0;
+uniform sampler2D stage_tex : filter_nearest; // main-menu 3D background
+uniform float stage_alpha = 0.0;
 
 vec3 bright(vec2 uv) {
 	vec3 c = texture(src_lin, uv).rgb;
@@ -45,6 +47,9 @@ void fragment() {
 	float bay = bayer4(FRAGCOORD.xy);
 	if (fog > 0.0) {
 		c = mix(c, vec3(0.95, 0.97, 1.0) * max(ambient, vec3(0.35)), clamp(fog, 0.0, 1.0));
+	}
+	if (stage_alpha > 0.0) {
+		c = mix(c, texture(stage_tex, UV).rgb, stage_alpha);
 	}
 	if (cockpit_alpha > 0.0) {
 		vec4 k = texture(cockpit_tex, UV);

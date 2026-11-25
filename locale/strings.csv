@@ -425,3 +425,11 @@ Graphics quality,Graphics quality,Якість графіки
 q_low,low,низька
 q_medium,medium,середня
 q_high,high,висока
+Sound volume,Sound volume,Гучність звуку
+Music volume,Music volume,Гучність музики
+Invert climb / dive,Invert climb / dive,Інверсія набору / пікірування
+Stick indicator,Stick indicator,Індикатор ручки
+DEBUG SETTINGS,DEBUG SETTINGS,НАЛАГОДЖЕННЯ
+DEBUG,DEBUG,НАЛАГОДЖЕННЯ
+GRAPHICS,GRAPHICS,ГРАФІКА
+CONTROLS,CONTROLS,КЕРУВАННЯ

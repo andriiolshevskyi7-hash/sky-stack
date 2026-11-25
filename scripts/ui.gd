@@ -63,9 +63,69 @@ static func min_px() -> int:
 	return 8 * maxi(1, int(round(h / 480.0)))
 
 
+## All text is drawn this much bigger than the layout sizes ask for.
+const SCALE := 1.25
+
+
 ## Font size snapped to the 8 px pixel grid of the font.
 static func px(size: float) -> int:
-	return maxi(min_px(), int(round(size / 8.0)) * 8)
+	return maxi(min_px(), int(round(size * SCALE / 8.0)) * 8)
+
+
+## Split text into lines no wider than w at a font size (word wrap; a single
+## over-long word stays on its own line).
+static func wrap_lines(t: String, size: float, w: float) -> PackedStringArray:
+	var out := PackedStringArray()
+	var cur := ""
+	for word in t.split(" ", false):
+		var trial := word if cur == "" else cur + " " + word
+		if cur != "" and width(trial, size) > w:
+			out.append(cur)
+			cur = word
+		else:
+			cur = trial
+	if cur != "" or out.is_empty():
+		out.append(cur)
+	return out
+
+
+## Text that wraps onto more lines instead of shrinking. `pos` is the
+## baseline of a single line; extra lines are centred around it, grow
+## downwards (down = 1) or upwards so the last line sits on pos (down = -1). Only if it would need more than max_lines
+## does the size step down. Returns the number of lines drawn.
+static func text_wrap(ci: CanvasItem, pos: Vector2, t: String, size: float, col: Color, w: float, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, max_lines: int = 2, down: int = 0, outline: int = 0) -> int:
+	var fs := float(px(size))
+	var lines := wrap_lines(t, fs, w)
+	# only when it cannot wrap (too many lines, or one word wider than w)
+	# does the size step down
+	while (lines.size() > max_lines or _widest(lines, fs) > w) and fs > float(min_px()):
+		fs -= 8.0
+		lines = wrap_lines(t, fs, w)
+	var lh := fs * 1.05
+	var y0 := pos.y - (lines.size() - 1) * lh * 0.5
+	if down > 0:
+		y0 = pos.y
+	elif down < 0:
+		y0 = pos.y - (lines.size() - 1) * lh
+	for i in lines.size():
+		var lp := Vector2(pos.x, y0 + i * lh)
+		_text_px(ci, lp, lines[i], int(fs), col, align, w, outline)
+	return lines.size()
+
+
+static func _widest(lines: PackedStringArray, fs: float) -> float:
+	var m := 0.0
+	for l in lines:
+		m = maxf(m, width(l, fs))
+	return m
+
+
+static func _text_px(ci: CanvasItem, pos: Vector2, t: String, fs: int, col: Color, align: HorizontalAlignment, w: float, outline: int) -> void:
+	var f := font(fs)
+	pos = pos.round()
+	if outline > 0:
+		ci.draw_string_outline(f, pos, t, align, w, fs, outline, Color(0, 0, 0, 0.75))
+	ci.draw_string(f, pos, t, align, w, fs, col)
 
 
 ## Font at a snapped size with wide letter spacing (one font pixel).
@@ -79,17 +139,19 @@ static func font(size_px: int) -> Font:
 	return _cache[size_px]
 
 
-static func width(t: String, size: float) -> float:
-	var fs := px(size)
+## Width of t at an already snapped pixel size.
+static func width(t: String, fs_px: float) -> float:
+	var fs := int(fs_px)
 	return font(fs).get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 
 
-## Largest snapped size <= size at which t fits in w.
+## Largest snapped size <= size at which t fits in w (returned as a layout
+## size, i.e. already divided by SCALE).
 static func fit(t: String, size: float, w: float) -> float:
 	var fs := float(px(size))
 	while fs > float(min_px()) and width(t, fs) > w:
 		fs -= 8.0
-	return fs
+	return fs / SCALE
 
 
 static func text(ci: CanvasItem, pos: Vector2, t: String, size: float, col: Color = TEXT, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, w: float = -1.0, outline: int = 0) -> void:
@@ -155,8 +217,9 @@ static func button(ci: CanvasItem, r: Rect2, label: String, s: float, kind: int 
 	if k > 0.0:
 		fill = fill.darkened(0.25)
 	panel(ci, r, s, fill, border)
-	var fs := fit(label, size * s, r.size.x - 12.0 * s)
-	text(ci, Vector2(r.position.x, r.get_center().y + fs * 0.34), label, fs, col, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	# long labels wrap onto two lines (centred) instead of shrinking
+	var fs := float(px(size * s))
+	text_wrap(ci, Vector2(r.position.x + 6.0 * s, r.get_center().y + fs * 0.34), label, size * s, col, r.size.x - 12.0 * s, HORIZONTAL_ALIGNMENT_CENTER, 2)
 
 
 ## Slide-in offset (px) for a panel opened `t` seconds ago.

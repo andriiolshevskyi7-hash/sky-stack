@@ -61,9 +61,14 @@ its own outline, painted in code:
 
 ## Missions, achievements, profile
 
-The main menu has PLAY, HANGAR, SKINS, MISSIONS, PROFILE and SETTINGS, with
-your rank and coins at the top. A red dot means something is ready (a reward
-to claim, a plane you can buy, a skin that unlocked).
+The main menu shows your selected plane (in its skin) parked in a hangar as
+a 3D background with a slow cinematic camera (`scripts/menu_stage.gd`; the
+backdrop is swappable: `hangar` or `runway`). PLAY, HANGAR (skins live in
+the hangar), MISSIONS, PROFILE and SETTINGS run down the left, rank and
+coins along the top, the plane's name and class bottom right. A red dot
+means something is ready (a reward to claim, a plane you can buy, a skin
+that unlocked). Background music (calm in the menus, driving in battle) is
+synthesised in code (`scripts/music.gd`) and cached after the first start.
 
 * **Daily missions**: 3 per day, refreshed at local midnight. Each gives coins
   and XP, and you get one free reroll per day.
@@ -144,6 +149,11 @@ they meet to dodge (short slow motion); a MISSILE straight after a dodge fires
 three for free. An AI wingman flies with you.
 
 ## Settings (pause menu → SETTINGS)
+
+The player's page has only: language, graphics quality (low / medium /
+high), sound volume, music volume, invert climb / dive, stick indicator,
+vibration, and RESET TO DEFAULTS. Every detailed tuning value below is on the
+DEBUG SETTINGS page, which exists only in debug builds.
 
 All values persist in `user://save.cfg`. Defaults:
 

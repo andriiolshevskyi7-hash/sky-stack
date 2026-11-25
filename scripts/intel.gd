@@ -45,7 +45,7 @@ func _layout() -> void:
 	_tabs.clear()
 	var x := _panel.position.x + 20 * s
 	for t in TABS:
-		var tw: float = UI.width(tr(t), 18 * s) + 30.0 * s
+		var tw: float = UI.width(tr(t), UI.px(18 * s)) + 30.0 * s
 		_tabs.append(Rect2(Vector2(x, _panel.position.y + 16 * s), Vector2(tw, 38 * s)))
 		x += tw + 10 * s
 

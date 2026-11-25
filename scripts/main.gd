@@ -34,6 +34,9 @@ var cockpit: Cockpit
 var cockpit3d: Cockpit3D
 var quality := 2 # graphics quality 0 low, 1 medium, 2 high
 var plane_shadows: PlaneShadows
+var menu_stage: MenuStage
+var music: Music
+var _stage_a := 0.0
 var trails: Trails
 var missiles: Missiles
 var fleet: Fleet
@@ -173,6 +176,14 @@ func _ready() -> void:
 	plane_shadows.player = jet
 	plane_shadows.daynight = daynight
 	world.add_child(plane_shadows)
+	music = Music.new()
+	music.name = "Music"
+	add_child(music)
+	menu_stage = MenuStage.new()
+	menu_stage.name = "MenuStage"
+	menu_stage.game = self
+	add_child(menu_stage)
+	pv.post_mat.set_shader_parameter("stage_tex", menu_stage.texture())
 	cockpit3d = Cockpit3D.new()
 	cockpit3d.name = "Cockpit3D"
 	cockpit3d.game = self
@@ -502,6 +513,14 @@ func _process(delta: float) -> void:
 	cockpit.alpha = cam.cockpit_blend if state != State.TITLE else 0.0
 	cockpit3d.set_size(pv.low)
 	cockpit3d.update(delta, cockpit.alpha)
+	music.set_mode("battle" if state == State.PLAY or state == State.PAUSE or state == State.OVER else "menu")
+	# main menu: the plane in the hangar replaces the world behind the menu
+	var stage_on := state == State.TITLE and menu.visible and menu.status_bar and not screens.visible
+	_stage_a = move_toward(_stage_a, 1.0 if stage_on else 0.0, delta * 2.5)
+	menu_stage.set_size(pv.low)
+	menu_stage.update(delta, _stage_a > 0.0)
+	pv.post_mat.set_shader_parameter("stage_alpha", _stage_a)
+	pv.world_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED if _stage_a >= 1.0 else SubViewport.UPDATE_ALWAYS
 	pv.post_mat.set_shader_parameter("cockpit_alpha", cockpit.alpha if cockpit3d.active else 0.0)
 	chunks.radius = 2 if cam.mode == GameCamera.Mode.OVERHEAD or quality == 0 else 3
 	var gf := ground_focus()
@@ -602,7 +621,7 @@ func _to_title() -> void:
 	match_rules.running = false
 	match_rules.mode = Match.CITY
 	menu.open("SKY STACK", "Offline air combat",
-		[["PLAY", _open_mode_menu], ["HANGAR", _open_hangar, Profile.has_new_plane], ["SKINS", _open_skins, Profile.has_new_skin],
+		[["PLAY", _open_mode_menu], ["HANGAR", _open_hangar, func() -> bool: return Profile.has_new_plane() or Profile.has_new_skin()],
 		["MISSIONS", _open_missions, Profile.has_claimable], ["PROFILE", _open_profile], ["SETTINGS", _open_settings_from_title]],
 		[], 0.25, false, true)
 	Profile.flush()
@@ -1818,6 +1837,23 @@ func test_hook(t: Node) -> Array:
 	await t.get_tree().create_timer(2.5).timeout
 	if jet.visible or cam.cockpit_blend < 0.9:
 		errs.append("cockpit view did not engage (blend %.2f, jet visible %s)" % [cam.cockpit_blend, jet.visible])
+	# Phase E: player settings page, debug page, no SKINS on the main menu
+	settings_ui.debug_page = false
+	var pk: Array = []
+	for r in settings_ui.page_rows():
+		pk.append(r[1])
+	if pk != ["lang", "quality", "volume", "music", "invert", "stick_indicator", "vibration"]:
+		errs.append("player settings page shows %s" % [pk])
+	settings_ui.debug_page = true
+	if settings_ui.page_rows().size() < 30:
+		errs.append("debug settings page is missing tuning rows")
+	settings_ui.debug_page = false
+	var pcm := Music.render("battle")
+	var mpeak := 0
+	for i in range(0, pcm.size(), 64):
+		mpeak = maxi(mpeak, absi(pcm.decode_s16(i)))
+	if pcm.size() < Music.RATE * 2 * 8 or mpeak < 3000:
+		errs.append("music did not render (%d bytes, peak %d)" % [pcm.size(), mpeak])
 	# a few slow vessels on the water
 	var fast := 0.0
 	for bt in traffic.river_boats + traffic.sea_boats:

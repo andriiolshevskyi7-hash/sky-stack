@@ -19,6 +19,9 @@ uniform float near_fade = 0.0; // dissolve when closer than this to the camera
 // Planes: index_tex holds material ids (see PlaneArt), the colour comes from
 // palette_tex row = skin * 3 + plane class.
 uniform bool palette_mode = false;
+// menu stage: fixed studio light instead of the world lighting, no fog
+uniform bool no_fog = false;
+uniform vec3 stage_light = vec3(-1.0);
 uniform sampler2D index_tex : filter_nearest;
 uniform sampler2D palette_tex : source_color, filter_nearest;
 
@@ -65,7 +68,8 @@ void fragment() {
 		e = texture(emit_tex, UV);
 	}
 	vec3 col = receive_shadow ? lit(a.rgb * COLOR.rgb, wpos) : a.rgb * COLOR.rgb * ambient;
+	if (stage_light.x >= 0.0) col = a.rgb * COLOR.rgb * stage_light;
 	col += e.rgb * emission_strength(e.a, TIME, wpos);
 	col = mix(col, vec3(1.0, 0.95, 0.85), clamp(flash, 0.0, 1.0));
-	ALBEDO = fogged(col, wpos);
+	ALBEDO = no_fog ? col : fogged(col, wpos);
 }

@@ -112,8 +112,8 @@ func _draw_status(vs: Vector2) -> void:
 	# KILLS + HULL panel (reference style)
 	# widths follow the translated labels (Ukrainian words are longer)
 	var kills_txt: String = tr("KILLS %02d") % game.kills
-	var kw := UI.width(kills_txt, 20 * s)
-	var hw := UI.width(tr("HULL"), 20 * s)
+	var kw := UI.width(kills_txt, UI.px(20 * s))
+	var hw := UI.width(tr("HULL"), UI.px(20 * s))
 	var hx := x + 16 * s + maxf(kw, 110 * s) + 24 * s
 	var bx := hx + hw + 12 * s
 	var pw := bx - x + 7 * 18 * s + 10 * s
