@@ -335,7 +335,7 @@ func _dash(jet: Jet, w: float, h: float, top: float) -> void:
 	draw_line(Vector2(w * 0.16, top + 1), Vector2(w * 0.84, top + 1), F2, 1.0)
 	# warning lights row (orange / red, blink when urgent)
 	var m: Missiles = game.missiles
-	var warn := [jet.health < 40.0, m.incoming_t < 3.0, jet.reloading > 0.0 or m.reload > 0.0, jet.boosting, jet.position.y < CityGen.LOW_ALT]
+	var warn := [jet.health < jet.max_health * 0.4, m.incoming_t < 3.0, jet.reloading > 0.0 or m.reload > 0.0, jet.boosting, jet.position.y < CityGen.LOW_ALT]
 	var lw := 20.0
 	var lx := floorf(w * 0.5 - warn.size() * (lw + 3) * 0.5)
 	var blink := int(Time.get_ticks_msec() / 180) % 2 == 0
@@ -371,7 +371,7 @@ func _dash(jet: Jet, w: float, h: float, top: float) -> void:
 	_switches(Vector2(g1 - 9, gy + gr + 8), [jet.ammo > 0.0 and jet.reloading <= 0.0, game.missiles_left() > 0])
 	_switches(Vector2(g3 - 9, gy + gr + 8), [m.locked, m.counter_t > 0.0])
 	_switches(Vector2(g2 - 9, gy + gr + 14), [jet.boosting, false])
-	_switches(Vector2(g4 - 9, gy + gr + 14), [jet.health < 40.0, false])
+	_switches(Vector2(g4 - 9, gy + gr + 14), [jet.health < jet.max_health * 0.4, false])
 	# big attitude ball in a chunky metal bezel with gold screws
 	draw_circle(bc, r + 9, F0)
 	draw_circle(bc, r + 8, F2)

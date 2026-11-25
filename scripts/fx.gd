@@ -97,7 +97,7 @@ func flares(p: Vector3, back: Vector3, plane_vel: Vector3) -> void:
 
 func smoke(p: Vector3, count: int = 1) -> void:
 	for i in count:
-		spawn(p + _rv(2.0), Vector3(0, 6, 0) + _rv(4.0), rng.randf_range(0.6, 1.2), rng.randf_range(1.5, 2.5), SMOKE)
+		spawn(p + _rv(2.0), Vector3(0, 6, 0) + _rv(4.0), rng.randf_range(0.6, 1.1), rng.randf_range(1.1, 1.8), SMOKE)
 
 
 func muzzle(p: Vector3) -> void:

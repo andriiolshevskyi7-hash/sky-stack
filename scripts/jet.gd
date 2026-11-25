@@ -376,8 +376,8 @@ func step(delta: float) -> void:
 	# ---- effects
 	if fx != null:
 		smoke_cd -= delta
-		if health < 40.0 and smoke_cd <= 0.0:
-			smoke_cd = 0.06
+		if health < max_health * 0.4 and smoke_cd <= 0.0:
+			smoke_cd = 0.09
 			fx.smoke(position - forward3() * 14.0, 1)
 		var vb := visual_basis()
 		if trails != null:
