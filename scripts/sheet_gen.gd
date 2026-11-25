@@ -18,6 +18,7 @@ const DEFS := {
 	"airliner": [56, 56, 8, 1, "_airliner"],
 	"tree": [14, 14, 12, 3, "_tree"],
 	"bush": [8, 8, 4, 2, "_bush"],
+	"rock": [14, 14, 8, 3, "_rock"],
 	"lamp": [8, 8, 14, 1, "_lamp"],
 	"ac_unit": [8, 8, 4, 1, "_ac"],
 	"water_tank": [10, 10, 12, 1, "_tank"],
@@ -504,6 +505,33 @@ static func _bush(p: Painter, s: int, v: int) -> void:
 	if v == 1 and s == 3:
 		p.px(3, 3, P(Pal.PINK))
 		p.px(5, 4, P(Pal.YELLOW))
+
+
+## Boulder: lumpy outline shrinking upwards, lit top, dark cracks and
+## speckles; v = 0 grey granite, 1 sandstone, 2 granite with a snow cap.
+static func _rock(p: Painter, s: int, v: int) -> void:
+	var base: Color = [Color("8a8d94"), Color("c98a58"), Color("8a8d94")][v]
+	var t := float(s) / 7.0
+	var r := 6.2 * sqrt(1.0 - t * t * 0.92)
+	for k in 10:
+		var a := TAU * k / 10.0
+		var w := 0.75 + 0.25 * CityGen.hashf(k, v, 41)
+		var cx := 7.0 + cos(a) * r * 0.35 * w
+		var cy := 7.0 + sin(a) * r * 0.3 * w
+		p.ell(cx, cy, r * 0.72 * w, r * 0.62 * w, base.darkened(0.18 - t * 0.3))
+	# top face: highlight towards the sun (top-left), cracks, speckles
+	if s >= 5:
+		p.ell(6.0, 6.0, r * 0.6, r * 0.5, base.lightened(0.12))
+	for i in 6:
+		var x := 2 + int(CityGen.hashf(i, s, 43 + v) * 10)
+		var y := 2 + int(CityGen.hashf(i, s, 47 + v) * 10)
+		p.px(x, y, base.darkened(0.35) if i % 2 == 0 else base.lightened(0.2))
+	if s == 3:
+		p.rect(4, 7, 5, 1, base.darkened(0.4))
+	if v == 2 and s >= 5:
+		p.ell(6.5, 6.0, r * 0.75, r * 0.6, Color("eef3fa"))
+	elif v == 0 and s == 7:
+		p.px(8, 8, Color("5f8a4a")) # a bit of moss
 
 
 static func _lamp(p: Painter, s: int, v: int) -> void:

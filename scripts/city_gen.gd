@@ -765,6 +765,7 @@ static func _nature(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, d: 
 			var z := r0.position.y + rng.randf() * BLOCK
 			if island_h(x, z) > SAND_TOP + 0.01:
 				_stack(cb, "bush", 1, Vector3(x, 0.0, z), rng.randf() * TAU, rng.randf_range(0.6, 1.0), Color(0.85, 0.7, 0.45))
+		_rocks(cb, rng, r0, 1 if rng.randf() < 0.5 else 0, 1)
 		return
 	var r := Rect2(bx * BLOCK, bz * BLOCK, BLOCK, BLOCK)
 	var n := 0
@@ -780,12 +781,25 @@ static func _nature(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, d: 
 			continue
 		var v := 1 if ((d == D_FOREST and rng.randf() < 0.55) or feature == FEAT_PEAK) else 0
 		_stack(cb, "tree", v, Vector3(x, 0.0, z), rng.randf() * TAU, rng.randf_range(0.9, 1.4))
+	_rocks(cb, rng, r, rng.randi_range(0, 2) if d == D_MEADOW else rng.randi_range(0, 1), 2 if feature == FEAT_PEAK else 0)
 	if d == D_MEADOW:
 		for i in rng.randi_range(0, 3):
 			var x := r.position.x + rng.randf() * BLOCK
 			var z := r.position.y + rng.randf() * BLOCK
 			if island_h(x, z) > SAND_TOP + 0.01:
 				_stack(cb, "bush", rng.randi() % 2, Vector3(x, 0.0, z), rng.randf() * TAU)
+
+
+## Boulders (with sun shadows) scattered over a block.
+static func _rocks(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, v: int) -> void:
+	for i in n:
+		var x := r.position.x + rng.randf() * r.size.x
+		var z := r.position.y + rng.randf() * r.size.y
+		if island_h(x, z) < SAND_TOP + 0.012:
+			continue
+		var sc := rng.randf_range(0.6, 1.5)
+		_stack(cb, "rock", v, Vector3(x, 0.0, z), rng.randf() * TAU, sc)
+		_shadow(cb, x - 4.0 * sc, z - 4.0 * sc, x + 4.0 * sc, z + 4.0 * sc, 4.0 * sc)
 
 
 static func _stadium(cb: Build, r: Rect2) -> void:
