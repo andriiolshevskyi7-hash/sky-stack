@@ -1,0 +1,435 @@
+keys,en,uk
+SKY STACK,SKY STACK,SKY STACK
+Offline air combat,Offline air combat,Повітряний бій офлайн
+PLAY,PLAY,ГРАТИ
+SETTINGS,SETTINGS,НАЛАШТУВАННЯ
+COINS %d     XP %d     HIGH SCORE %d,COINS %d     XP %d     HIGH SCORE %d,МОНЕТИ %d     ДОСВІД %d     РЕКОРД %d
+TAP ANYWHERE TO PLAY,TAP ANYWHERE TO PLAY,"ТОРКНІТЬСЯ ЕКРАНА, ЩОБ ГРАТИ"
+CHOOSE MODE,CHOOSE MODE,ОБЕРІТЬ РЕЖИМ
+Bots fly the same planes you do,Bots fly the same planes you do,"Боти літають на таких самих літаках, як і ви"
+TEAM DOGFIGHT,TEAM DOGFIGHT,КОМАНДНИЙ БІЙ
+BASE STRIKE,BASE STRIKE,УДАР ПО БАЗІ
+CITY DEFENCE,CITY DEFENCE,ОБОРОНА МІСТА
+DUEL,DUEL,ДУЕЛЬ
+BACK,BACK,НАЗАД
+Choose your opponent,Choose your opponent,Оберіть суперника
+ROOKIE,ROOKIE,НОВАЧОК
+REGULAR,REGULAR,БОЄЦЬ
+VETERAN,VETERAN,ВЕТЕРАН
+ACE,ACE,АС
+CHOOSE MAP,CHOOSE MAP,ОБЕРІТЬ КАРТУ
+GET READY,GET READY,ПРИГОТУЙТЕСЯ
+Protect the city,Protect the city,Захистіть місто
+BACK IN THE FIGHT,BACK IN THE FIGHT,ЗНОВУ В БОЮ
+FIGHT!,FIGHT!,У БІЙ!
+Crash,Crash,Аварія
+RED,RED,ЧЕРВОНІ
+BLUE,BLUE,СИНІ
+LEVEL %d   %d / 1000 XP,LEVEL %d   %d / 1000 XP,РІВЕНЬ %d   %d / 1000 ДОСВІДУ
+Enemies inbound,Enemies inbound,Наближаються вороги
+Rooftop anti-air guns detected!,Rooftop anti-air guns detected!,На дахах виявлено зенітки!
+BOSS BOMBER APPROACHING,BOSS BOMBER APPROACHING,НАБЛИЖАЄТЬСЯ БОС-БОМБАРДУВАЛЬНИК
+WAVE %d,WAVE %d,ХВИЛЯ %d
+WAVE %d CLEAR,WAVE %d CLEAR,ХВИЛЮ %d ВІДБИТО
++%d bonus   +20 HP,+%d bonus   +20 HP,+%d бонус   +20 до корпусу
+ASSIST +100,ASSIST +100,ДОПОМОГА +100
+BOSS DOWN,BOSS DOWN,БОСА ЗБИТО
+EJECTED,EJECTED,КАТАПУЛЬТУВАННЯ
+Search and rescue inbound,Search and rescue inbound,Рятувальники вже летять
+RESCUED,RESCUED,ВРЯТОВАНО
+New jet  -300,New jet  -300,Новий літак  -300
+TUTORIAL,TUTORIAL,НАВЧАННЯ
+PAUSED,PAUSED,ПАУЗА
+RESUME,RESUME,ПРОДОВЖИТИ
+INTEL,INTEL,ДОВІДКА
+VIEW: ,VIEW: ,ВИГЛЯД: 
+RESTART,RESTART,ЗАНОВО
+QUIT TO TITLE,QUIT TO TITLE,У ГОЛОВНЕ МЕНЮ
+SHOT DOWN,SHOT DOWN,ЗБИТО
+Respawn in %d s,Respawn in %d s,Повернення через %d с
+YOUR JET WAS SHOT DOWN,YOUR JET WAS SHOT DOWN,ВАШ ЛІТАК ЗБИЛИ
+THE CITY HAS FALLEN,THE CITY HAS FALLEN,МІСТО ВПАЛО
+GAME OVER,GAME OVER,КІНЕЦЬ ГРИ
+NEW HIGH SCORE!,NEW HIGH SCORE!,НОВИЙ РЕКОРД!
+RETRY,RETRY,ЩЕ РАЗ
+TITLE,TITLE,МЕНЮ
+KILLS  %d      WAVES  %d,KILLS  %d      WAVES  %d,ЗБИТО  %d      ХВИЛЬ  %d
+SCORE  %d      BEST  %d,SCORE  %d      BEST  %d,ОЧКИ  %d      НАЙКРАЩЕ  %d
+TAP ANYWHERE TO RETRY,TAP ANYWHERE TO RETRY,"ТОРКНІТЬСЯ, ЩОБ ПОЧАТИ ЗНОВУ"
+OVERHEAD,OVERHEAD,ЗГОРИ
+CHASE,CHASE,ЗЗАДУ
+COCKPIT,COCKPIT,КАБІНА
+ROLL,ROLL,БОЧКА
+LOOP,LOOP,ПЕТЛЯ
+FRONT FLIP,FRONT FLIP,ПЕРЕКИД ВПЕРЕД
+Defend the city from endless waves.,Defend the city from endless waves.,Захищайте місто від нескінченних хвиль.
+First team to the kill target wins.,First team to the kill target wins.,"Перемагає команда, що першою набере потрібну кількість збитих."
+"Destroy the enemy base, defend yours.","Destroy the enemy base, defend yours.","Знищте ворожу базу, захистіть свою."
+One on one against a bot.,One on one against a bot.,Один на один проти бота.
+TROPICAL ISLANDS,TROPICAL ISLANDS,ТРОПІЧНІ ОСТРОВИ
+DESERT CANYON,DESERT CANYON,ПУСТЕЛЬНИЙ КАНЬЙОН
+SNOW MOUNTAINS,SNOW MOUNTAINS,СНІГОВІ ГОРИ
+NIGHT CITY,NIGHT CITY,НІЧНЕ МІСТО
+OCEAN CARRIER,OCEAN CARRIER,АВІАНОСЦІ В ОКЕАНІ
+"Islands, a city and bright seas.","Islands, a city and bright seas.","Острови, місто і яскраве море."
+"Mesas, canyons and desert outposts.","Mesas, canyons and desert outposts.","Столові гори, каньйони й пустельні форпости."
+"Peaks, valleys, a frozen lake, mountain bases.","Peaks, valleys, a frozen lake, mountain bases.","Вершини, долини, замерзле озеро, гірські бази."
+Neon skyline and searchlights.,Neon skyline and searchlights.,Неонові хмарочоси й прожектори.
+Two carrier fleets on the open ocean.,Two carrier fleets on the open ocean.,Дві авіаносні групи у відкритому океані.
+DOGFIGHTER,DOGFIGHTER,ВИНИЩУВАЧ
+INTERCEPTOR,INTERCEPTOR,ПЕРЕХОПЛЮВАЧ
+ATTACKER,ATTACKER,ШТУРМОВИК
+ESCORT,ESCORT,СУПРОВІД
+AIRFIELD,AIRFIELD,АЕРОДРОМ
+AA GUN,AA GUN,ЗЕНІТКА
+RADAR,RADAR,РАДАР
+BUNKER,BUNKER,БУНКЕР
+HANGAR,HANGAR,АНГАР
+FUEL TANK,FUEL TANK,ПАЛИВНИЙ БАК
+CARRIER,CARRIER,АВІАНОСЕЦЬ
+FRIGATE,FRIGATE,ФРЕГАТ
+DESTROYER,DESTROYER,ЕСМІНЕЦЬ
+KILLS %02d,KILLS %02d,ЗБИТО %02d
+HULL,HULL,КОРПУС
+CITY,CITY,МІСТО
+FIRST TO %d,FIRST TO %d,ДО %d ЗБИТИХ
+RESPAWN %d,RESPAWN %d,ПОВЕРНЕННЯ %d
+RADAR DOWN,RADAR DOWN,РАДАР ЗНИЩЕНО
+RETURN TO BATTLE AREA,RETURN TO BATTLE AREA,ПОВЕРНІТЬСЯ В ЗОНУ БОЮ
+TURNING BACK,TURNING BACK,РОЗВОРОТ
+LEAVING THE AREA,LEAVING THE AREA,ВИ ЗАЛИШАЄТЕ ЗОНУ БОЮ
+AUTO TURN IN %d,AUTO TURN IN %d,АВТОРОЗВОРОТ ЧЕРЕЗ %d
+LOW FLYING  x%d,LOW FLYING  x%d,НИЗЬКИЙ ПОЛІТ  x%d
+ROLL!,ROLL!,БОЧКА!
+LOCK,LOCK,ЗАХОПЛЕННЯ
+RELOAD,RELOAD,ПЕРЕЗАРЯДКА
+GUN,GUN,ГАРМАТА
+MISSILE,MISSILE,РАКЕТА
+BOOST,BOOST,ФОРСАЖ
+VIEW,VIEW,ВИГЛЯД
+BOSS BOMBER,BOSS BOMBER,БОС-БОМБАРДУВАЛЬНИК
+WAVE %d  %d,WAVE %d  %d,ХВИЛЯ %d  %d
+HI %07d,HI %07d,РЕКОРД %07d
+ALT %d,ALT %d,ВИС %d
+COUNTER,COUNTER,КОНТРАТАКА
+LOW X%d,LOW X%d,НИЗЬКО X%d
+SPD,SPD,ШВИД
+HDG,HDG,КУРС
+START,START,СТАРТ
+BLUE TEAM,BLUE TEAM,СИНЯ КОМАНДА
+RED TEAM,RED TEAM,ЧЕРВОНА КОМАНДА
+(YOU),(YOU),(ВИ)
+VICTORY,VICTORY,ПЕРЕМОГА
+DEFEAT,DEFEAT,ПОРАЗКА
+DRAW,DRAW,НІЧИЯ
+PILOT,PILOT,ПІЛОТ
+K,K,ЗБ
+A,A,ДОП
+D,D,ЗБИТ
+DMG,DMG,ШКОДА
+SCORE,SCORE,ОЧКИ
+MVP,MVP,MVP
++%d XP     +%d COINS,+%d XP     +%d COINS,+%d ДОСВІДУ     +%d МОНЕТ
+MVP BONUS,MVP BONUS,БОНУС MVP
+PLAY AGAIN,PLAY AGAIN,ГРАТИ ЩЕ
+MENU,MENU,МЕНЮ
+DONE,DONE,ГОТОВО
+RESET TO DEFAULTS,RESET TO DEFAULTS,СКИНУТИ ВСЕ
+Reset all settings to their default values?,Reset all settings to their default values?,Повернути всі налаштування до стандартних?
+RESET,RESET,СКИНУТИ
+CANCEL,CANCEL,СКАСУВАТИ
+FLIGHT,FLIGHT,ПОЛІТ
+COMBAT,COMBAT,БІЙ
+CAMERA,CAMERA,КАМЕРА
+WORLD,WORLD,СВІТ
+LOOK,LOOK,ГРАФІКА
+EFFECTS,EFFECTS,ЕФЕКТИ
+HELPERS,HELPERS,ПІДКАЗКИ
+SOUND,SOUND,ЗВУК
+LANGUAGE,LANGUAGE,МОВА
+Language,Language,Мова
+Speed,Speed,Швидкість
+Thruster boost (x speed while held),Thruster boost (x speed while held),"Форсаж (множник швидкості, поки тримаєте)"
+Turn rate,Turn rate,Швидкість повороту
+Bank angle,Bank angle,Кут крену
+Cruising altitude,Cruising altitude,Крейсерська висота
+Ceiling (highest it climbs),Ceiling (highest it climbs),Стеля (максимальна висота)
+Ground clearance (lowest it skims),Ground clearance (lowest it skims),Мінімальна висота над землею
+Wingmen,Wingmen,Ведені
+Invert climb/dive (drag up climbs),Invert climb/dive (drag up climbs),Інверсія набору/зниження (вгору — набір)
+Crashes (dive into the ground to eject),Crashes (dive into the ground to eject),Аварії (пікірування в землю — катапультування)
+Team size (bots per side),Team size (bots per side),Розмір команди (ботів з кожного боку)
+Cannon rounds before a reload,Cannon rounds before a reload,Снарядів до перезарядки
+Missiles before a reload,Missiles before a reload,Ракет до перезарядки
+Reload time (seconds),Reload time (seconds),Час перезарядки (секунди)
+Enemy jets,Enemy jets,Ворожі літаки
+"Dodge slow motion (seconds, 0 = off)","Dodge slow motion (seconds, 0 = off)","Уповільнення при ухилянні (с, 0 = вимк.)"
+View,View,Вигляд
+View change (seconds),View change (seconds),Зміна вигляду (секунди)
+Overhead: turn with the jet,Overhead: turn with the jet,Згори: повертати разом з літаком
+Chase: distance (jet lengths),Chase: distance (jet lengths),Ззаду: відстань (довжин літака)
+Chase: height (degrees),Chase: height (degrees),Ззаду: висота (градуси)
+Time of day,Time of day,Час доби
+Day/night cycle,Day/night cycle,Зміна дня і ночі
+Islands,Islands,Острови
+Clouds,Clouds,Хмари
+World seed,World seed,Зерно світу
+Jet shadow,Jet shadow,Тінь літака
+Traffic,Traffic,Трафік
+"Glow (fire, sun, engines, glints)","Glow (fire, sun, engines, glints)","Світіння (вогонь, сонце, двигуни, відблиски)"
+Colour depth and contrast,Colour depth and contrast,Насиченість і контраст
+Darkened corners,Darkened corners,Затемнення кутів
+Film grain,Film grain,Зернистість
+Sprite turn: 64 steps,Sprite turn: 64 steps,Поворот спрайтів: 64 кроки
+Thruster flames,Thruster flames,Полум'я двигунів
+Afterburner,Afterburner,Форсажне полум'я
+Wingtip trails,Wingtip trails,Сліди за крилами
+Wake and spray low over the sea,Wake and spray low over the sea,Бризки над морем на малій висоті
+Explosion: flash and sparks,Explosion: flash and sparks,Вибух: спалах та іскри
+Explosion: camera shake,Explosion: camera shake,Вибух: трясіння камери
+Touch buttons,Touch buttons,Сенсорні кнопки
+Floating stick indicator,Floating stick indicator,Індикатор плаваючого стіка
+Intel button,Intel button,Кнопка довідки
+"Debug overlay (FPS, draw calls)","Debug overlay (FPS, draw calls)","Налагодження (FPS, виклики малювання)"
+Sound,Sound,Звук
+Volume,Volume,Гучність
+top,top,згори
+chase,chase,ззаду
+cockpit,cockpit,кабіна
+day,day,день
+sunset,sunset,захід
+night,night,ніч
+pixel,pixel,піксельне
+realistic,realistic,реалістичне
+auto,auto,авто
+on,on,увімк.
+off,off,вимк.
+low,low,мало
+normal,normal,звичайно
+TOUCH,TOUCH,СЕНСОР
+CONTROLLER,CONTROLLER,ГЕЙМПАД
+MOUSE + KEYS,MOUSE + KEYS,МИША + КЛАВІАТУРА
+FLY,FLY,ПОЛІТ
+STICK,STICK,СТІК
+Touch anywhere: that point is the stick centre,Touch anywhere: that point is the stick centre,Торкніться будь-де: ця точка — центр стіка
+TURN,TURN,ПОВОРОТ
+Drag left or right,Drag left or right,Тягніть ліворуч або праворуч
+CLIMB / DIVE,CLIMB / DIVE,НАБІР / ЗНИЖЕННЯ
+"Drag down to climb, up to dive","Drag down to climb, up to dive","Тягніть вниз — набір, вгору — зниження"
+THRUSTERS,THRUSTERS,ФОРСАЖ
+Hold BOOST,Hold BOOST,Тримайте ФОРСАЖ
+CHANGE VIEW,CHANGE VIEW,ЗМІНИТИ ВИГЛЯД
+TRICKS,TRICKS,ТРЮКИ
+Tap,Tap,Торкніться
+BACK FLIP,BACK FLIP,ПЕРЕКИД НАЗАД
+"Full climb with thrusters, held","Full climb with thrusters, held","Повний набір з форсажем, утримуючи"
+"Full dive with thrusters, held. Needs height","Full dive with thrusters, held. Needs height","Повне пікірування з форсажем, утримуючи. Потрібна висота"
+LOOP (flown for you),LOOP (flown for you),ПЕТЛЯ (виконується автоматично)
+EJECT,EJECT,КАТАПУЛЬТУВАННЯ
+"Hold a dive into the ground, thrusters off","Hold a dive into the ground, thrusters off","Пікіруйте в землю без форсажу, утримуючи"
+FIGHT,FIGHT,БІЙ
+CANNON,CANNON,ГАРМАТА
+Hold GUN,Hold GUN,Тримайте ГАРМАТА
+LOCK ON,LOCK ON,ЗАХОПЛЕННЯ ЦІЛІ
+Keep an enemy ahead until the box turns red,Keep an enemy ahead until the box turns red,"Тримайте ворога попереду, доки рамка не стане червоною"
+DODGE A MISSILE,DODGE A MISSILE,УХИЛИТИСЯ ВІД РАКЕТИ
+Roll as the two rings meet,Roll as the two rings meet,"Зробіть бочку, коли кільця зійдуться"
+"Missile straight after a dodge fires three, free","Missile straight after a dodge fires three, free",Ракета одразу після ухиляння — три ракети безкоштовно
+AMMO,AMMO,БОЄЗАПАС
+"300 rounds, 6 missiles. Run out and it takes 5 s to reload","300 rounds, 6 missiles. Run out and it takes 5 s to reload","300 снарядів, 6 ракет. Коли закінчаться — 5 с на перезарядку"
+TURN / PITCH,TURN / PITCH,ПОВОРОТ / ТАНГАЖ
+Left stick,Left stick,Лівий стік
+Right trigger,Right trigger,Правий курок
+A / Cross,A / Cross,A / Хрестик
+B / Circle,B / Circle,B / Коло
+X / Square,X / Square,X / Квадрат
+Y / Triangle,Y / Triangle,Y / Трикутник
+Back / Select,Back / Select,Back / Select
+PAUSE,PAUSE,ПАУЗА
+Start,Start,Start
+A / D or arrows,A / D or arrows,A / D або стрілки
+"S climbs, W dives","S climbs, W dives","S — набір, W — зниження"
+Shift,Shift,Shift
+"Space, J or mouse button","Space, J or mouse button","Пробіл, J або кнопка миші"
+C or V,C or V,C або V
+PAUSE / INTEL,PAUSE / INTEL,ПАУЗА / ДОВІДКА
+Esc / I,Esc / I,Esc / I
+Tap outside to shut this.,Tap outside to shut this.,"Торкніться поза вікном, щоб закрити."
+Drag LEFT or RIGHT to turn,Drag LEFT or RIGHT to turn,"Тягніть ЛІВОРУЧ або ПРАВОРУЧ, щоб повернути"
+Drag DOWN to climb,Drag DOWN to climb,"Тягніть ВНИЗ, щоб набрати висоту"
+Drag UP to dive,Drag UP to dive,"Тягніть ВГОРУ, щоб знизитися"
+TAP the screen to barrel roll,TAP the screen to barrel roll,"ТОРКНІТЬСЯ екрана, щоб зробити бочку"
+Press LOOP,Press LOOP,Натисніть ПЕТЛЯ
+Hold GUN to fire the cannon,Hold GUN to fire the cannon,"Тримайте ГАРМАТА, щоб стріляти"
+"Keep the drone ahead until the box turns RED, then MISSILE","Keep the drone ahead until the box turns RED, then MISSILE","Тримайте дрон попереду, доки рамка не стане ЧЕРВОНОЮ, тоді РАКЕТА"
+Incoming missile! ROLL as the two rings meet,Incoming missile! ROLL as the two rings meet,"Ракета! Зробіть БОЧКУ, коли кільця зійдуться"
+Tutorial complete - defend the city!,Tutorial complete - defend the city!,Навчання завершено — захищайте місто!
+SKINS,SKINS,ФАРБУВАННЯ
+SELECT,SELECT,ОБРАТИ
+SELECTED,SELECTED,ОБРАНО
+OWNED,OWNED,ПРИДБАНО
+BUY,BUY,КУПИТИ
+EQUIP,EQUIP,ВСТАНОВИТИ
+EQUIPPED,EQUIPPED,ВСТАНОВЛЕНО
+UNLOCK,UNLOCK,ВІДКРИТИ
+UNLOCKED,UNLOCKED,ВІДКРИТО
+BUY THE PLANE FIRST,BUY THE PLANE FIRST,СПОЧАТКУ КУПІТЬ ЛІТАК
+TAIL NUMBER,TAIL NUMBER,БОРТОВИЙ НОМЕР
+SPEED,SPEED,ШВИДКІСТЬ
+ARMOR,ARMOR,БРОНЯ
+FIREPOWER,FIREPOWER,ВОГНЕВА МІЦЬ
+UPGRADES,UPGRADES,ПОКРАЩЕННЯ
+ENGINE,ENGINE,ДВИГУН
+GUNS,GUNS,ГАРМАТИ
+MISSILES,MISSILES,РАКЕТИ
+FLARES,FLARES,ПАСТКИ
+MAX,MAX,МАКС
+LIGHT FIGHTERS,LIGHT FIGHTERS,ЛЕГКІ ВИНИЩУВАЧІ
+HEAVY FIGHTERS,HEAVY FIGHTERS,ВАЖКІ ВИНИЩУВАЧІ
+ATTACKERS,ATTACKERS,ШТУРМОВИКИ
+COINS %d,COINS %d,МОНЕТИ %d
+RANK %s,RANK %s,РАНГ %s
+NEEDS %s,NEEDS %s,ПОТРІБЕН %s
+%d KILLS,%d KILLS,ЗБИТИХ: %d
+RANK UP!,RANK UP!,НОВИЙ РАНГ!
+%s   %d / %d XP,%s   %d / %d XP,%s   %d / %d ДОСВІДУ
+%s     COINS %d     HIGH SCORE %d,%s     COINS %d     HIGH SCORE %d,%s     МОНЕТИ %d     РЕКОРД %d
+BRONZE III,BRONZE III,БРОНЗА III
+BRONZE II,BRONZE II,БРОНЗА II
+BRONZE I,BRONZE I,БРОНЗА I
+SILVER III,SILVER III,СРІБЛО III
+SILVER II,SILVER II,СРІБЛО II
+SILVER I,SILVER I,СРІБЛО I
+GOLD III,GOLD III,ЗОЛОТО III
+GOLD II,GOLD II,ЗОЛОТО II
+GOLD I,GOLD I,ЗОЛОТО I
+PLATINUM III,PLATINUM III,ПЛАТИНА III
+PLATINUM II,PLATINUM II,ПЛАТИНА II
+PLATINUM I,PLATINUM I,ПЛАТИНА I
+DIAMOND III,DIAMOND III,ДІАМАНТ III
+DIAMOND II,DIAMOND II,ДІАМАНТ II
+DIAMOND I,DIAMOND I,ДІАМАНТ I
+FACTORY,FACTORY,ЗАВОДСЬКЕ
+ARCTIC,ARCTIC,АРКТИКА
+DESERT CAMO,DESERT CAMO,ПУСТЕЛЬНИЙ КАМУФЛЯЖ
+JUNGLE CAMO,JUNGLE CAMO,ЛІСОВИЙ КАМУФЛЯЖ
+MIDNIGHT,MIDNIGHT,ОПІВНІЧ
+TIGER,TIGER,ТИГР
+ACE GOLD,ACE GOLD,ЗОЛОТО АСА
+AGGRESSOR,AGGRESSOR,АГРЕСОР
+MISSIONS,MISSIONS,МІСІЇ
+PROFILE,PROFILE,ПРОФІЛЬ
+DAILY,DAILY,ЩОДЕННІ
+WEEKLY,WEEKLY,ТИЖНЕВІ
+CLAIM,CLAIM,ЗАБРАТИ
+CLAIMED,CLAIMED,ОТРИМАНО
+REROLL,REROLL,ЗАМІНИТИ
+NEW IN %d:%02d,NEW IN %d:%02d,НОВІ ЧЕРЕЗ %d:%02d
+1 FREE REROLL,1 FREE REROLL,1 БЕЗКОШТОВНА ЗАМІНА
++%d COINS  +%d XP,+%d COINS  +%d XP,+%d МОНЕТ  +%d ДОСВІДУ
+%d / %d TIERS,%d / %d TIERS,%d / %d РІВНІВ
+ACHIEVEMENTS,ACHIEVEMENTS,ДОСЯГНЕННЯ
+ACHIEVEMENT,ACHIEVEMENT,ДОСЯГНЕННЯ
+ACHIEVEMENT: %s,ACHIEVEMENT: %s,ДОСЯГНЕННЯ: %s
+BRONZE,BRONZE,БРОНЗА
+SILVER,SILVER,СРІБЛО
+GOLD,GOLD,ЗОЛОТО
+EDIT,EDIT,ЗМІНИТИ
+BATTLES,BATTLES,БОЇВ
+WINS,WINS,ПЕРЕМОГ
+WIN RATE,WIN RATE,ВІДСОТОК ПЕРЕМОГ
+K/D,K/D,З/С
+ACCURACY,ACCURACY,ВЛУЧНІСТЬ
+FAVOURITE PLANE,FAVOURITE PLANE,УЛЮБЛЕНИЙ ЛІТАК
+BEST STREAK,BEST STREAK,НАЙКРАЩА СЕРІЯ
+TIME PLAYED,TIME PLAYED,ЧАС У ГРІ
+Destroy %d AA guns,Destroy %d AA guns,Знищити зеніток: %d
+Win %d Team Dogfights,Win %d Team Dogfights,Перемоги в командних боях: %d
+Get %d missile kills,Get %d missile kills,Збиті ракетами: %d
+Fly %d min below 150 m,Fly %d min below 150 m,"Політ нижче 150 м, хв: %d"
+Shoot down %d planes with the cannon,Shoot down %d planes with the cannon,Збиті з гармати: %d
+Get %d assists,Get %d assists,Допомоги: %d
+Dodge %d missiles,Dodge %d missiles,Ухилитися від ракет: %d
+Win %d Base Strike,Win %d Base Strike,Перемоги в ударі по базі: %d
+Play %d battles,Play %d battles,Зіграти боїв: %d
+Destroy %d ground targets,Destroy %d ground targets,Знищити наземних цілей: %d
+Win %d Duel,Win %d Duel,Перемоги в дуелях: %d
+Shoot down %d planes,Shoot down %d planes,Збити літаків: %d
+Play %d battles on Desert Canyon,Play %d battles on Desert Canyon,Бої в Пустельному каньйоні: %d
+Play %d battles on Snow Mountains,Play %d battles on Snow Mountains,Бої в Снігових горах: %d
+Play %d battles on Ocean Carrier,Play %d battles on Ocean Carrier,Бої на Авіаносцях в океані: %d
+Win %d battles,Win %d battles,Перемоги: %d
+Destroy %d carriers,Destroy %d carriers,Знищити авіаносців: %d
+Be MVP %d times,Be MVP %d times,Стати MVP разів: %d
+SKY HUNTER,SKY HUNTER,НЕБЕСНИЙ МИСЛИВЕЦЬ
+VICTOR,VICTOR,ПЕРЕМОЖЕЦЬ
+MATADOR,MATADOR,МАТАДОР
+DECOY,DECOY,ПРИМАНКА
+AEROBAT,AEROBAT,АКРОБАТ
+DEMOLISHER,DEMOLISHER,РУЙНІВНИК
+SINK THE FLEET,SINK THE FLEET,ПОТОПИ ФЛОТ
+LOCK AND LAUNCH,LOCK AND LAUNCH,ЗАХОПИ І ПУСКАЙ
+GUNSLINGER,GUNSLINGER,СТРІЛЕЦЬ
+ACE HUNTER,ACE HUNTER,МИСЛИВЕЦЬ НА АСІВ
+MOST VALUABLE,MOST VALUABLE,НАЙЦІННІШИЙ
+NAP OF THE EARTH,NAP OF THE EARTH,НАД САМОЮ ЗЕМЛЕЮ
+ON A ROLL,ON A ROLL,НА ХВИЛІ
+DUELLIST,DUELLIST,ДУЕЛЯНТ
+BASE BREAKER,BASE BREAKER,РУЙНІВНИК БАЗ
+GUARDIAN,GUARDIAN,ОХОРОНЕЦЬ
+ISLAND HOPPER,ISLAND HOPPER,ОСТРІВНИЙ ПІЛОТ
+DUST DEVIL,DUST DEVIL,ПИЛОВИЙ ВИХОР
+ICE COLD,ICE COLD,КРИЖАНИЙ
+NIGHT OWL,NIGHT OWL,НІЧНА СОВА
+BLUE WATER,BLUE WATER,ВІДКРИТЕ МОРЕ
+LIGHTWEIGHT,LIGHTWEIGHT,ЛЕГКА ВАГА
+HEAVYWEIGHT,HEAVYWEIGHT,ВАЖКА ВАГА
+MUD MOVER,MUD MOVER,ШТУРМОВИК-АС
+Save yourself with flares %d times,Save yourself with flares %d times,Порятунки пастками: %d
+Fly %d loops and flips,Fly %d loops and flips,Петлі й перекиди: %d
+Get %d cannon kills,Get %d cannon kills,Збиті з гармати: %d
+Shoot down %d ace pilots,Shoot down %d ace pilots,Збиті аси: %d
+Get %d kills in one life,Get %d kills in one life,Збиті за одне життя: %d
+Win %d duels,Win %d duels,Перемоги в дуелях: %d
+Win %d Base Strikes,Win %d Base Strikes,Перемоги в ударі по базі: %d
+Survive %d city waves,Survive %d city waves,Відбиті хвилі атаки на місто: %d
+Play %d battles on Tropical Islands,Play %d battles on Tropical Islands,Бої на Тропічних островах: %d
+Play %d battles on Night City,Play %d battles on Night City,Бої в Нічному місті: %d
+Shoot down %d planes in light fighters,Shoot down %d planes in light fighters,Збиті на легких винищувачах: %d
+Shoot down %d planes in heavy fighters,Shoot down %d planes in heavy fighters,Збиті на важких винищувачах: %d
+Shoot down %d planes in attackers,Shoot down %d planes in attackers,Збиті на штурмовиках: %d
+QUICK PLAY,QUICK PLAY,ШВИДКА ГРА
+STALL,STALL,ЗВАЛЮВАННЯ
+KM/H,KM/H,КМ/Г
+ENERGY,ENERGY,ЕНЕРГІЯ
+"Climbing and hard turns cost speed, diving gains it","Climbing and hard turns cost speed, diving gains it","Набір висоти й круті віражі коштують швидкості, пікірування її додає"
+Too slow with the stick back: the nose drops,Too slow with the stick back: the nose drops,Замала швидкість зі стіком на себе: ніс падає
+AFTERBURNER,AFTERBURNER,ФОРСАЖ
+"Hold BOOST. It overheats, then needs to cool","Hold BOOST. It overheats, then needs to cool",Тримайте ФОРСАЖ. Він перегрівається й мусить охолонути
+"LOOP (flown for you), or pull fully back","LOOP (flown for you), or pull fully back",ПЕТЛЯ (виконується автоматично) або стік повністю на себе
+CRASH,CRASH,ЗІТКНЕННЯ
+Hitting anything is fatal: the pilot ejects,Hitting anything is fatal: the pilot ejects,Будь-яке зіткнення смертельне: пілот катапультується
+FLIGHT FEEL (DEBUG),FLIGHT FEEL (DEBUG),ВІДЧУТТЯ ПОЛЬОТУ (НАЛАГОДЖЕННЯ)
+Turn assist (0 = simulator),Turn assist (0 = simulator),Допомога у віражах (0 = симулятор)
+G tolerance (grey-out starts),G tolerance (grey-out starts),Витривалість до перевантажень (G)
+Speed bleed in turns (1 = simulator),Speed bleed in turns (1 = simulator),Втрата швидкості у віражах (1 = симулятор)
+Vibration,Vibration,Вібрація
+THROTTLE,THROTTLE,ТЯГА
+Drag the lever on the right edge; the top zone is afterburner,Drag the lever on the right edge; the top zone is afterburner,Тягніть важіль біля правого краю; верхня зона — форсаж
+Double tap anywhere free,Double tap anywhere free,Подвійний дотик у вільному місці
+Hold FIRE,Hold FIRE,Тримайте ВОГОНЬ
+LOOK AROUND,LOOK AROUND,ОЗИРНУТИСЯ
+"In the cockpit hold the eye and drag","In the cockpit hold the eye and drag","У кабіні затисніть око й ведіть пальцем"
+"Hold Q / E, or drag with the middle mouse button","Hold Q / E, or drag with the middle mouse button","Затисніть Q / E або ведіть середньою кнопкою миші"
+Graphics quality,Graphics quality,Якість графіки
+q_low,low,низька
+q_medium,medium,середня
+q_high,high,висока
+Sound volume,Sound volume,Гучність звуку
+Music volume,Music volume,Гучність музики
+Invert climb / dive,Invert climb / dive,Інверсія набору / пікірування
+Stick indicator,Stick indicator,Індикатор ручки
+DEBUG SETTINGS,DEBUG SETTINGS,НАЛАГОДЖЕННЯ
+DEBUG,DEBUG,НАЛАГОДЖЕННЯ
+GRAPHICS,GRAPHICS,ГРАФІКА
+CONTROLS,CONTROLS,КЕРУВАННЯ

@@ -1,0 +1,15 @@
+# Godot
+.godot/
+*.import
+!assets/stacks/*.import
+export_credentials.cfg
+build/
+# generated from locale/strings.csv by the importer
+locale/*.translation
+*.apk
+*.aab
+# never commit signing material
+*.keystore
+*.jks
+*.p12
+.env
