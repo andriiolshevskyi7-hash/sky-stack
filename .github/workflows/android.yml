@@ -27,11 +27,16 @@ jobs:
       - name: Import project
         run: godot --headless --import 2>&1 | tail -n 5 || true
 
-      - name: Headless tests (launch + world generation)
+      # Runs the full headless suite (tests/run_tests.gd). The build stops here
+      # (no APK) if any test fails, the runner crashes or hangs, or a script
+      # error is printed.
+      - name: Headless tests (all must pass)
         run: |
           set -o pipefail
-          godot --headless res://tests/test_runner.tscn 2>&1 | grep -v -E 'Parameter "m" is null|mesh_storage.h' | tee test.log
-          if grep -E "SCRIPT ERROR|Parse Error" test.log; then echo "Script errors found"; exit 1; fi
+          timeout 900 godot --headless res://tests/test_runner.tscn 2>&1 | grep -v -E 'Parameter "m" is null|mesh_storage.h' | tee test.log
+          if grep -E "SCRIPT ERROR|Parse Error" test.log; then echo "::error::Script errors found"; exit 1; fi
+          if grep -E "^\s*FAIL " test.log; then echo "::error::Failing tests listed above"; exit 1; fi
+          grep -qE "== [0-9]+ passed, 0 failed ==" test.log || { echo "::error::Test summary missing or failures reported"; exit 1; }
           grep -q "ALL TESTS PASSED" test.log
 
       - name: Generate debug keystore (never committed)

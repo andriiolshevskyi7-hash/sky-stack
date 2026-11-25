@@ -1316,6 +1316,11 @@ func test_hook(t: Node) -> Array:
 	match_rules.countdown = 0.0
 	if not bases.naval or bases.structures.size() != 22:
 		errs.append("ocean carrier fleets not built (%d)" % bases.structures.size())
+	var own_d := Vector2(jet.position.x - bases.centers[0].x, jet.position.z - bases.centers[0].z).length()
+	if own_d < 800.0:
+		errs.append("player spawns on top of own carrier group (%.0f units)" % own_d)
+	if world_map.outside(jet.position) > -WorldMap.BORDER_WARN:
+		errs.append("ocean spawn is near the battle-area edge")
 	jet.position = Vector3(world_map.half + 700.0, 400.0, 0.0)
 	jet.yaw = -PI * 0.5 # flying +X, away from the area
 	await t.get_tree().create_timer(0.3).timeout

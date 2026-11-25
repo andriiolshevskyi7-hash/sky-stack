@@ -18,6 +18,7 @@ const MODE_INFO := [
 	"One on one against a bot.",
 ]
 const SPAWN_DIST := 2400.0
+const NAVAL_SPAWN_AHEAD := 1100.0 # world units ahead of the own carrier group
 
 var mode := CITY
 var team_size := 4
@@ -108,6 +109,10 @@ func spawn_point(team: int) -> Array:
 	var base: Vector3 = Vector3(0, 0, z)
 	if mode == BASE and game != null:
 		base = game.bases.centers[team]
+	if game != null and game.bases.naval:
+		# carrier groups: start ahead of your own fleet (towards the enemy) so
+		# its minimap markers are not hidden under the player arrow
+		base = game.bases.centers[team] + Vector3(0, 0, -NAVAL_SPAWN_AHEAD if team == 0 else NAVAL_SPAWN_AHEAD)
 	var alt: float = game.world_map.spawn_alt() if game != null else 360.0
 	var p := Vector3(base.x + rng.randf_range(-250, 250), alt + rng.randf_range(-60.0, 60.0), base.z + rng.randf_range(-150, 150))
 	return [p, yaw]
