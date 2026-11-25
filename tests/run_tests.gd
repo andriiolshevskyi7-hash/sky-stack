@@ -283,17 +283,22 @@ func test_touch(main: Node) -> void:
 	_drag(jp + Vector2(80, 80), 1)
 	await _frames(2)
 	check(c.stick.x > 0.5 and c.stick.y > 0.5, "drag steers: right turns, down climbs (stick=%s)" % c.stick)
-	# GUN + BOOST with two more fingers
-	_touch(c.button_center("gun"), true, 2)
-	_touch(c.button_center("boost"), true, 3)
+	# FIRE + throttle into the afterburner zone with two more fingers
+	_touch(c.button_center("fire"), true, 2)
+	_touch(c.throttle_point(0.5), true, 3)
+	await _frames(1)
+	_drag(c.throttle_point(1.0), 3)
 	await _frames(2)
-	check(c.fire, "GUN button held")
-	check(c.boost, "BOOST button held")
-	_touch(c.button_center("gun"), false, 2)
-	_touch(c.button_center("boost"), false, 3)
+	check(c.fire, "FIRE button held")
+	check(c.boost and c.throttle > 0.95, "throttle pushed into the AB zone (%.2f)" % c.throttle)
+	_drag(c.throttle_point(0.4), 3)
+	await _frames(1)
+	_touch(c.button_center("fire"), false, 2)
+	_touch(c.throttle_point(0.4), false, 3)
 	_touch(jp, false, 1)
 	await _frames(2)
 	check(not c.fire and not c.boost and c.stick == Vector2.ZERO, "buttons released, stick back to neutral")
+	check(absf(c.throttle - 0.4) < 0.05, "throttle stays where it was left (%.2f)" % c.throttle)
 	# dead zone: a tiny wiggle does nothing; half deflection is gentler than linear
 	_touch(jp, true, 1)
 	await _frames(1)
@@ -303,20 +308,39 @@ func test_touch(main: Node) -> void:
 	_drag(jp + Vector2(c.drag_radius * 0.5, 0), 1)
 	await _frames(2)
 	check(c.stick.x > 0.1 and c.stick.x < 0.45, "response curve: half drag -> gentle turn (%.2f)" % c.stick.x)
-	# pressing GUN while steering does not move the stick centre
+	# pressing FIRE while steering does not move the stick centre
 	var before := c.drag_start
-	_touch(c.button_center("gun"), true, 2)
+	_touch(c.button_center("fire"), true, 2)
 	await _frames(2)
-	check(c.drag_start == before and c.fire and c.stick.x > 0.1, "multitouch: steer + hold GUN")
-	_touch(c.button_center("gun"), false, 2)
+	check(c.drag_start == before and c.fire and c.stick.x > 0.1, "multitouch: steer + hold FIRE")
+	_touch(c.button_center("fire"), false, 2)
+	# double tap with a second finger WHILE steering = barrel roll
+	var free := Vector2(vs.x * 0.7, vs.y * 0.3)
+	for k in 2:
+		_touch(free, true, 4)
+		await _frames(1)
+		_touch(free, false, 4)
+		await _frames(1)
+	check(main.jet.man == Jet.M_ROLL and c.dragging, "double tap rolls while the stick is held")
 	_touch(jp, false, 1)
-	await _frames(2)
-	# quick tap = barrel roll
+	await _frames(40)
+	main.jet.man = Jet.M_NONE
+	main.jet.roll_extra = 0.0
+	# a single tap does nothing now
+	_touch(jp, true, 1)
+	await _frames(1)
+	_touch(jp, false, 1)
+	await _frames(25)
+	check(main.jet.man == Jet.M_NONE, "single tap does not roll")
+	_touch(jp, true, 1)
+	await _frames(1)
+	_touch(jp, false, 1)
+	await _frames(1)
 	_touch(jp, true, 1)
 	await _frames(1)
 	_touch(jp, false, 1)
 	await _frames(2)
-	check(main.jet.man == Jet.M_ROLL, "tap does a barrel roll")
+	check(main.jet.man == Jet.M_ROLL, "double tap does a barrel roll")
 	# LOOP
 	main.jet.man = Jet.M_NONE
 	_touch(c.button_center("loop"), true)
@@ -325,7 +349,7 @@ func test_touch(main: Node) -> void:
 	await _frames(2)
 	check(main.jet.man == Jet.M_LOOP, "LOOP button starts a loop")
 	main.jet.man = Jet.M_NONE
-	main.jet.pitch = 0.0
+	main.jet.set_attitude(main.jet.yaw)
 	# VIEW
 	var mode_before: int = main.cam.mode
 	_touch(c.button_center("view"), true)

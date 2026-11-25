@@ -456,39 +456,133 @@ func _draw_rings(_vs: Vector2) -> void:
 ## Rectangular semi-transparent buttons (like the reference).
 func _draw_touch(c: Controls) -> void:
 	var jet: Jet = game.jet
-	for n in ["loop", "view", "gun", "missile", "boost"]:
+	_draw_throttle(c, jet)
+	for n in ["fire", "missile", "loop"]:
 		var r: Rect2 = c.btn[n]
 		var on: bool = c.pressed.get(n, false)
-		if on:
-			r = r.grow(-3.0 * s) # pressed: shrinks a little and darkens
-		UI.panel(self, r, s, Color(0.03, 0.05, 0.12, 0.7) if on else Color(0.06, 0.1, 0.22, 0.45), Color(0.75, 0.85, 1.0, 0.85 if on else 0.6))
-		var label: String = n.to_upper()
-		var cy := r.position.y + r.size.y * 0.5
+		var ctr := r.get_center().round()
+		var rad := r.size.x * 0.5 * (0.93 if on else 1.0)
+		# round pixel button: dark disc, light ring
+		draw_circle(ctr, rad, Color(0.03, 0.05, 0.12, 0.72) if on else Color(0.06, 0.1, 0.22, 0.45))
+		draw_arc(ctr, rad, 0, TAU, 40, Color(0.75, 0.85, 1.0, 0.9 if on else 0.6), maxf(2.0, roundf(2.0 * s)))
+		var k := rad / 46.0
+		var col := Color(1, 1, 1, 0.95)
 		match n:
-			"gun":
-				text(Vector2(r.position.x, cy - 2 * s), "GUN", 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
-				var am := "RELOAD" if jet.reloading > 0.0 else str(int(jet.ammo))
-				text(Vector2(r.position.x, cy + 22 * s), am, 15, Color(1, 1, 1, 0.8), HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+			"fire":
+				_icon_fire(ctr, k, col)
+				var am := tr("RELOAD") if jet.reloading > 0.0 else str(int(jet.ammo))
+				text(Vector2(ctr.x - rad, ctr.y + rad * 0.86), am, 18, Color(1, 1, 1, 0.9), HORIZONTAL_ALIGNMENT_CENTER, rad * 2.0)
 			"missile":
-				text(Vector2(r.position.x, cy - 2 * s), "MISSILE", 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
-				var mx: int = game.missiles_max()
-				var have: int = game.missiles_left()
-				var bw := 8.0 * s
-				var x0 := r.get_center().x - (mx * (bw + 3 * s)) * 0.5
-				for i in mx:
-					draw_rect(Rect2(Vector2(x0 + i * (bw + 3 * s), cy + 10 * s), Vector2(bw, 12 * s)), Color(1, 1, 1, 0.9 if i < have else 0.25))
-			_:
-				text(Vector2(r.position.x, cy + 7 * s), label, 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+				_icon_missile(ctr - Vector2(0, 6) * k, k, col)
+				text(Vector2(ctr.x - rad, ctr.y + rad * 0.8), "%d" % game.missiles_left(), 24, Color(1, 0.85, 0.4), HORIZONTAL_ALIGNMENT_CENTER, rad * 2.0)
+				if game.missiles.reload > 0.0:
+					var f: float = 1.0 - game.missiles.reload / maxf(0.1, game.missiles.reload_time)
+					draw_arc(ctr, rad - 4.0 * s, -PI * 0.5, -PI * 0.5 + TAU * f, 32, Color(1, 0.7, 0.3, 0.9), maxf(2.0, 3.0 * s))
+			"loop":
+				_icon_loop(ctr, k, col)
 	if c.dragging and c.show_indicator:
-		# subtle floating-stick indicator: faint ring at the origin + dot at the finger
-		draw_arc(c.drag_start, c.drag_radius, 0, TAU, 40, Color(1, 1, 1, 0.14), maxf(1.0, 2.0 * s))
-		draw_circle(c.drag_start, 3.0 * s, Color(1, 1, 1, 0.25))
-		draw_circle(c.drag_start + (c.drag_pos - c.drag_start).limit_length(c.drag_radius), 9.0 * s, Color(1, 1, 1, 0.28))
+		_draw_stick_icon(c)
+
+
+## Control-stick icon under the thumb: base ring where the touch started, a
+## stick leaning towards the finger with a pilot grip on top.
+func _draw_stick_icon(c: Controls) -> void:
+	var base := c.drag_start.round()
+	var d := (c.drag_pos - c.drag_start).limit_length(c.drag_radius)
+	var tip := (base + d * 0.8).round()
+	draw_circle(base, c.drag_radius, Color(0.06, 0.1, 0.22, 0.18))
+	draw_arc(base, c.drag_radius, 0, TAU, 48, Color(0.8, 0.9, 1.0, 0.28), maxf(1.0, roundf(2.0 * s)))
+	# rubber boot
+	draw_circle(base, 18.0 * s, Color(0.12, 0.13, 0.16, 0.85))
+	draw_arc(base, 18.0 * s, 0, TAU, 24, Color(0.5, 0.53, 0.6, 0.85), maxf(1.0, roundf(2.0 * s)))
+	# shaft
+	draw_line(base, tip, Color(0.2, 0.21, 0.25, 0.95), 10.0 * s)
+	draw_line(base, tip, Color(0.42, 0.45, 0.52, 0.95), 4.0 * s)
+	# grip: dark block with the trigger and a hat switch
+	var g := Rect2(tip - Vector2(20, 28) * s, Vector2(40, 44) * s)
+	draw_rect(Rect2(g.position.round(), g.size.round()), Color(0.14, 0.15, 0.18, 0.95))
+	draw_rect(Rect2((g.position + Vector2(3, 3) * s).round(), (Vector2(34, 8) * s).round()), Color(0.34, 0.36, 0.42, 0.95))
+	draw_rect(Rect2((tip + Vector2(5, -18) * s).round(), (Vector2(11, 11) * s).round()), Color("f0580e"))
+	draw_rect(Rect2((tip + Vector2(-15, -19) * s).round(), (Vector2(9, 9) * s).round()), Color(0.6, 0.63, 0.7))
+
+
+## Throttle lever on the right edge: track with notches, orange afterburner
+## band at the top, T-handle at the current setting, % / AB / heat.
+func _draw_throttle(c: Controls, jet: Jet) -> void:
+	var t: Rect2 = c.throttle_rect
+	var on: bool = c.pressed.get("throttle", false)
+	UI.panel(self, t, s, Color(0.03, 0.05, 0.12, 0.65) if on else Color(0.05, 0.08, 0.18, 0.42), Color(0.75, 0.85, 1.0, 0.8 if on else 0.55))
+	var top := c.throttle_point(1.0)
+	var ab0 := c.throttle_point(Controls.AB_ZONE)
+	var bottom := c.throttle_point(0.0)
+	# afterburner zone
+	draw_rect(Rect2(Vector2(t.position.x + 6 * s, top.y), Vector2(t.size.x - 12 * s, ab0.y - top.y)).abs(), Color(1.0, 0.45, 0.1, 0.55))
+	text(Vector2(t.position.x, top.y + 22 * s), "AB", 14, Color(1, 0.9, 0.7), HORIZONTAL_ALIGNMENT_CENTER, t.size.x)
+	# track + notches (idle, 25/50/75%, military)
+	draw_rect(Rect2(Vector2(t.get_center().x - 3 * s, ab0.y), Vector2(6 * s, bottom.y - ab0.y)).abs(), Color(0, 0, 0, 0.55))
+	for v in [0.0, 0.25, 0.5, 0.75, Jet.THR_MIL]:
+		var py: float = c.throttle_point(v * 1.0).y
+		draw_rect(Rect2(Vector2(t.position.x + 10 * s, py), Vector2(t.size.x - 20 * s, maxf(1.0, roundf(2 * s)))), Color(0.8, 0.88, 1.0, 0.5))
+	# handle
+	var h := c.throttle_point(c.throttle)
+	var hcol := Color("f0580e") if jet.boosting else (Color(1, 0.3, 0.25) if jet.overheated and c.throttle >= Controls.AB_ZONE else Color(0.9, 0.93, 1.0))
+	var hr := Rect2(Vector2(t.position.x + 4 * s, h.y - 13 * s), Vector2(t.size.x - 8 * s, 26 * s))
+	draw_rect(Rect2(hr.position.round(), hr.size.round()), hcol)
+	draw_rect(Rect2((hr.position + Vector2(0, hr.size.y - 4 * s)).round(), Vector2(hr.size.x, 4 * s).round()), hcol.darkened(0.35))
+	var label := "AB" if jet.boosting else "%d%%" % int(round(minf(c.throttle, Jet.THR_MIL) / Jet.THR_MIL * 100.0))
+	text(Vector2(t.position.x - 90 * s, h.y + 7 * s), label, 16, hcol, HORIZONTAL_ALIGNMENT_RIGHT, 82 * s)
+	# heat strip along the left edge of the lever
+	var hh := (bottom.y - top.y) * jet.heat / 100.0
+	draw_rect(Rect2(Vector2(t.position.x + 2 * s, bottom.y - hh), Vector2(3 * s, hh)), Color(1, 0.3, 0.2) if jet.overheated else Color(1, 0.65, 0.3, 0.8))
+
+
+## Pixel icons (k = scale, 1 = 92 px button).
+func _icon_fire(c: Vector2, k: float, col: Color) -> void:
+	var w := maxf(2.0, roundf(4.0 * k))
+	draw_arc(c, 20.0 * k, 0, TAU, 28, col, w)
+	for a in [0.0, PI * 0.5, PI, PI * 1.5]:
+		var d := Vector2(cos(a), sin(a))
+		draw_line((c + d * 10.0 * k).round(), (c + d * 30.0 * k).round(), col, w)
+	draw_rect(Rect2((c - Vector2(3, 3) * k).round(), (Vector2(6, 6) * k).round()), Color(1, 0.55, 0.2))
+
+
+func _icon_missile(c: Vector2, k: float, col: Color) -> void:
+	# missile seen from the side, nose up-right
+	var b := Transform2D(-PI * 0.25, c)
+	var body := PackedVector2Array([Vector2(-26, -5), Vector2(16, -5), Vector2(26, 0), Vector2(16, 5), Vector2(-26, 5)])
+	var fin1 := PackedVector2Array([Vector2(-26, -5), Vector2(-18, -5), Vector2(-26, -14)])
+	var fin2 := PackedVector2Array([Vector2(-26, 5), Vector2(-18, 5), Vector2(-26, 14)])
+	for poly in [body, fin1, fin2]:
+		var pts := PackedVector2Array()
+		for p in poly:
+			pts.append((b * (p * k)).round())
+		draw_colored_polygon(pts, col)
+	draw_colored_polygon(PackedVector2Array([(b * (Vector2(-30, -3) * k)).round(), (b * (Vector2(-26, -3) * k)).round(), (b * (Vector2(-26, 3) * k)).round(), (b * (Vector2(-30, 3) * k)).round()]), Color(1, 0.55, 0.2))
+
+
+func _icon_loop(c: Vector2, k: float, col: Color) -> void:
+	var w := maxf(2.0, roundf(4.0 * k))
+	draw_arc(c, 17.0 * k, -PI * 0.15, PI * 1.55, 28, col, w)
+	var tip := c + Vector2(cos(-PI * 0.15), sin(-PI * 0.15)) * 17.0 * k
+	draw_colored_polygon(PackedVector2Array([(tip + Vector2(-9, -2) * k).round(), (tip + Vector2(6, -6) * k).round(), (tip + Vector2(2, 9) * k).round()]), col)
+
+
+func _icon_view(c: Vector2, k: float, col: Color) -> void:
+	# eye
+	var w := maxf(2.0, roundf(3.0 * k))
+	draw_arc(c + Vector2(0, 10) * k, 18.0 * k, -PI * 0.82, -PI * 0.18, 16, col, w)
+	draw_arc(c - Vector2(0, 10) * k, 18.0 * k, PI * 0.18, PI * 0.82, 16, col, w)
+	draw_circle(c, 6.0 * k, col)
 
 
 func _draw_small_buttons(c: Controls) -> void:
 	if c == null:
 		return
+	if game.state == game.State.PLAY and game.touch_buttons_visible():
+		var vr: Rect2 = c.btn["view"]
+		var von: bool = c.pressed.get("view", false)
+		UI.panel(self, vr, s, Color(0.03, 0.05, 0.12, 0.7) if von else Color(0.06, 0.1, 0.22, 0.5), Color(0.75, 0.85, 1.0, 0.6))
+		_icon_view(vr.get_center().round(), vr.size.y / 72.0, Color(1, 1, 1, 0.95))
 	var r: Rect2 = c.btn["pause"]
 	UI.panel(self, r, s, Color(0.06, 0.1, 0.22, 0.5), Color(0.75, 0.85, 1.0, 0.6))
 	var pp := r.get_center().round()

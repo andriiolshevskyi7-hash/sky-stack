@@ -7,10 +7,10 @@ signal closed
 
 const TABS := ["TOUCH", "CONTROLLER", "MOUSE + KEYS"]
 const ROWS := {
-	"TOUCH": [["FLY", ""], ["STICK", "Touch anywhere: that point is the stick centre"], ["TURN", "Drag left or right"], ["CLIMB / DIVE", "Drag down to climb, up to dive"], ["THRUSTERS", "Hold BOOST"], ["CHANGE VIEW", "VIEW"],
+	"TOUCH": [["FLY", ""], ["STICK", "Touch anywhere: that point is the stick centre"], ["TURN", "Drag left or right"], ["CLIMB / DIVE", "Drag down to climb, up to dive"], ["THROTTLE", "Drag the lever on the right edge; the top zone is afterburner"], ["CHANGE VIEW", "VIEW"],
 		["ENERGY", "Climbing and hard turns cost speed, diving gains it"], ["STALL", "Too slow with the stick back: the nose drops"], ["AFTERBURNER", "Hold BOOST. It overheats, then needs to cool"],
-		["TRICKS", ""], ["ROLL", "Tap"], ["LOOP", "LOOP (flown for you), or pull fully back"], ["CRASH", "Hitting anything is fatal: the pilot ejects"],
-		["FIGHT", ""], ["CANNON", "Hold GUN"], ["LOCK ON", "Keep an enemy ahead until the box turns red"], ["MISSILE", "MISSILE"], ["DODGE A MISSILE", "Roll as the two rings meet"], ["COUNTER", "Missile straight after a dodge fires three, free"], ["AMMO", "300 rounds, 6 missiles. Run out and it takes 5 s to reload"]],
+		["TRICKS", ""], ["ROLL", "Double tap anywhere free"], ["LOOP", "LOOP (flown for you), or pull fully back"], ["CRASH", "Hitting anything is fatal: the pilot ejects"],
+		["FIGHT", ""], ["CANNON", "Hold FIRE"], ["LOCK ON", "Keep an enemy ahead until the box turns red"], ["MISSILE", "MISSILE"], ["DODGE A MISSILE", "Roll as the two rings meet"], ["COUNTER", "Missile straight after a dodge fires three, free"], ["AMMO", "300 rounds, 6 missiles. Run out and it takes 5 s to reload"]],
 	"CONTROLLER": [["FLY", ""], ["TURN / PITCH", "Left stick"], ["THRUSTERS", "Right trigger"], ["CANNON", "A / Cross"], ["MISSILE", "B / Circle"], ["ROLL", "X / Square"], ["LOOP", "Y / Triangle"], ["VIEW", "Back / Select"], ["PAUSE", "Start"]],
 	"MOUSE + KEYS": [["FLY", ""], ["TURN", "A / D or arrows"], ["CLIMB / DIVE", "S climbs, W dives"], ["THRUSTERS", "Shift"], ["CANNON", "Space, J or mouse button"], ["MISSILE", "M"], ["ROLL", "R"], ["LOOP", "L"], ["VIEW", "C or V"], ["PAUSE / INTEL", "Esc / I"]],
 }

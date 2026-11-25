@@ -413,3 +413,8 @@ FLIGHT FEEL (DEBUG),FLIGHT FEEL (DEBUG),ВІДЧУТТЯ ПОЛЬОТУ (НАЛ�
 Turn assist (0 = simulator),Turn assist (0 = simulator),Допомога у віражах (0 = симулятор)
 G tolerance (grey-out starts),G tolerance (grey-out starts),Витривалість до перевантажень (G)
 Speed bleed in turns (1 = simulator),Speed bleed in turns (1 = simulator),Втрата швидкості у віражах (1 = симулятор)
+Vibration,Vibration,Вібрація
+THROTTLE,THROTTLE,ТЯГА
+Drag the lever on the right edge; the top zone is afterburner,Drag the lever on the right edge; the top zone is afterburner,Тягніть важіль біля правого краю; верхня зона — форсаж
+Double tap anywhere free,Double tap anywhere free,Подвійний дотик у вільному місці
+Hold FIRE,Hold FIRE,Тримайте ВОГОНЬ

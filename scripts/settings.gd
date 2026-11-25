@@ -54,6 +54,7 @@ const SCHEMA := [
 	["EFFECTS", "shake", "Explosion: camera shake", "f", 1.0, 0.0, 2.0, 0.1],
 	["HELPERS", "touch_buttons", "Touch buttons", "c", 0, ["auto", "on", "off"]],
 	["HELPERS", "stick_indicator", "Floating stick indicator", "b", true],
+	["HELPERS", "vibration", "Vibration", "b", true],
 	["HELPERS", "helper_buttons", "Intel button", "b", true],
 	["HELPERS", "debug", "Debug overlay (FPS, draw calls)", "b", false],
 	["LANGUAGE", "lang", "Language", "c", 0, ["auto", "English", "Українська"]],

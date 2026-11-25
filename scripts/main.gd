@@ -262,7 +262,9 @@ func _ready() -> void:
 			score += 25
 			show_banner(n, "", 0.8))
 	jet.died.connect(_on_jet_died)
-	jet.damaged.connect(func(a: float) -> void: flash = minf(0.8, flash + 0.25 + a * 0.02))
+	jet.damaged.connect(func(a: float) -> void:
+		flash = minf(0.8, flash + 0.25 + a * 0.02)
+		Controls.haptic(35 + int(minf(a, 30.0) * 2.0), 0.7))
 
 	world_map.apply(int(Save.settings.get("map", 0)), true)
 	apply_settings("")
@@ -287,6 +289,8 @@ func _parse_args() -> void:
 			_bot_probe.call_deferred()
 		elif a == "--crash":
 			_crash_test = true
+		elif a == "--stickdemo":
+			_stick_demo = true
 		elif a == "--fight":
 			_fight_test = true
 		elif a.begins_with("--team="):
@@ -374,7 +378,9 @@ func _bot_probe() -> void:
 
 var _fight_test := false
 var _crash_test := false
+var _stick_demo := false
 var _stall_warn := 0.0
+var _was_locked := false
 
 
 ## --fight (screenshots only): sit behind an enemy and shoot, so combat
@@ -396,6 +402,12 @@ func _shot_tick() -> void:
 	if _shot_path == "":
 		return
 	_fight_tick()
+	if _stick_demo:
+		var vs := get_viewport().get_visible_rect().size
+		controls.dragging = true
+		controls.drag_start = Vector2(vs.x * 0.2, vs.y * 0.62)
+		controls.drag_pos = controls.drag_start + Vector2(0.55, 0.35) * controls.drag_radius
+		controls.pressed["fire"] = true
 	if _crash_test and _frame == 30 and state == State.PLAY:
 		jet.position.y = 320.0
 		jet.crash()
@@ -441,6 +453,10 @@ func _process(delta: float) -> void:
 		if jet.alive and jet.stalling and _stall_warn <= 0.0:
 			_stall_warn = 0.35
 			Sfx.play("warn", -4.0, 0.8)
+			Controls.haptic(25, 0.4)
+		if missiles.locked and not _was_locked:
+			Controls.haptic(20, 0.3)
+		_was_locked = missiles.locked
 		# flares go out by themselves just before an enemy missile hits
 		if jet.alive and jet.flares > 0 and jet.flares_active <= 0.0 and missiles.incoming_t < 0.45:
 			jet.flares -= 1
@@ -1085,6 +1101,7 @@ const EJECT_TIME := 2.6
 ## the wreck falls separately, burning, and explodes on impact.
 func _on_ejected(at: Vector3) -> void:
 	_clear_pilot()
+	Controls.haptic(260, 1.0)
 	var up: Vector3 = jet.orient.y if jet.orient.y.y > -0.2 else Vector3.UP
 	var fwd: Vector3 = jet.forward3()
 	var vel: Vector3 = fwd * jet.speed
@@ -1169,10 +1186,9 @@ func _update_pilot(delta: float) -> void:
 		return
 	_eject_t += delta
 	var t := _eject_t
-	var seat: SpriteStack = _ej["seat"]
 	var chute: Node3D = _ej["chute"]
 	# --- canopy: spins away and falls
-	var canopy: Node3D = _ej.get("canopy")
+	var canopy: Variant = _ej.get("canopy")
 	if canopy != null and is_instance_valid(canopy):
 		_ej["canopy_v"] += Vector3(0, -30.0, 0) * delta
 		_ej["canopy_v"] *= 1.0 - 0.6 * delta
@@ -1183,7 +1199,7 @@ func _update_pilot(delta: float) -> void:
 			canopy.queue_free()
 			_ej.erase("canopy")
 	# --- wreck: burning, tumbling, falls and explodes on impact
-	var wreck: Node3D = _ej.get("wreck")
+	var wreck: Variant = _ej.get("wreck")
 	if wreck != null and is_instance_valid(wreck):
 		_ej["wreck_v"] += Vector3(0, -G_WRECK, 0) * delta
 		_ej["wreck_v"] *= 1.0 - 0.25 * delta
@@ -1204,11 +1220,14 @@ func _update_pilot(delta: float) -> void:
 		fx.spawn(pilot.position + back * 2.5, back * 25.0 + Vector3(randf_range(-4, 4), 0, randf_range(-4, 4)), 0.25, 2.6, Fx.FIRE)
 		fx.spawn(pilot.position + back * 3.5, back * 8.0, randf_range(0.8, 1.4), randf_range(1.6, 2.6), Fx.SMOKE)
 		_pilot_vel = _pilot_vel.lerp(Vector3(_pilot_vel.x * 0.5, 15.0, _pilot_vel.z * 0.5), 1.0 - exp(-delta * 2.0))
-		seat.basis = Basis(Vector3.RIGHT, sin(t * 6.0) * 0.15)
+		var seat0: Node3D = _ej["seat"]
+		seat0.basis = Basis(Vector3.RIGHT, sin(t * 6.0) * 0.15)
 	else:
 		if not _ej["seat_sep"]:
 			# seat separation: the seat tumbles away, the pilot hangs free
 			_ej["seat_sep"] = true
+			var seat: Node3D = _ej["seat"]
+			_ej.erase("seat")
 			var sp_world := seat.global_transform
 			pilot.remove_child(seat)
 			world.add_child(seat)
@@ -1228,7 +1247,7 @@ func _update_pilot(delta: float) -> void:
 		# swinging under the canopy
 		pilot.basis = Basis.from_euler(Vector3(sin(t * 1.7) * 0.18 * k, t * 0.25, cos(t * 1.3) * 0.12 * k))
 		_pilot_vel = _pilot_vel.lerp(Vector3(4.0, -6.0, 2.0), 1.0 - exp(-delta * 2.2 * maxf(k, 0.2)))
-		var sn: Node3D = _ej.get("seat_node")
+		var sn: Variant = _ej.get("seat_node")
 		if sn != null and is_instance_valid(sn):
 			_ej["seat_v"] += Vector3(0, -30.0, 0) * delta
 			sn.position += _ej["seat_v"] * delta

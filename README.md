@@ -119,18 +119,20 @@ first if Android refuses to update it (`adb uninstall com.skystack.game`).
 
 | Touch | Keyboard / mouse (desktop testing) |
 | --- | --- |
-| Floating invisible stick: touch anywhere (outside buttons), that point is the centre; drag left/right turns, **down climbs, up dives** | A/D or arrows turn, S/Down climbs, W/Up dives |
-| Quick tap: barrel roll | R |
-| **LOOP** (flown for you) | L |
-| **VIEW**: overhead → chase → cockpit | C or V |
-| **GUN** (hold; ammo counter, 5 s reload when empty) | Space, J or mouse button |
-| **MISSILE** (count bar) | M |
-| **BOOST** (hold) | Shift |
-| **INTEL** (all controls), **II** pause | I, Esc / P |
+| **Left side**: invisible floating stick, shown as a control-stick icon while held. Drag left/right to **bank and turn**, down to **pull**, up to push | A/D or arrows bank, S/Down pull, W/Up push |
+| **Right edge**: THROTTLE lever. Drag it up or down and it stays where you leave it; the orange top zone is the **afterburner** (it overheats, then has to cool) | T / G throttle, Shift afterburner, mouse wheel |
+| **Double tap** anywhere free: barrel roll (also with a second finger while steering) | R |
+| FIRE icon (hold; ammo counter, reload when empty) | Space, J or mouse button |
+| MISSILE icon (count, reload ring) | M |
+| LOOP icon (flown for you; it can stall at the top if you start slow) | L |
+| Eye icon: overhead → chase → cockpit; **II** pause; INTEL lists all controls | C or V, Esc / P, I |
 
-Tricks: full climb + BOOST held = back flip; full dive + BOOST held (needs
-height) = front flip; holding a dive into the ground with BOOST off = eject
-(parachute + close-up on the pilot, then a new jet).
+Vibration on hits, lock-on, stall and crash (Settings → HELPERS).
+
+Flight: real energy model (climbing and hard turns cost speed, diving gains
+it, stall when slow and pulling hard, grey-out above about 8 G) with a light
+flight assist. Hitting anything is fatal and the pilot ejects (2.6 s
+cinematic, tap to skip).
 
 Fight: fighters dogfight (they get on your tail and break away when you get on
 theirs), interceptors are fast, drones come in swarms, bombers are tanky and a
