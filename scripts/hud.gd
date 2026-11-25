@@ -19,7 +19,7 @@ const C_PANEL := Color(0.04, 0.05, 0.1, 0.55)
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	font = ThemeDB.fallback_font
+	font = UI.base_font()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
@@ -29,10 +29,8 @@ func _process(delta: float) -> void:
 
 
 func text(pos: Vector2, t: String, size: float, col: Color = C_TEXT, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, width: float = -1.0) -> void:
-	var fs := int(size * s)
 	t = tr(t)
-	draw_string_outline(font, pos, t, align, width, fs, maxi(2, int(4 * s)), C_SHADOW)
-	draw_string(font, pos, t, align, width, fs, col)
+	UI.text(self, pos, t, size * s, col, align, width, maxi(2, int(round(3 * s))))
 
 
 func ctext(center_x: float, y: float, t: String, size: float, col: Color = C_TEXT) -> void:
@@ -98,7 +96,7 @@ func _draw() -> void:
 
 
 func _panel(r: Rect2) -> void:
-	draw_rect(r, Color(0.08, 0.14, 0.3, 0.72))
+	UI.panel(self, r, s, Color(0.05, 0.08, 0.18, 0.7), UI.BORDER_DIM)
 
 
 func _draw_status(vs: Vector2) -> void:
@@ -109,8 +107,8 @@ func _draw_status(vs: Vector2) -> void:
 	# KILLS + HULL panel (reference style)
 	# widths follow the translated labels (Ukrainian words are longer)
 	var kills_txt: String = tr("KILLS %02d") % game.kills
-	var kw := font.get_string_size(kills_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * s)).x
-	var hw := font.get_string_size(tr("HULL"), HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * s)).x
+	var kw := UI.width(kills_txt, 20 * s)
+	var hw := UI.width(tr("HULL"), 20 * s)
 	var hx := x + 16 * s + maxf(kw, 110 * s) + 24 * s
 	var bx := hx + hw + 12 * s
 	var pw := bx - x + 7 * 18 * s + 10 * s
@@ -241,9 +239,8 @@ func _draw_toasts(vs: Vector2) -> void:
 		var x := vs.x - (w + 20 * s) * (1.0 - pow(1.0 - k, 3.0))
 		var tc: Color = Missions.TIER_COLORS[t[1]]
 		var r := Rect2(Vector2(x, y), Vector2(w, h))
-		draw_rect(r, Color(0.05, 0.08, 0.16, 0.92))
-		draw_rect(r, tc, false, maxf(1.0, 2.0 * s))
-		draw_rect(Rect2(r.position, Vector2(8 * s, h)), tc)
+		UI.panel(self, r, s, Color(0.05, 0.08, 0.16, 0.92), tc)
+		draw_rect(Rect2(r.position.round(), Vector2(8 * s, h).round()), tc)
 		text(Vector2(x + 22 * s, y + 26 * s), tr("ACHIEVEMENT") + "  -  " + tr(Missions.TIER_NAMES[t[1]]), 15, tc)
 		text(Vector2(x + 22 * s, y + 52 * s), tr(t[0]), 22, Color.WHITE)
 		y += h + 10 * s
@@ -299,9 +296,12 @@ func _draw_team_bar(vs: Vector2, mr: Match) -> void:
 
 ## Heading-up minimap: planes (blue/red), bases, your jet in the middle.
 func _draw_minimap(c: Vector2, r: float) -> void:
-	draw_circle(c, r + 3 * s, Color(0, 0, 0, 0.45))
-	draw_circle(c, r, Color(0.08, 0.16, 0.28, 0.75))
-	draw_arc(c, r, 0, TAU, 40, Color(0.6, 0.8, 1.0, 0.6), maxf(1.0, 2.0 * s))
+	# pixel frame around the round radar scope
+	UI.panel(self, Rect2(c - Vector2(r + 6 * s, r + 6 * s), Vector2(r + 6 * s, r + 6 * s) * 2.0), s, Color(0.05, 0.08, 0.18, 0.6), UI.BORDER_DIM)
+	draw_circle(c, r, Color(0.08, 0.16, 0.28, 0.8))
+	for k in 4:
+		var a := TAU * k / 4.0
+		draw_line(c + Vector2(cos(a), sin(a)) * (r - 6 * s), c + Vector2(cos(a), sin(a)) * r, Color(0.6, 0.8, 1.0, 0.5), maxf(1.0, roundf(s)))
 	var jet: Jet = game.jet
 	var rng_w := 4200.0
 	var cy := cos(jet.yaw)
@@ -419,8 +419,9 @@ func _draw_touch(c: Controls) -> void:
 	for n in ["loop", "view", "gun", "missile", "boost"]:
 		var r: Rect2 = c.btn[n]
 		var on: bool = c.pressed.get(n, false)
-		draw_rect(r, Color(0.08, 0.13, 0.28, 0.62 if on else 0.42))
-		draw_rect(r, Color(0.75, 0.85, 1.0, 0.55), false, maxf(1.0, 2.0 * s))
+		if on:
+			r = r.grow(-3.0 * s) # pressed: shrinks a little and darkens
+		UI.panel(self, r, s, Color(0.03, 0.05, 0.12, 0.7) if on else Color(0.06, 0.1, 0.22, 0.45), Color(0.75, 0.85, 1.0, 0.85 if on else 0.6))
 		var label: String = n.to_upper()
 		var cy := r.position.y + r.size.y * 0.5
 		match n:
@@ -449,11 +450,10 @@ func _draw_small_buttons(c: Controls) -> void:
 	if c == null:
 		return
 	var r: Rect2 = c.btn["pause"]
-	draw_rect(r, Color(0.08, 0.13, 0.28, 0.5))
-	draw_rect(r, Color(0.75, 0.85, 1.0, 0.5), false, maxf(1.0, 2.0 * s))
-	var pp := r.get_center()
-	draw_rect(Rect2(pp + Vector2(-8, -11) * s, Vector2(5, 22) * s), C_TEXT)
-	draw_rect(Rect2(pp + Vector2(3, -11) * s, Vector2(5, 22) * s), C_TEXT)
+	UI.panel(self, r, s, Color(0.06, 0.1, 0.22, 0.5), Color(0.75, 0.85, 1.0, 0.6))
+	var pp := r.get_center().round()
+	draw_rect(Rect2(pp + (Vector2(-8, -11) * s).round(), (Vector2(5, 22) * s).round()), C_TEXT)
+	draw_rect(Rect2(pp + (Vector2(3, -11) * s).round(), (Vector2(5, 22) * s).round()), C_TEXT)
 
 
 func _draw_debug(vs: Vector2) -> void:

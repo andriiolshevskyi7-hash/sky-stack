@@ -780,6 +780,7 @@ func _finish_profile(res: Dictionary, mode_key: String) -> void:
 	res["rank_text"] = tr("%s   %d / %d XP") % [tr(Profile.RANKS[rk[0]]), rk[1], rk[2]] if rk[2] > 0 else tr(Profile.RANKS[rk[0]])
 	if Profile.rank() > rank0:
 		res["rank_text"] = tr("RANK UP!") + "   " + res["rank_text"]
+		res["rank_up"] = true
 
 
 

@@ -82,6 +82,21 @@ to claim, a plane you can buy, a skin that unlocked).
 Everything is saved locally (`user://profile.json`) through the Profile
 storage interface.
 
+## UI style
+
+Every UI element is pixel art: menus, lobby, results, hangar, skins,
+missions, profile, settings, pause, INTEL and the battle HUD.
+
+* **Font:** Tiny5, a pixel font with Latin and Ukrainian Cyrillic, under the
+  SIL Open Font License (see `assets/fonts/`). It is drawn with no
+  antialiasing, at sizes that are multiples of 8 px, with wide letter
+  spacing.
+* **Panels and buttons:** dark navy with a 1–2 px light border and sharp
+  corners. A selected item is a white fill with dark text. Primary actions
+  are orange (#F0580E).
+* **Animation:** buttons bounce when pressed, screens slide in, the coin
+  counter ticks, and RANK UP flashes on the results screen.
+
 ## Download & install the APK (from GitHub Actions)
 
 Every push to any branch builds a debug APK.

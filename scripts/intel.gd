@@ -25,7 +25,7 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	font = ThemeDB.fallback_font
+	font = UI.base_font()
 	visible = false
 
 
@@ -44,7 +44,7 @@ func _layout() -> void:
 	_tabs.clear()
 	var x := _panel.position.x + 20 * s
 	for t in TABS:
-		var tw: float = font.get_string_size(tr(t), HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * s)).x + 30.0 * s
+		var tw: float = UI.width(tr(t), 18 * s) + 30.0 * s
 		_tabs.append(Rect2(Vector2(x, _panel.position.y + 16 * s), Vector2(tw, 38 * s)))
 		x += tw + 10 * s
 
@@ -57,11 +57,10 @@ func _process(_d: float) -> void:
 func _draw() -> void:
 	_layout()
 	draw_rect(Rect2(Vector2.ZERO, get_viewport_rect().size), Color(0, 0, 0, 0.35))
-	draw_rect(_panel, Color(0.07, 0.12, 0.25, 0.94))
+	UI.panel(self, _panel, s, Color(0.05, 0.08, 0.18, 0.94), UI.BORDER)
 	for i in TABS.size():
 		var r := _tabs[i]
-		draw_rect(r, Color(1, 1, 1, 0.95) if i == tab else Color(0.2, 0.28, 0.45, 0.9))
-		_t(Vector2(r.position.x, r.position.y + 26 * s), TABS[i], 18, Color(0.05, 0.08, 0.18) if i == tab else Color.WHITE, r.size.x)
+		UI.button(self, r, tr(TABS[i]), s, UI.SELECTED if i == tab else UI.NORMAL, 18, "intel_tab_%d" % i)
 	_t(Vector2(_panel.end.x - 140 * s, _panel.position.y + 42 * s), "PAUSED", 18, Color(1, 1, 1, 0.6), 120 * s)
 	var y := _panel.position.y + 90 * s
 	var lh := 28.0 * s
@@ -79,7 +78,7 @@ func _draw() -> void:
 
 
 func _t(p: Vector2, txt: String, size: float, col: Color, w: float) -> void:
-	draw_string(font, p, tr(txt), HORIZONTAL_ALIGNMENT_CENTER if w > 0 else HORIZONTAL_ALIGNMENT_LEFT, w, int(size * s), col)
+	UI.text(self, p, tr(txt), size * s, col, HORIZONTAL_ALIGNMENT_CENTER if w > 0 else HORIZONTAL_ALIGNMENT_LEFT, w)
 
 
 func _input(event: InputEvent) -> void:
@@ -99,6 +98,7 @@ func _input(event: InputEvent) -> void:
 	_layout()
 	for i in _tabs.size():
 		if _tabs[i].has_point(p):
+			UI.press("intel_tab_%d" % i)
 			tab = i
 			return
 	if not _panel.has_point(p):

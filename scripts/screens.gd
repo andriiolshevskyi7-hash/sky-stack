@@ -32,7 +32,7 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	font = ThemeDB.fallback_font
+	font = UI.base_font()
 	visible = false
 
 
@@ -63,14 +63,33 @@ func _process(delta: float) -> void:
 
 
 func _txt(p: Vector2, t: String, size: float, col: Color, w: float = -1.0, al: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	draw_string(font, p, tr(t), al, w, int(size * s), col)
+	UI.text(self, p, tr(t), size * s, col, al, w)
+
+
+## Button style from the colour the caller asked for (orange = primary).
+static func _kind(col: Color) -> int:
+	if col.r > 0.85 and col.g < 0.5:
+		return UI.PRIMARY
+	if col.g > col.r + 0.2 and col.g > col.b:
+		return UI.GOOD
+	if absf(col.r - col.g) < 0.05 and absf(col.g - col.b) < 0.1 and col.r < 0.35:
+		return UI.DISABLED
+	return UI.NORMAL
 
 
 func _button(r: Rect2, label: String, cb: Callable, col: Color = Color(0.94, 0.35, 0.06)) -> void:
 	_buttons.append([r, label, cb, col])
-	draw_rect(r, col)
-	draw_rect(Rect2(r.position, Vector2(r.size.x, 3 * s)), col.lightened(0.25))
-	_txt(Vector2(r.position.x, r.get_center().y + 9 * s), label, 24, Color.WHITE, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	UI.button(self, r, tr(label), s, _kind(col), 24, label)
+
+
+## Card / row background in the pixel style; selected = white border.
+func _card(r: Rect2, selected: bool = false) -> void:
+	UI.panel(self, r, s, UI.NAVY_HI if selected else UI.NAVY, Color.WHITE if selected else UI.BORDER_DIM)
+
+
+var _xf := Transform2D.IDENTITY
+var _page_t := 0.0
+var _last_page := ""
 
 
 func _draw() -> void:
@@ -78,6 +97,13 @@ func _draw() -> void:
 	s = clampf(vs.y / 720.0, 0.6, 3.0)
 	_buttons.clear()
 	draw_rect(Rect2(Vector2.ZERO, vs), BG)
+	# panel slide-in when a page opens
+	if page != _last_page:
+		_last_page = page
+		_page_t = 0.0
+	_page_t += get_process_delta_time()
+	_xf = Transform2D(0.0, Vector2(0, UI.slide(_page_t, s)))
+	draw_set_transform_matrix(_xf)
 	match page:
 		"lobby":
 			_draw_lobby(vs)
@@ -94,12 +120,12 @@ func _draw() -> void:
 
 
 func _team_list(x: float, y: float, w: float, team: Array, col: Color, title: String) -> void:
-	draw_rect(Rect2(Vector2(x, y), Vector2(w, 46 * s)), col.darkened(0.45))
+	UI.panel(self, Rect2(Vector2(x, y), Vector2(w, 46 * s)), s, col.darkened(0.6), col)
 	_txt(Vector2(x + 18 * s, y + 31 * s), title, 22, col)
 	y += 54 * s
 	var rh := minf(46.0 * s, (get_viewport_rect().size.y - y - 120 * s) / maxf(1.0, team.size()))
 	for e in team:
-		draw_rect(Rect2(Vector2(x, y), Vector2(w, rh - 6 * s)), PANEL)
+		_card(Rect2(Vector2(x, y), Vector2(w, rh - 6 * s)))
 		var nm: String = e["name"]
 		var is_me: bool = e.get("player", false)
 		_txt(Vector2(x + 18 * s, y + rh * 0.62), nm + (("  " + tr("(YOU)")) if is_me else ""), 19, GOLD if is_me else Color.WHITE)
@@ -162,7 +188,14 @@ func _draw_results(vs: Vector2) -> void:
 	draw_rect(bar, Color(0, 0, 0, 0.5))
 	var f: float = lerpf(info.get("rank_from", 0.0), info.get("rank_to", 0.0), k)
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(fmod(f, 1.0) if info.get("rank_to", 0.0) - info.get("rank_from", 0.0) < 1.0 else f - floorf(f), 0.0, 1.0), bar.size.y)), BLUE)
-	_txt(Vector2(0, y + 60 * s), info.get("rank_text", ""), 18, Color(0.8, 0.85, 0.95), vs.x, HORIZONTAL_ALIGNMENT_CENTER)
+	var rank_col := Color(0.8, 0.85, 0.95)
+	if info.get("rank_up", false) and _t > 1.2:
+		# rank-up flash: white burst, then the line pulses gold
+		var ft := _t - 1.2
+		if ft < 0.6:
+			draw_rect(Rect2(Vector2(0, -50 * s), vs + Vector2(0, 100 * s)), Color(1, 1, 1, 0.45 * (1.0 - ft / 0.6)))
+		rank_col = UI.GOLD.lerp(Color.WHITE, 0.5 + 0.5 * sin(_t * 6.0))
+	_txt(Vector2(0, y + 60 * s), info.get("rank_text", ""), 18, rank_col, vs.x, HORIZONTAL_ALIGNMENT_CENTER)
 	var achs: Array = info.get("achievements", [])
 	if not achs.is_empty():
 		var names: Array = []
@@ -196,7 +229,7 @@ func _draw_stack(sheet: String, variant: int, c: Vector2, sc: float, yaw: float)
 	var xa := Vector2(cos(yaw), sin(yaw) * squash) * sc
 	var ya := Vector2(-sin(yaw), cos(yaw) * squash) * sc
 	# soft shadow
-	draw_set_transform_matrix(Transform2D(xa, ya, c + Vector2(0, sc * 6.0)))
+	draw_set_transform_matrix(_xf * Transform2D(xa, ya, c + Vector2(0, sc * 6.0)))
 	draw_circle(Vector2.ZERO, sh.w * 0.45, Color(0, 0, 0, 0.25))
 	var lift := sc * 0.95
 	for i in sh.n:
@@ -204,9 +237,9 @@ func _draw_stack(sheet: String, variant: int, c: Vector2, sc: float, yaw: float)
 		var copies := maxi(1, int(ceil(lift)))
 		for k in copies:
 			var o := c - Vector2(0, i * lift + k * lift / copies)
-			draw_set_transform_matrix(Transform2D(xa, ya, o))
+			draw_set_transform_matrix(_xf * Transform2D(xa, ya, o))
 			draw_texture_rect_region(tex, Rect2(-sh.w * 0.5, -sh.h * 0.5, sh.w, sh.h), src)
-	draw_set_transform_matrix(Transform2D.IDENTITY)
+	draw_set_transform_matrix(_xf)
 
 
 ## Top-down icon (all slices on top of each other).
@@ -227,7 +260,7 @@ func _header(vs: Vector2, title: String) -> void:
 	draw_rect(bar, Color(0, 0, 0, 0.5))
 	if rk[2] > 0:
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * float(rk[1]) / rk[2], bar.size.y)), rc)
-	_txt(Vector2(vs.x - 270 * s, 56 * s), tr("COINS %d") % Profile.coins(), 24, GOLD, 240 * s, HORIZONTAL_ALIGNMENT_RIGHT)
+	_txt(Vector2(vs.x - 270 * s, 56 * s), tr("COINS %d") % UI.coins_shown(Profile.coins()), 24, GOLD, 240 * s, HORIZONTAL_ALIGNMENT_RIGHT)
 
 
 func _bar_row(x: float, y: float, w: float, label: String, f: float, col: Color) -> void:
@@ -253,11 +286,8 @@ func _draw_hangar(vs: Vector2) -> void:
 		var r := Rect2(Vector2(24 * s + int(p["branch"]) * (cw + gap), top + 24 * s + (int(p["tier"]) - 1) * (ch + gap)), Vector2(cw, ch))
 		var owned := Profile.owns(pi)
 		var lock := "" if owned else Profile.plane_lock_reason(pi)
-		var col := PANEL.lightened(0.12) if pi == sel else PANEL
-		_buttons.append([r, "plane_%d" % pi, func() -> void: sel = pi, col])
-		draw_rect(r, col)
-		if pi == sel:
-			draw_rect(r, GOLD, false, maxf(1.0, 2.0 * s))
+		_buttons.append([r, "plane_%d" % pi, func() -> void: sel = pi, PANEL])
+		_card(r, pi == sel)
 		_draw_icon(pi, Profile.skin_of(pi) if owned else 0, r.position + Vector2(r.size.y * 0.42, r.size.y * 0.5), r.size.y / 52.0)
 		var tx := r.position.x + r.size.y * 0.84
 		var tww := r.end.x - tx - 6 * s
@@ -297,7 +327,7 @@ func _draw_hangar(vs: Vector2) -> void:
 		var key: String = Planes.UPGRADES[i]
 		var y := top + 34 * s + i * 50 * s
 		var row := Rect2(Vector2(ux, y), Vector2(uw, 44 * s))
-		draw_rect(row, PANEL)
+		_card(row)
 		_txt(Vector2(ux + 10 * s, y + 18 * s), Planes.UPGRADE_NAMES[i], 14, Color.WHITE)
 		var level: int = int(lv.get(key, 0))
 		for k in Planes.MAX_LEVEL:
@@ -336,17 +366,12 @@ func _draw_hangar(vs: Vector2) -> void:
 
 ## Text that shrinks to fit a width (long translations).
 func _fit_txt(p: Vector2, t: String, size: float, col: Color, w: float) -> void:
-	var fs := size
-	while fs > 8.0 and font.get_string_size(tr(t), HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * s)).x > w:
-		fs -= 1.0
-	_txt(p, t, fs, col)
+	UI.text(self, p, tr(t), UI.fit(tr(t), size * s, w), col)
 
 
 func _small_button(r: Rect2, label: String, cb: Callable, col: Color) -> void:
 	_buttons.append([r, label, cb, col])
-	draw_rect(r, col)
-	draw_rect(Rect2(r.position, Vector2(r.size.x, 2 * s)), col.lightened(0.25))
-	_txt(Vector2(r.position.x, r.get_center().y + 7 * s), label, 17, Color.WHITE, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	UI.button(self, r, tr(label), s, _kind(col), 17, label)
 
 
 func _draw_skins(vs: Vector2) -> void:
@@ -359,11 +384,8 @@ func _draw_skins(vs: Vector2) -> void:
 	var ch := minf(74.0 * s, (vs.y - top - 110 * s) / 4.0)
 	for i in Planes.RED_SKIN:
 		var r := Rect2(Vector2(24 * s + (i % 2) * (cw + 10 * s), top + 24 * s + (i / 2) * (ch + 8 * s)), Vector2(cw, ch))
-		var col := PANEL.lightened(0.12) if i == skin_sel else PANEL
-		_buttons.append([r, "skin_%d" % i, func() -> void: skin_sel = i, col])
-		draw_rect(r, col)
-		if i == skin_sel:
-			draw_rect(r, GOLD, false, maxf(1.0, 2.0 * s))
+		_buttons.append([r, "skin_%d" % i, func() -> void: skin_sel = i, PANEL])
+		_card(r, i == skin_sel)
 		_draw_icon(sel, i, r.position + Vector2(r.size.y * 0.5, r.size.y * 0.5), r.size.y / 46.0)
 		var tx := r.position.x + r.size.y
 		_txt(Vector2(tx, r.position.y + 28 * s), Planes.SKINS[i]["name"], 16, Color.WHITE)
@@ -421,13 +443,11 @@ var mtab := 0 # 0 missions, 1 achievements
 
 func _tab(r: Rect2, label: String, on: bool, cb: Callable) -> void:
 	_buttons.append([r, label, cb, Color.WHITE])
-	draw_rect(r, Color(0.95, 0.95, 0.97) if on else PANEL)
-	draw_rect(r, Color(0.6, 0.75, 1.0, 0.7), false, maxf(1.0, 2.0 * s))
-	_txt(Vector2(r.position.x, r.get_center().y + 7 * s), label, 18, Color(0.05, 0.08, 0.18) if on else Color.WHITE, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	UI.button(self, r, tr(label), s, UI.SELECTED if on else UI.NORMAL, 18, label)
 
 
 func _mission_row(r: Rect2, e: Dictionary, d: Array, weekly_list: bool, idx: int) -> void:
-	draw_rect(r, PANEL)
+	_card(r)
 	var goal := float(d[3])
 	var p := minf(float(e["p"]), goal)
 	var done := p >= goal
@@ -488,7 +508,7 @@ func _draw_missions(vs: Vector2) -> void:
 		for i in n:
 			var a: Array = Missions.ACHIEVEMENTS[i]
 			var r := Rect2(Vector2(x + (i / rows) * (cw + 12 * s), y + (i % rows) * rh), Vector2(cw, rh - 4 * s))
-			draw_rect(r, PANEL)
+			_card(r)
 			var reached := Profile.ach_reached(a[0])
 			var claimed := Profile.ach_claimed(a[0])
 			for t in 3:
@@ -518,14 +538,15 @@ func _draw_profile(vs: Vector2) -> void:
 	var x := 40.0 * s
 	# name + edit
 	var nr := Rect2(Vector2(x, top), Vector2(vs.x * 0.42, 56 * s))
-	draw_rect(nr, PANEL)
+	_card(nr)
 	if not _name_edit.visible:
 		_txt(Vector2(nr.position.x + 16 * s, nr.position.y + 38 * s), Profile.player_name(), 28, Color.WHITE)
 	var er := Rect2(Vector2(nr.end.x + 10 * s, top), Vector2(120 * s, 56 * s))
 	_small_button(er, "EDIT", func() -> void:
 		_name_edit.position = nr.position + Vector2(8 * s, 8 * s)
 		_name_edit.size = nr.size - Vector2(16 * s, 16 * s)
-		_name_edit.add_theme_font_size_override("font_size", int(24 * s))
+		_name_edit.add_theme_font_override("font", UI.font(UI.px(24 * s)))
+		_name_edit.add_theme_font_size_override("font_size", UI.px(24 * s))
 		_name_edit.text = Profile.player_name()
 		_name_edit.visible = true
 		_name_edit.grab_focus()
@@ -564,7 +585,7 @@ func _draw_profile(vs: Vector2) -> void:
 	var y := top + 80 * s
 	var rw := vs.x * 0.42 + 130 * s
 	for r in rows:
-		draw_rect(Rect2(Vector2(x, y), Vector2(rw, 38 * s)), PANEL)
+		_card(Rect2(Vector2(x, y), Vector2(rw, 38 * s)))
 		_txt(Vector2(x + 16 * s, y + 26 * s), r[0], 17, Color(0.75, 0.8, 0.9))
 		_txt(Vector2(x, y + 26 * s), r[1], 19, Color.WHITE, rw - 16 * s, HORIZONTAL_ALIGNMENT_RIGHT)
 		y += 42 * s
@@ -596,8 +617,9 @@ func _input(event: InputEvent) -> void:
 	if p == Vector2.INF:
 		return
 	for b in _buttons:
-		if b[0].has_point(p):
+		if _xf.basis_xform(Vector2.ONE) != Vector2.ZERO and b[0].has_point(p - _xf.origin):
 			Sfx.play("ui")
+			UI.press(b[1])
 			var cb: Callable = b[2]
 			if cb.is_valid():
 				cb.call_deferred()

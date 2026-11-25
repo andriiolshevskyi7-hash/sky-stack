@@ -17,11 +17,12 @@ var dim := 0.55
 var tap_anywhere := false
 ## Main menu: rank badge + coins bar across the top.
 var status_bar := false
+var _open_t := 0.0
 
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	font = ThemeDB.fallback_font
+	font = UI.base_font()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
@@ -30,6 +31,7 @@ func _ready() -> void:
 func open(p_title: String, p_sub: String, p_items: Array, p_lines: Array = [], p_dim: float = 0.55, p_tap_anywhere: bool = false, p_status: bool = false) -> void:
 	tap_anywhere = p_tap_anywhere
 	status_bar = p_status
+	_open_t = 0.0
 	title = p_title
 	subtitle = p_sub
 	items = p_items
@@ -57,44 +59,51 @@ func _str(v: Variant) -> String:
 func _draw() -> void:
 	var vs := get_viewport_rect().size
 	s = clampf(vs.y / 720.0, 0.6, 3.0)
+	_open_t += get_process_delta_time()
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.02, 0.03, 0.08, dim))
-	var y := vs.y * 0.2
-	_ctext(vs.x * 0.5, y, title, 64, Color(1, 0.9, 0.45))
+	var off := UI.slide(_open_t, s)
+	var y := vs.y * 0.2 + off
+	_ctext(vs.x * 0.5, y, title, 56, UI.GOLD)
 	y += 46 * s
 	if subtitle != "":
-		_ctext(vs.x * 0.5, y, subtitle, 22, Color(1, 1, 1, 0.85))
+		_ctext(vs.x * 0.5, y, subtitle, 24, UI.TEXT)
 		y += 34 * s
 	for l in lines:
-		_ctext(vs.x * 0.5, y, _str(l), 20, Color(0.8, 0.95, 1.0))
+		_ctext(vs.x * 0.5, y, _str(l), 16, UI.MUTED)
 		y += 28 * s
 	layout()
 	for i in _rects.size():
 		var r := _rects[i]
-		draw_rect(r, Color(0.1, 0.14, 0.28, 0.9) if i != _hover else Color(0.2, 0.3, 0.55, 0.95))
-		draw_rect(r, Color(0.6, 0.8, 1.0, 0.8), false, 2.0 * s)
-		_ctext(r.get_center().x, r.position.y + r.size.y * 0.68, _str(items[i][0]), 24, Color.WHITE)
+		r.position.y += off
+		var label := tr(_str(items[i][0]))
+		var kind := UI.SELECTED if i == _hover else (UI.PRIMARY if i == 0 else UI.NORMAL)
+		UI.button(self, r, label, s, kind, 24, "menu_%d" % i)
 		if items[i].size() > 2 and (items[i][2] as Callable).call():
-			draw_circle(r.position + Vector2(r.size.x - 14 * s, 14 * s), 8 * s, Color(0.95, 0.2, 0.15))
+			_badge(r.position + Vector2(r.size.x - 10 * s, 10 * s))
 	if status_bar:
 		_draw_status(vs)
+
+
+## Red "something to claim" dot, pixel style.
+func _badge(c: Vector2) -> void:
+	var r := Rect2((c - Vector2(7, 7) * s).round(), (Vector2(14, 14) * s).round())
+	draw_rect(r, Color(0.95, 0.2, 0.15))
+	UI.frame(self, r, s, Color(1, 0.75, 0.7))
 
 
 func _draw_status(vs: Vector2) -> void:
 	var rk := Profile.rank_of(Profile.xp())
 	var rc: Color = Profile.rank_color(rk[0])
-	var r := Rect2(Vector2(20 * s, 16 * s), Vector2(300 * s, 50 * s))
-	draw_rect(r, Color(0.05, 0.08, 0.16, 0.85))
-	draw_rect(r, rc, false, 2.0 * s)
-	var fs := int(18 * s)
-	draw_string(font, r.position + Vector2(14 * s, 24 * s), tr(Profile.RANKS[rk[0]]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, rc)
-	var bar := Rect2(r.position + Vector2(14 * s, 32 * s), Vector2(r.size.x - 28 * s, 7 * s))
+	var r := Rect2(Vector2(20 * s, 16 * s), Vector2(300 * s, 52 * s))
+	UI.panel(self, r, s, UI.NAVY, rc)
+	UI.text(self, r.position + Vector2(14 * s, 26 * s), tr(Profile.RANKS[rk[0]]), 16 * s, rc)
+	var bar := Rect2((r.position + Vector2(14 * s, 34 * s)).round(), Vector2(r.size.x - 28 * s, 8 * s).round())
 	draw_rect(bar, Color(0, 0, 0, 0.5))
 	if rk[2] > 0:
-		draw_rect(Rect2(bar.position, Vector2(bar.size.x * float(rk[1]) / rk[2], bar.size.y)), rc)
-	var cr := Rect2(Vector2(vs.x - 300 * s, 16 * s), Vector2(280 * s, 50 * s))
-	draw_rect(cr, Color(0.05, 0.08, 0.16, 0.85))
-	draw_rect(cr, Color(1, 0.85, 0.35), false, 2.0 * s)
-	draw_string(font, cr.position + Vector2(0, 34 * s), tr("COINS %d") % Profile.coins(), HORIZONTAL_ALIGNMENT_CENTER, cr.size.x, int(22 * s), Color(1, 0.85, 0.35))
+		draw_rect(Rect2(bar.position, Vector2(roundf(bar.size.x * float(rk[1]) / rk[2]), bar.size.y)), rc)
+	var cr := Rect2(Vector2(vs.x - 300 * s, 16 * s), Vector2(280 * s, 52 * s))
+	UI.panel(self, cr, s, UI.NAVY, UI.GOLD)
+	UI.text(self, cr.position + Vector2(0, 34 * s), tr("COINS %d") % UI.coins_shown(Profile.coins()), 24 * s, UI.GOLD, HORIZONTAL_ALIGNMENT_CENTER, cr.size.x)
 
 
 ## Button rects in screen pixels. Computed independently of drawing so input
@@ -130,10 +139,8 @@ func button_center(i: int) -> Vector2:
 
 func _ctext(cx: float, y: float, t: String, size: float, col: Color) -> void:
 	t = tr(t)
-	var fs := int(size * s)
-	var w := get_viewport_rect().size.x
-	draw_string_outline(font, Vector2(cx - w * 0.5, y), t, HORIZONTAL_ALIGNMENT_CENTER, w, fs, maxi(2, int(5 * s)), Color(0, 0, 0, 0.8))
-	draw_string(font, Vector2(cx - w * 0.5, y), t, HORIZONTAL_ALIGNMENT_CENTER, w, fs, col)
+	var w0 := get_viewport_rect().size.x
+	UI.text(self, Vector2(cx - w0 * 0.5, y), t, UI.fit(t, size * s, w0 - 40 * s), col, HORIZONTAL_ALIGNMENT_CENTER, w0, maxi(2, int(4 * s)))
 
 
 ## Handles touch DIRECTLY (InputEventScreenTouch) so it never depends on
@@ -159,6 +166,7 @@ func _input(event: InputEvent) -> void:
 		i = 0
 	if i >= 0:
 		Sfx.play("ui")
+		UI.press("menu_%d" % i)
 		var cb: Callable = items[i][1]
 		cb.call_deferred()
 		queue_redraw()

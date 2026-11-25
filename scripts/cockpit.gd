@@ -59,7 +59,7 @@ var _font: Font
 
 
 func _ready() -> void:
-	_font = ThemeDB.fallback_font
+	_font = UI.font(8)
 
 
 ## Pixel digits; sc = size of one glyph pixel.
@@ -77,7 +77,7 @@ func ptext(pos: Vector2, t: String, col: Color, center: bool = false, sc: int = 
 
 
 ## Words (translated; Cyrillic needs a real font) - small and centred.
-func wtext(pos: Vector2, key: String, col: Color, fs: int = 9) -> void:
+func wtext(pos: Vector2, key: String, col: Color, fs: int = 8) -> void:
 	var t := tr(key)
 	var w := _font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	draw_string(_font, Vector2(floorf(pos.x - w * 0.5), floorf(pos.y)), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)

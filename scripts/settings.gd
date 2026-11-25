@@ -76,6 +76,7 @@ var _drag_scroll := false
 var _drag_y := 0.0
 var _press_p := Vector2.ZERO
 var _content_h := 0.0
+var _open_t := 0.0
 var _reset := Rect2()
 var _confirm := false # reset confirmation dialog open
 var _yes := Rect2()
@@ -88,12 +89,13 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	font = ThemeDB.fallback_font
+	font = UI.base_font()
 	visible = false
 
 
 func open() -> void:
 	scroll = 0.0
+	_open_t = 0.0
 	_confirm = false
 	visible = true
 
@@ -139,65 +141,68 @@ func _val(key: String) -> Variant:
 func _draw() -> void:
 	_layout()
 	var pr := _panel_rect()
+	_open_t += get_process_delta_time()
 	draw_rect(Rect2(Vector2.ZERO, get_viewport_rect().size), Color(0, 0, 0, 0.45))
-	draw_rect(pr, Color(0.13, 0.13, 0.15, 0.97))
+	draw_set_transform(Vector2(0, UI.slide(_open_t, s)))
+	UI.panel(self, pr, s, Color(0.04, 0.06, 0.14, 0.95), UI.BORDER)
 	var clip_top := pr.position.y + 64 * s
 	var clip_bot := pr.end.y - 8 * s
 	for row in _rows:
 		var r: Rect2 = row[0]
-		if r.end.y < clip_top or r.position.y > clip_bot:
+		if r.position.y < clip_top or r.end.y > clip_bot:
 			continue
 		if row[1] is String:
-			_t(Vector2(r.position.x + 6 * s, r.position.y + 28 * s), "v  " + tr(row[2]), 17, Color(0.75, 0.75, 0.8))
+			_t(Vector2(r.position.x + 6 * s, r.position.y + 28 * s), "> " + tr(row[2]), 16, UI.MUTED)
 			continue
 		var sc: Array = row[1]
-		draw_rect(r, Color(0.2, 0.2, 0.23))
-		draw_rect(r, Color(0.3, 0.3, 0.34), false, 1.0)
+		UI.panel(self, r, s, UI.NAVY, UI.BORDER_DIM)
 		var key: String = sc[1]
-		var ty := r.position.y + r.size.y * 0.64
+		var ty := r.position.y + r.size.y * 0.5 + 6 * s
 		match sc[3]:
 			"f":
 				var v: float = _val(key)
 				var fr := (v - float(sc[5])) / (float(sc[6]) - float(sc[5]))
-				draw_rect(Rect2(r.position + Vector2(3, 3) * s, Vector2((r.size.x - 6 * s) * clampf(fr, 0.0, 1.0), r.size.y - 6 * s)), Color(0.3, 0.3, 0.34))
-				_t(Vector2(r.position.x + 16 * s, ty), sc[2], 18, Color.WHITE)
+				# pixel slider: track + fill + square knob on the right half
+				var tr0 := Rect2(Vector2(r.position.x + r.size.x * 0.5, r.get_center().y - 4 * s), Vector2(r.size.x * 0.36, 8 * s))
+				tr0 = Rect2(tr0.position.round(), tr0.size.round())
+				draw_rect(tr0, Color(0, 0, 0, 0.5))
+				draw_rect(Rect2(tr0.position, Vector2(roundf(tr0.size.x * clampf(fr, 0.0, 1.0)), tr0.size.y)), UI.BLUE)
+				var kx := roundf(tr0.position.x + tr0.size.x * clampf(fr, 0.0, 1.0) - 6 * s)
+				var kn := Rect2(Vector2(kx, r.get_center().y - 10 * s), Vector2(12 * s, 20 * s))
+				UI.panel(self, kn, s, UI.WHITE_FILL, Color.WHITE)
+				_tfit(Vector2(r.position.x + 16 * s, ty), sc[2], 18, UI.TEXT, r.size.x * 0.47)
 				var txt := str(int(v)) if float(sc[7]) >= 1.0 else ("%.2f" % v).rstrip("0").rstrip(".")
-				_t(Vector2(r.end.x - 120 * s, ty), txt, 18, Color.WHITE, 104 * s, HORIZONTAL_ALIGNMENT_RIGHT)
+				_t(Vector2(r.end.x - 110 * s, ty), txt, 18, UI.TEXT, 96 * s, HORIZONTAL_ALIGNMENT_RIGHT)
 			"b":
-				_t(Vector2(r.position.x + 16 * s, ty), sc[2], 18, Color.WHITE)
+				_tfit(Vector2(r.position.x + 16 * s, ty), sc[2], 18, UI.TEXT, r.size.x - 110 * s)
 				var on: bool = _val(key)
-				var tr := Rect2(Vector2(r.end.x - 70 * s, r.position.y + r.size.y * 0.5 - 12 * s), Vector2(48 * s, 24 * s))
-				draw_rect(tr, Color("f0580e") if on else Color(0.35, 0.35, 0.38))
-				var kx := tr.end.x - 22 * s if on else tr.position.x + 2 * s
-				draw_rect(Rect2(Vector2(kx, tr.position.y + 2 * s), Vector2(20 * s, 20 * s)), Color.WHITE)
+				var tg := Rect2(Vector2(r.end.x - 76 * s, r.get_center().y - 13 * s), Vector2(56 * s, 26 * s))
+				UI.panel(self, tg, s, UI.ORANGE if on else Color(0.12, 0.14, 0.22), UI.ORANGE_HI if on else UI.BORDER_DIM)
+				var kx := tg.end.x - 24 * s if on else tg.position.x + 4 * s
+				draw_rect(Rect2(Vector2(kx, tg.position.y + 4 * s).round(), Vector2(20 * s, 18 * s).round()), Color.WHITE)
 			"c":
-				_t(Vector2(r.position.x + 16 * s, ty), sc[2], 18, Color.WHITE)
 				var opts: Array = sc[5]
+				var ow := 118.0 * s
+				_tfit(Vector2(r.position.x + 16 * s, ty), sc[2], 18, UI.TEXT, r.size.x - ow * opts.size() - 30 * s)
 				var cur: int = int(_val(key))
-				var ow := 110.0 * s
 				for i in opts.size():
 					var orr := _opt_rect(r, opts.size(), i, ow)
-					if i == cur:
-						draw_rect(orr, Color(0.33, 0.33, 0.37))
-					_t(Vector2(orr.position.x, ty), opts[i], 18, Color.WHITE if i == cur else Color(0.6, 0.6, 0.65), orr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+					UI.button(self, orr, tr(opts[i]), s, UI.SELECTED if i == cur else UI.NORMAL, 16, "opt_%s_%d" % [key, i])
 	# header (drawn last so it covers scrolled rows)
-	draw_rect(Rect2(pr.position, Vector2(pr.size.x, 64 * s)), Color(0.13, 0.13, 0.15))
-	_t(Vector2(pr.position.x + 24 * s, pr.position.y + 44 * s), "SETTINGS", 26, Color.WHITE)
-	draw_rect(_done, Color("f0580e"))
-	_t(Vector2(_done.position.x, _done.position.y + 31 * s), tr("DONE"), 20, Color.WHITE, _done.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-	draw_rect(_reset, Color(0.28, 0.28, 0.32))
-	_t(Vector2(_reset.position.x, _reset.position.y + 31 * s), tr("RESET TO DEFAULTS"), 17, Color.WHITE, _reset.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	draw_rect(Rect2(pr.position + Vector2(2, 2) * s, Vector2(pr.size.x - 4 * s, 62 * s)), Color(0.04, 0.06, 0.14))
+	_t(Vector2(pr.position.x + 24 * s, pr.position.y + 44 * s), "SETTINGS", 32, UI.TEXT)
+	UI.button(self, _done, tr("DONE"), s, UI.PRIMARY, 20, "DONE")
+	UI.button(self, _reset, tr("RESET TO DEFAULTS"), s, UI.NORMAL, 16, "RESET TO DEFAULTS")
 	if _confirm:
 		draw_rect(pr, Color(0, 0, 0, 0.6))
 		var cc := pr.get_center()
-		var box := Rect2(Vector2(cc.x - 260 * s, cc.y - 90 * s), Vector2(520 * s, 196 * s))
-		draw_rect(box, Color(0.17, 0.17, 0.2))
-		draw_rect(box, Color(0.4, 0.4, 0.45), false, 2.0)
-		_t(Vector2(box.position.x, box.position.y + 50 * s), tr("Reset all settings to their default values?"), 19, Color.WHITE, box.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-		draw_rect(_yes, Color("f0580e"))
-		_t(Vector2(_yes.position.x, _yes.position.y + 36 * s), tr("RESET"), 20, Color.WHITE, _yes.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-		draw_rect(_no, Color(0.3, 0.3, 0.34))
-		_t(Vector2(_no.position.x, _no.position.y + 36 * s), tr("CANCEL"), 20, Color.WHITE, _no.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		var box := Rect2(Vector2(cc.x - 280 * s, cc.y - 90 * s), Vector2(560 * s, 196 * s))
+		UI.panel(self, box, s, UI.NAVY_HI, UI.BORDER)
+		var q := tr("Reset all settings to their default values?")
+		UI.text(self, Vector2(box.position.x, box.position.y + 56 * s), q, UI.fit(q, 20 * s, box.size.x - 30 * s), UI.TEXT, HORIZONTAL_ALIGNMENT_CENTER, box.size.x)
+		UI.button(self, _yes, tr("RESET"), s, UI.PRIMARY, 20, "RESET")
+		UI.button(self, _no, tr("CANCEL"), s, UI.NORMAL, 20, "CANCEL")
+	draw_set_transform(Vector2.ZERO)
 
 
 func _opt_rect(r: Rect2, n: int, i: int, ow: float) -> Rect2:
@@ -205,7 +210,13 @@ func _opt_rect(r: Rect2, n: int, i: int, ow: float) -> Rect2:
 
 
 func _t(p: Vector2, txt: String, size: float, col: Color, w: float = -1.0, al: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	draw_string(font, p, tr(txt), al, w, int(size * s), col)
+	UI.text(self, p, tr(txt), size * s, col, al, w)
+
+
+## Label that shrinks (on the pixel grid) to fit a width.
+func _tfit(p: Vector2, txt: String, size: float, col: Color, w: float) -> void:
+	var t := tr(txt)
+	UI.text(self, p, t, UI.fit(t, size * s, w), col)
 
 
 func set_value(key: String, v: Variant) -> void:
@@ -216,7 +227,8 @@ func set_value(key: String, v: Variant) -> void:
 func _slider_at(i: int, x: float) -> void:
 	var r: Rect2 = _rows[i][0]
 	var sc: Array = _rows[i][1]
-	var fr := clampf((x - r.position.x) / r.size.x, 0.0, 1.0)
+	# the track covers 50%..86% of the row (see _draw)
+	var fr := clampf((x - (r.position.x + r.size.x * 0.5)) / (r.size.x * 0.36), 0.0, 1.0)
 	var v := lerpf(float(sc[5]), float(sc[6]), fr)
 	v = snappedf(v, float(sc[7]))
 	set_value(sc[1], v)
@@ -247,15 +259,18 @@ func _press(p: Vector2) -> void:
 	_press_p = p
 	if _confirm:
 		if _yes.has_point(p):
+			UI.press("RESET")
 			_confirm = false
 			reset_to_defaults()
 		elif _no.has_point(p):
 			_confirm = false
 		return
 	if _reset.has_point(p):
+		UI.press("RESET TO DEFAULTS")
 		_confirm = true
 		return
 	if _done.has_point(p):
+		UI.press("DONE")
 		visible = false
 		Save.store()
 		closed.emit()
@@ -282,7 +297,7 @@ func _release(p: Vector2) -> void:
 				"c":
 					var opts: Array = sc[5]
 					for k in opts.size():
-						if _opt_rect(_rows[i][0], opts.size(), k, 110.0 * s).has_point(p):
+						if _opt_rect(_rows[i][0], opts.size(), k, 118.0 * s).has_point(p):
 							set_value(sc[1], k)
 				"f":
 					_slider_at(i, p.x)
