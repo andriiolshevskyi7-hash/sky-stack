@@ -167,6 +167,19 @@ func think(delta: float) -> void:
 		_:
 			_fly_engage(delta)
 	_avoid_ground()
+	_keep_in_bounds()
+
+
+## Stay inside the battle area like a human would (turn back at the edge).
+func _keep_in_bounds() -> void:
+	var h: float = fleet.bound_half
+	if h <= 0.0:
+		return
+	var p := plane.position
+	if maxf(absf(p.x), absf(p.z)) > h - 450.0:
+		var y := plane.in_stick.y
+		_steer_to(Vector3(p.x * 0.3, p.y, p.z * 0.3), 1.5)
+		plane.in_stick.y = maxf(y, plane.in_stick.y) if p.y < 200.0 else plane.in_stick.y
 
 
 func _decide() -> void:
@@ -332,4 +345,8 @@ func _avoid_ground() -> void:
 	if fleet.chunks != null:
 		var ahead := plane.position + plane.forward() * 160.0
 		if fleet.chunks.nearest_tall(ahead.x, ahead.z, y - 10.0, 60.0) < 30.0:
+			plane.in_stick.y = 1.0
+		# mountains / mesas further ahead: start climbing early
+		var far := plane.position + plane.forward() * 340.0
+		if CityGen.feature != CityGen.FEAT_NONE and CityGen.relief_hw(far.x, far.z) > y - 40.0:
 			plane.in_stick.y = 1.0

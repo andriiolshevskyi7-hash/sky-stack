@@ -48,6 +48,8 @@ var boosting := false
 var alive := true
 var invuln := 0.0
 var autopilot := false
+## Battle-area boundary: the plane is turned back towards the centre.
+var steer_home := false
 var man := M_NONE
 var man_t := 0.0
 var man_dur := 1.0
@@ -258,6 +260,9 @@ func step(delta: float) -> void:
 			pitch_in = stick.y * (-1.0 if invert_pitch else 1.0)
 			if absf(pitch_in) < 0.12:
 				pitch_in = 0.0
+			if steer_home:
+				var home := atan2(position.x, position.z) # heading towards the origin
+				target_rate = clampf(wrapf(home - yaw, -PI, PI) * 3.0, -turn_max, turn_max)
 		turn_rate = lerpf(turn_rate, target_rate, 1.0 - exp(-delta * 4.5))
 		pitch = lerpf(pitch, pitch_in * MAX_PITCH, 1.0 - exp(-delta * 2.6))
 		# back flip: full climb + boost held; front flip: full dive + boost held

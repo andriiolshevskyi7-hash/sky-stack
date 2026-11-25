@@ -82,6 +82,27 @@ const G_SLABS := 15
 enum { PK_TOWER, PK_MID, PK_HOUSE, PK_FLAT }
 
 const LAMP_GLOW := Color(1.0, 0.8, 0.5, 0.55)
+const NEON := [Color(1.0, 0.25, 0.8, 0.8), Color(0.2, 0.9, 1.0, 0.8), Color(0.7, 0.35, 1.0, 0.8), Color(1.0, 0.55, 0.15, 0.7)]
+
+# ---- per-map generation parameters (set on the main thread by WorldMap
+# before chunks are regenerated; read-only for worker threads)
+const F_ROCK := 16 # layered sandstone
+const F_GRANITE := 17
+const F_HULL := 18
+const F_NEON := 19
+const R_SAND := 8
+const R_SNOW := 9
+const R_DECK := 10
+const R_ROCK := 11
+const FEAT_NONE := 0
+const FEAT_MESA := 1
+const FEAT_PEAK := 2
+static var feature := FEAT_NONE
+static var city_scale := 1.0
+static var town_scale := 1.0
+static var neon := false
+## Places relief must keep clear of (virtual units): [Vector2 centre, radius].
+static var clear_spots: Array = []
 
 
 class Build:
@@ -186,7 +207,10 @@ static func forest_v(x: float, z: float) -> float:
 
 ## 0..1 "how much city": main city around the origin plus small towns.
 static func city_val(x: float, z: float) -> float:
-	var v := exp(-(x * x + z * z) / (1150.0 * 1150.0))
+	if city_scale <= 0.0 and town_scale <= 0.0:
+		return 0.0
+	var cr := 1150.0 * maxf(0.05, city_scale)
+	var v := exp(-(x * x + z * z) / (cr * cr)) if city_scale > 0.0 else 0.0
 	var g := 2600.0
 	var gx := floori(x / g)
 	var gz := floori(z / g)
@@ -194,7 +218,7 @@ static func city_val(x: float, z: float) -> float:
 		for dx in range(-1, 2):
 			var cx := gx + dx
 			var cz := gz + dz
-			if (absi(cx) <= 1 and absi(cz) <= 1) or hashf(cx, cz, 41) > 0.55:
+			if (absi(cx) <= 1 and absi(cz) <= 1) or hashf(cx, cz, 41) > 0.55 * town_scale:
 				continue
 			var tx := (cx + 0.25 + hashf(cx, cz, 42) * 0.5) * g
 			var tz := (cz + 0.25 + hashf(cx, cz, 43) * 0.5) * g
@@ -210,6 +234,8 @@ static func is_urban(bx: int, bz: int) -> bool:
 	var czw := (bz + 0.5) * BLOCK
 	var cv := city_val(cxw, czw)
 	if cv < 0.22:
+		return false
+	if feature != FEAT_NONE and relief_h(bx, bz) > 0.0:
 		return false
 	# whole block incl. surrounding streets must be solid land
 	var x0 := bx * BLOCK - HALF_ST
@@ -271,6 +297,49 @@ static func building_id(bx: int, bz: int, i: int) -> int:
 	return ((bx + 1000000) * 2000000 + (bz + 1000000)) * 32 + i
 
 
+## Relief ids are negative so bullets never "destroy" a mountain.
+static func relief_id(bx: int, bz: int) -> int:
+	return -building_id(bx, bz, 31) - 1
+
+
+## Height (virtual units) of the mesa / mountain terrace on block (bx, bz),
+## 0 = flat. Pure function, used by chunk generation and gameplay queries.
+static func relief_h(bx: int, bz: int) -> float:
+	if feature == FEAT_NONE:
+		return 0.0
+	var cx := (bx + 0.5) * BLOCK
+	var cz := (bz + 0.5) * BLOCK
+	if island_h(cx, cz) < SAND_TOP + 0.02:
+		return 0.0
+	var clear := 1.0
+	for c in clear_spots:
+		var d: float = Vector2(cx, cz).distance_to(c[0])
+		clear = minf(clear, clampf((d - c[1]) / 260.0, 0.0, 1.0))
+	if clear <= 0.0:
+		return 0.0
+	var coast := clampf((island_h(cx, cz) - SAND_TOP) / 0.06, 0.0, 1.0)
+	if feature == FEAT_MESA:
+		# plateaus cut by a network of winding canyons
+		var n := vnoise(bx * 0.11, bz * 0.11, 77) * 0.65 + vnoise(bx * 0.27, bz * 0.27, 78) * 0.35
+		var canyon := absf(vnoise(bx * 0.075, bz * 0.075, 79) - 0.5)
+		if canyon < 0.07 or n < 0.42:
+			return 0.0
+		var lvl := floorf((n - 0.42) / 0.07) # stepped tops
+		return minf(40.0 + lvl * 22.0 + hashf(bx, bz, 80) * 6.0, 150.0) * minf(1.0, clear * 1.6) * (0.5 + 0.5 * coast)
+	# peaks: ridged noise, terraced in 18-unit steps, up to ~280 (560 world)
+	var r := 1.0 - absf(vnoise(bx * 0.09, bz * 0.09, 81) * 2.0 - 1.0)
+	var m := r * r * 0.75 + vnoise(bx * 0.23, bz * 0.23, 82) * 0.25
+	if m < 0.38:
+		return 0.0
+	var h := (m - 0.38) / 0.62 * 300.0 * clear * coast
+	return floorf(h / 18.0) * 18.0 if h >= 18.0 else 0.0
+
+
+## World-space relief height under a world point (gameplay: spawns, AI).
+static func relief_hw(x: float, z: float) -> float:
+	return relief_h(floori(x / WBLOCK), floori(z / WBLOCK)) * S
+
+
 # ------------------------------------------------------------------ chunk generation
 
 static func generate_chunk(cx: int, cz: int, sheets: Dictionary, destroyed: Dictionary) -> Dictionary:
@@ -304,10 +373,14 @@ static func generate_chunk(cx: int, cz: int, sheets: Dictionary, destroyed: Dict
 # ------------------------------------------------------------------ helpers
 
 static func _facade_uv(style: int) -> Vector2:
+	if style >= 16:
+		return Vector2(float((style % 8) * 32) / 256.0, 80.0 / 128.0)
 	return Vector2(float((style % 8) * 32) / 256.0, float((style / 8) * 24) / 128.0)
 
 
 static func _roof_uv(style: int) -> Vector2:
+	if style >= 8:
+		return Vector2(float((style - 8) * 32) / 256.0, 104.0 / 128.0)
 	return Vector2(float(style * 32) / 256.0, 48.0 / 128.0)
 
 
@@ -473,7 +546,10 @@ static func _lamps(cb: Build, lx0: float, lz0: float, lx1: float, lz1: float) ->
 		for s in spots:
 			var yaw := atan2(-s[3], s[2])
 			cb.p.add_stack(lamp, 0, Vector3(s[0], 0.2, s[1]), yaw, 1.0, Color.WHITE, 2)
-			_glow(cb, s[0] + s[2] * 3.5, s[1] + s[3] * 3.5, 15.0, LAMP_GLOW)
+			var gc: Color = LAMP_GLOW
+			if neon:
+				gc = NEON[hashi(int(s[0]), int(s[1]), 9) % NEON.size()]
+			_glow(cb, s[0] + s[2] * 3.5, s[1] + s[3] * 3.5, 18.0 if neon else 15.0, gc)
 
 
 static func _trees(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, avoid: Array[Rect2], pine_bias: float = 0.25) -> void:
@@ -502,6 +578,10 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hashi(bx, bz, 11)
 	if not urban:
+		var rh := relief_h(bx, bz)
+		if rh > 0.0:
+			_relief(cb, rng, bx, bz, rh)
+			return
 		_nature(cb, rng, bx, bz, d)
 		return
 	# streets around the block (adjacent urban blocks overlap seamlessly)
@@ -527,6 +607,8 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 					continue
 				var h := 22.0 + pow(rng.randf(), 2.2) * 135.0 * clampf((cv - 0.8) * 4.0, 0.4, 1.0)
 				var styles := [F_GLASS, F_GLASS_DARK, F_OFFICE, F_LUX, F_MODERN, F_GREEN]
+				if neon:
+					styles = [F_NEON, F_GLASS_DARK, F_NEON, F_LUX, F_GLASS_DARK, F_NEON]
 				var roofs := [R_TAR, R_GRAVEL, R_METAL]
 				_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y, h,
 					styles[rng.randi() % styles.size()], roofs[rng.randi() % roofs.size()], PK_TOWER)
@@ -537,6 +619,8 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 				var r: Rect2 = parts[i].grow(-rng.randf_range(2.0, 5.0))
 				var h := 14.0 + rng.randf() * 36.0
 				var styles := [F_OFFICE, F_BRICK, F_BEIGE, F_MODERN, F_WHITE]
+				if neon:
+					styles = [F_NEON, F_BRICK, F_GLASS_DARK, F_MODERN, F_NEON]
 				var roofs := [R_GRAVEL, R_TAR, R_GREEN]
 				_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y, h,
 					styles[rng.randi() % styles.size()], roofs[rng.randi() % roofs.size()], PK_MID)
@@ -597,9 +681,56 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 			_stadium(cb, inner)
 
 
+## Mesa / mountain terrace: one collapsed stack per block. Edges facing lower
+## ground are pulled in a little so cliffs look ragged; ids are negative
+## (indestructible) but collide like buildings.
+static func _relief(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, h: float) -> void:
+	var x0 := bx * BLOCK
+	var z0 := bz * BLOCK
+	var x1 := x0 + BLOCK
+	var z1 := z0 + BLOCK
+	var mesa := feature == FEAT_MESA
+	if relief_h(bx - 1, bz) < h:
+		x0 += rng.randf_range(2.0, 10.0) if mesa or relief_h(bx - 1, bz) <= 0.0 else 0.0
+	if relief_h(bx + 1, bz) < h:
+		x1 -= rng.randf_range(2.0, 10.0) if mesa or relief_h(bx + 1, bz) <= 0.0 else 0.0
+	if relief_h(bx, bz - 1) < h:
+		z0 += rng.randf_range(2.0, 10.0) if mesa or relief_h(bx, bz - 1) <= 0.0 else 0.0
+	if relief_h(bx, bz + 1) < h:
+		z1 -= rng.randf_range(2.0, 10.0) if mesa or relief_h(bx, bz + 1) <= 0.0 else 0.0
+	var style := F_ROCK if mesa else F_GRANITE
+	var roof := R_SAND if mesa else (R_SNOW if h >= 72.0 else R_ROCK)
+	cb.g.ground_rect(bx * BLOCK, bz * BLOCK, (bx + 1) * BLOCK, (bz + 1) * BLOCK, 0.1, G_DIRT if mesa else G_SAND,
+		Color(0.95, 0.7, 0.5) if mesa else Color(0.85, 0.88, 0.92))
+	_box(cb, x0, z0, x1, z1, 0.0, h, style, roof, hashf(bx, bz, 83), true)
+	_reg(cb, relief_id(bx, bz), x0, z0, x1, z1, h)
+	if mesa and h > 70.0 and rng.randf() < 0.35:
+		# a butte on top of the plateau
+		var w := rng.randf_range(14.0, 24.0)
+		var cx := rng.randf_range(x0 + w, x1 - w)
+		var cz := rng.randf_range(z0 + w, z1 - w)
+		var th := h + rng.randf_range(14.0, 30.0)
+		_box(cb, cx - w * 0.5, cz - w * 0.5, cx + w * 0.5, cz + w * 0.5, h, th, style, roof, hashf(bx, bz, 84), false)
+		_reg(cb, relief_id(bx, bz) - 1000000000, cx - w * 0.5, cz - w * 0.5, cx + w * 0.5, cz + w * 0.5, th)
+	elif not mesa and h < 72.0:
+		# pines on the lower terraces
+		for i in rng.randi_range(2, 5):
+			var p := Vector3(rng.randf_range(x0 + 4, x1 - 4), h + 0.2, rng.randf_range(z0 + 4, z1 - 4))
+			_stack(cb, "tree", 1, p, rng.randf() * TAU, rng.randf_range(0.9, 1.3))
+
+
 ## Forests, meadows and beaches outside the city (no roads).
 static func _nature(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, d: int) -> void:
 	if d == D_WATER:
+		return
+	if feature == FEAT_MESA:
+		# desert floor: dry bushes and the odd boulder
+		var r0 := Rect2(bx * BLOCK, bz * BLOCK, BLOCK, BLOCK)
+		for i in rng.randi_range(0, 3):
+			var x := r0.position.x + rng.randf() * BLOCK
+			var z := r0.position.y + rng.randf() * BLOCK
+			if island_h(x, z) > SAND_TOP + 0.01:
+				_stack(cb, "bush", 1, Vector3(x, 0.0, z), rng.randf() * TAU, rng.randf_range(0.6, 1.0), Color(0.85, 0.7, 0.45))
 		return
 	var r := Rect2(bx * BLOCK, bz * BLOCK, BLOCK, BLOCK)
 	var n := 0
@@ -613,7 +744,7 @@ static func _nature(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, d: 
 		var z := r.position.y + rng.randf() * BLOCK
 		if island_h(x, z) < SAND_TOP + 0.012:
 			continue
-		var v := 1 if (d == D_FOREST and rng.randf() < 0.55) else 0
+		var v := 1 if ((d == D_FOREST and rng.randf() < 0.55) or feature == FEAT_PEAK) else 0
 		_stack(cb, "tree", v, Vector3(x, 0.0, z), rng.randf() * TAU, rng.randf_range(0.9, 1.4))
 	if d == D_MEADOW:
 		for i in rng.randi_range(0, 3):

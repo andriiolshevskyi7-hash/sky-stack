@@ -25,6 +25,7 @@ var respawn_delay := [12.0, -1.0]
 var spawn_point: Callable
 ## extra non-plane targets per team: Callable(team) -> Array of objects (pos/active)
 var extra_targets: Callable
+var bound_half := 0.0 # battle area half size (0 = unlimited)
 var plane_cfg := {}
 
 

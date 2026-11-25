@@ -36,7 +36,7 @@ func _ready() -> void:
 		var saved: Dictionary = cf.get_value("settings", "values", {})
 		var ver: int = cf.get_value("settings", "version", 1)
 		for k in saved:
-			if settings.has(k):
+			if settings.has(k) or k == "map":
 				settings[k] = saved[k]
 		if ver < VERSION:
 			# world became 2x bigger: altitudes/speed defaults changed

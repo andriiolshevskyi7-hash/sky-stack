@@ -139,9 +139,33 @@ func _finish(data: Dictionary) -> void:
 ## Circle vs building footprints taller than min_h. Returns push-out vector
 ## (Vector2.ZERO = no hit). Sets last_hit_id.
 var last_hit_id := -1
+## Extra world-space boxes (landmarks): [x0, z0, x1, z1, h] * n, no id.
+var extra_boxes := PackedFloat32Array()
+
+
+func _collide_extra(x: float, z: float, r: float, min_h: float) -> Vector2:
+	var b := extra_boxes
+	for i in b.size() / 5:
+		var o := i * 5
+		if b[o + 4] < min_h:
+			continue
+		var nx := clampf(x, b[o], b[o + 2])
+		var nz := clampf(z, b[o + 1], b[o + 3])
+		var d := Vector2(x - nx, z - nz)
+		if d.length_squared() < r * r:
+			last_hit_id = -1
+			var l := d.length()
+			if l < 0.01:
+				return Vector2(r, 0)
+			return d / l * (r - l)
+	return Vector2.ZERO
 
 
 func collide(x: float, z: float, r: float, min_h: float) -> Vector2:
+	if not extra_boxes.is_empty():
+		var e := _collide_extra(x, z, r, min_h)
+		if e != Vector2.ZERO:
+			return e
 	var k := _key_at(x, z)
 	for dz in range(-1, 2):
 		for dx in range(-1, 2):
@@ -188,6 +212,13 @@ func collide(x: float, z: float, r: float, min_h: float) -> Vector2:
 ## Distance to the nearest building at least min_h tall (capped at max_d).
 func nearest_tall(x: float, z: float, min_h: float, max_d: float) -> float:
 	var best := max_d
+	var eb := extra_boxes
+	for i in eb.size() / 5:
+		var o := i * 5
+		if eb[o + 4] >= min_h:
+			var ex := x - clampf(x, eb[o], eb[o + 2])
+			var ez := z - clampf(z, eb[o + 1], eb[o + 3])
+			best = minf(best, sqrt(ex * ex + ez * ez))
 	var k := _key_at(x, z)
 	for dz in range(-1, 2):
 		for dx in range(-1, 2):
@@ -272,6 +303,8 @@ func building_box(id: int) -> Dictionary:
 
 ## Apply damage; returns true if the building was destroyed by this hit.
 func damage_building(id: int, amount: float) -> bool:
+	if id < 0:
+		return false # relief (mesas, mountains)
 	if destroyed.has(id):
 		return false
 	var info := building_box(id)

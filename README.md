@@ -8,6 +8,32 @@ drawn bottom-to-top — no 3D models and no imported art. All slice sheets,
 facades, ground tiles and sounds are generated in code at startup.
 No ads, no analytics, no splash — just the game.
 
+## Modes and maps
+
+Fully offline: every other pilot is a bot flying the same planes with the same
+flight model and weapons (skill ROOKIE → ACE, roles, team tactics).
+
+**Modes:** TEAM DOGFIGHT (4v4 by default, 2–8 per team in settings), BASE
+STRIKE (destroy the enemy airfield, AA guns, radar, bunkers, hangars), CITY
+DEFENCE (endless waves), DUEL (1v1). Flow: PLAY → mode → map → lobby →
+3-2-1 → battle → results (K/A/D, damage, MVP, XP and coins).
+
+**Maps** (each with its own palette, relief, clouds and time of day):
+
+| Map | Look |
+|---|---|
+| Tropical Islands | islands, the city, bright sea (time of day from settings) |
+| Desert Canyon | layered sandstone mesas and buttes, canyons to fly through, oases, late afternoon |
+| Snow Mountains | terraced granite peaks up to ~560 m with snow tops, pine valleys, frozen lake, morning |
+| Night City | bigger neon skyline, neon street light, 9 sweeping searchlights |
+| Ocean Carrier | open ocean, two carrier battle groups (carrier, AA, island radar, destroyers, frigates) |
+
+The battle area is 11.2 km across and drawn as a red dashed line on the ground and
+on the minimap. Near the edge you see RETURN TO BATTLE AREA, and after 4 s
+outside the plane turns back on its own. Bots respect the edge too. Landmarks
+(Sky Tower, Lighthouse, The Needle, Stone Arch, Beacon) show as yellow diamonds
+on the minimap.
+
 ## Download & install the APK (from GitHub Actions)
 
 Every push to any branch builds a debug APK.
@@ -130,3 +156,6 @@ artifact (retention 3 days). No keystores or secrets are committed.
 `godot --path . -- --play --auto --cam=1 --time=0.0 --wave=4 --shot=out.png --frames=200`
 starts a game on autopilot in chase view (0 overhead, 1 chase, 2 cockpit) at
 midnight on wave 4 and saves a screenshot after 200 frames.
+`--map=N` (0 tropical, 1 desert, 2 snow, 3 night, 4 ocean) switches map,
+`--mode=N` (1 dogfight, 2 base strike, 3 duel) starts a team match, and
+`--at=x,z[,y]` moves the jet.

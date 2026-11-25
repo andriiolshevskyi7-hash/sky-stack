@@ -69,6 +69,7 @@ func _draw() -> void:
 		var cockpit_on: bool = game.cam.cockpit_blend >= 0.5
 		_draw_minimap(Vector2((22.0 + 90.0) * s, (150.0 if cockpit_on else 240.0) * s), 82.0 * s)
 	if playing:
+		_draw_border_warning(vs)
 		_draw_tags(vs)
 		_draw_feed(vs)
 		_draw_rings(vs)
@@ -261,6 +262,30 @@ func _draw_minimap(c: Vector2, r: float) -> void:
 	var cy := cos(jet.yaw)
 	var sy := sin(jet.yaw)
 	var see_enemies: bool = game.match_rules.mode != Match.BASE or game.bases.radar_up(jet.team)
+	# battle-area edge (rotated square) and landmarks
+	var wm: WorldMap = game.world_map
+	var h := wm.half
+	var corners := [Vector3(-h, 0, -h), Vector3(h, 0, -h), Vector3(h, 0, h), Vector3(-h, 0, h)]
+	var pts := PackedVector2Array()
+	for q in corners:
+		var d := Vector2(q.x - jet.position.x, q.z - jet.position.z)
+		pts.append(c + Vector2(cy * d.x - sy * d.y, sy * d.x + cy * d.y) / rng_w * r)
+	for i in 4:
+		var a: Vector2 = pts[i]
+		var b: Vector2 = pts[(i + 1) % 4]
+		# clip to the disc by sampling (cheap, 12 segments per side)
+		for k in 12:
+			var p0 := a.lerp(b, k / 12.0)
+			var p1 := a.lerp(b, (k + 1) / 12.0)
+			if p0.distance_to(c) < r and p1.distance_to(c) < r:
+				draw_line(p0, p1, Color(1, 0.3, 0.25, 0.9), maxf(1.0, 2.0 * s))
+	for lm in wm.landmarks:
+		var lp: Vector3 = lm["pos"]
+		var d := Vector2(lp.x - jet.position.x, lp.z - jet.position.z)
+		var l := Vector2(cy * d.x - sy * d.y, sy * d.x + cy * d.y) / rng_w * r
+		if l.length() < r - 4.0:
+			var q := c + l
+			draw_colored_polygon(PackedVector2Array([q + Vector2(0, -5) * s, q + Vector2(4, 0) * s, q + Vector2(0, 5) * s, q + Vector2(-4, 0) * s]), Color(1, 0.95, 0.6))
 	for st in game.bases.structures:
 		_mm_dot(c, r, rng_w, cy, sy, st.pos, Color(0.4, 0.7, 1.0, 0.8) if st.team == 0 else Color(1, 0.45, 0.4, 0.8), 3.0 if st.active else 1.5, true)
 	for pl in game.fleet.planes:
@@ -272,6 +297,22 @@ func _draw_minimap(c: Vector2, r: float) -> void:
 	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -7) * s, c + Vector2(5, 6) * s, c + Vector2(-5, 6) * s]), Color.WHITE)
 	if not see_enemies:
 		ctext(c.x, c.y + r + 18 * s, "RADAR DOWN", 13, Color(1, 0.5, 0.4))
+
+
+## Red flashing warning near / outside the battle-area edge.
+func _draw_border_warning(vs: Vector2) -> void:
+	var wm: WorldMap = game.world_map
+	var jet: Jet = game.jet
+	if not jet.alive:
+		return
+	var o := wm.outside(jet.position)
+	if o < -WorldMap.BORDER_WARN:
+		return
+	var blink := fmod(Time.get_ticks_msec() / 1000.0, 0.6) < 0.4
+	var col := Color(1, 0.3, 0.25, 1.0 if blink else 0.6)
+	ctext(vs.x * 0.5, vs.y * 0.3, "RETURN TO BATTLE AREA", 34, col)
+	var msg := "TURNING BACK" if jet.steer_home else ("LEAVING THE AREA" if o < 0.0 else "AUTO TURN IN %d" % maxi(1, ceili(4.0 - game.border_t)))
+	ctext(vs.x * 0.5, vs.y * 0.3 + 34 * s, msg, 18, Color(1, 0.85, 0.8))
 
 
 func _mm_dot(c: Vector2, r: float, rng_w: float, cy: float, sy: float, p: Vector3, col: Color, size: float, square: bool) -> void:

@@ -7,6 +7,8 @@ extends Node3D
 
 enum { AIRFIELD, AA, RADAR, BUNKER, HANGAR }
 const KIND_NAMES := ["AIRFIELD", "AA GUN", "RADAR", "BUNKER", "HANGAR"]
+const NAVAL_NAMES := ["CARRIER", "AA GUN", "RADAR", "FRIGATE", "DESTROYER"]
+var naval := false
 const HP := [90.0, 30.0, 50.0, 40.0, 60.0]
 
 class Structure:
@@ -41,7 +43,12 @@ var fx: Fx
 var rng := RandomNumberGenerator.new()
 
 
+func kind_name(k: int) -> String:
+	return NAVAL_NAMES[k] if naval else KIND_NAMES[k]
+
+
 func clear() -> void:
+	naval = false
 	for s in structures:
 		if is_instance_valid(s.node):
 			s.node.queue_free()
@@ -56,7 +63,7 @@ static func find_land(p: Vector3) -> Vector3:
 		for k in 8:
 			var a := TAU * k / 8.0
 			var q: Vector3 = p + Vector3(cos(a), 0, sin(a)) * r
-			if CityGen.island_hw(q.x, q.z) > 0.56 and not CityGen.is_urban(floori(q.x / CityGen.WBLOCK), floori(q.z / CityGen.WBLOCK)):
+			if CityGen.island_hw(q.x, q.z) > 0.56 and not CityGen.is_urban(floori(q.x / CityGen.WBLOCK), floori(q.z / CityGen.WBLOCK)) and CityGen.relief_hw(q.x, q.z) <= 0.0:
 				return Vector3(q.x, 0, q.z)
 	return Vector3(p.x, 0, p.z)
 
@@ -101,6 +108,48 @@ func build(team: int, center: Vector3, facing: float) -> void:
 		_add_box(team, AA, p, Vector2(12, 12), 5.0, CityGen.F_WAREHOUSE, CityGen.R_CONCRETE, "aagun")
 
 
+## Carrier battle group at sea: the carrier (deck = airfield, island = radar,
+## 4 deck AA guns), two destroyers and three frigates. Same structure kinds
+## as a land base so every mode / AI rule works unchanged.
+func build_naval(team: int, center: Vector3, facing: float) -> void:
+	naval = true
+	centers[team] = center
+	var c := Vector2(center.x, center.z) / CityGen.S
+	var along_x := absf(sin(facing)) > 0.7
+	var hull := Vector2(170, 36) if along_x else Vector2(36, 170)
+	var deck := 12.0
+	# carrier hull with flight deck: AIRFIELD
+	var carrier := _add_box(team, AIRFIELD, c, hull, deck, CityGen.F_HULL, CityGen.R_DECK, "", 0.0, func(cb: CityGen.Build) -> void:
+		var w := 4.0
+		if along_x:
+			cb.g.ground_rect(c.x - 80, c.y - w, c.x + 80, c.y + w, deck + 0.35, CityGen.G_RUNWAY)
+		else:
+			cb.g.ground_rect(c.x - w, c.y - 80, c.x + w, c.y + 80, deck + 0.35, CityGen.G_RUNWAY, Color.WHITE, 16.0, true))
+	carrier.pos.y = deck * CityGen.S
+	# ground layer (deck stripe) lives in the Build's g buffer: add it as a mesh
+	var side := Vector2(0, 1) if along_x else Vector2(1, 0)
+	var fwd := Vector2(1, 0) if along_x else Vector2(0, 1)
+	# island superstructure = RADAR
+	var isl := c + side * 13.0 - fwd * 20.0
+	var radar := _add_box(team, RADAR, isl, Vector2(10, 22) if not along_x else Vector2(22, 10), 20.0, CityGen.F_OFFICE, CityGen.R_TAR, "", deck)
+	radar.pos.y += 20.0
+	for k in 4:
+		var p := c + side * (12.0 if k % 2 == 0 else -12.0) + fwd * (70.0 if k < 2 else -70.0)
+		_add_box(team, AA, p, Vector2(8, 8), 3.0, CityGen.F_WAREHOUSE, CityGen.R_CONCRETE, "aagun", deck)
+	# escorts
+	for k in 2:
+		var p := c + side * (90.0 if k == 0 else -90.0) + fwd * 30.0
+		var sz := Vector2(70, 14) if along_x else Vector2(14, 70)
+		_add_box(team, HANGAR, p, sz, 7.0, CityGen.F_HULL, CityGen.R_METAL, "", 0.0, func(cb: CityGen.Build) -> void:
+			var s2 := Vector2(16, 8) if along_x else Vector2(8, 16)
+			CityGen._box(cb, p.x - s2.x * 0.5, p.y - s2.y * 0.5, p.x + s2.x * 0.5, p.y + s2.y * 0.5, 7.0, 17.0, CityGen.F_WHITE, CityGen.R_METAL, 0.3, false))
+	for k in 3:
+		var p := c - fwd * 150.0 + side * (k - 1) * 60.0
+		var sz := Vector2(44, 10) if along_x else Vector2(10, 44)
+		_add_box(team, BUNKER, p, sz, 5.0, CityGen.F_HULL, CityGen.R_METAL, "", 0.0, func(cb: CityGen.Build) -> void:
+			CityGen._box(cb, p.x - 4, p.y - 4, p.x + 4, p.y + 4, 5.0, 12.0, CityGen.F_WHITE, CityGen.R_METAL, 0.6, false))
+
+
 func _add(team: int, kind: int, vpos: Vector3, vsize: Vector3, node: MeshInstance3D) -> Structure:
 	var s := Structure.new()
 	s.kind = kind
@@ -117,10 +166,13 @@ func _add(team: int, kind: int, vpos: Vector3, vsize: Vector3, node: MeshInstanc
 	return s
 
 
-func _add_box(team: int, kind: int, p: Vector2, sz: Vector2, h: float, style: int, roof: int, stack: String = "") -> Structure:
+func _add_box(team: int, kind: int, p: Vector2, sz: Vector2, h: float, style: int, roof: int, stack: String = "", y0: float = 0.0, extra: Callable = Callable()) -> Structure:
 	var cb := CityGen.Build.new()
 	cb.sheets = Stacks.sheets
-	CityGen._box(cb, p.x - sz.x * 0.5, p.y - sz.y * 0.5, p.x + sz.x * 0.5, p.y + sz.y * 0.5, 0.0, h, style, roof, rng.randf(), true)
+	CityGen._box(cb, p.x - sz.x * 0.5, p.y - sz.y * 0.5, p.x + sz.x * 0.5, p.y + sz.y * 0.5, y0, y0 + h, style, roof, rng.randf(), y0 <= 0.0)
+	if extra.is_valid():
+		extra.call(cb)
+	h += y0
 	if kind == RADAR:
 		cb.p.add_stack(Stacks.get_sheet("antenna"), 0, Vector3(p.x, h + 0.3, p.y), 0.0, 1.4, Color.WHITE, 2)
 		cb.p.add_stack(Stacks.get_sheet("helipad"), 0, Vector3(p.x, h + 12.0, p.y), 0.0, 0.5, Color.WHITE, 1)
@@ -136,6 +188,11 @@ func _add_box(team: int, kind: int, p: Vector2, sz: Vector2, h: float, style: in
 	node.mesh = m
 	node.scale = Vector3.ONE * CityGen.S
 	add_child(node)
+	if not cb.g.is_empty():
+		var gm := MeshInstance3D.new()
+		gm.mesh = cb.g.commit()
+		gm.material_override = Stacks.ground_mat
+		node.add_child(gm)
 	return _add(team, kind, Vector3(p.x, 0, p.y), Vector3(sz.x, h, sz.y), node)
 
 

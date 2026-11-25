@@ -186,9 +186,17 @@ func _cars(delta: float) -> void:
 	bus_batch.end()
 
 
+## No boats on frozen lakes (snow) or desert oases.
+static var boats_enabled := true
+
+
 func _boats(delta: float) -> void:
 	boat_batch.begin()
 	ship_batch.begin()
+	if not boats_enabled:
+		boat_batch.end()
+		ship_batch.end()
+		return
 	# boats: Vector4(x, z, yaw, speed); speed < 0 = free slot
 	for i in river_boats.size() + sea_boats.size():
 		var big := i >= river_boats.size()

@@ -405,8 +405,95 @@ func _build_facades() -> void:
 			var y := oy + rng.randi_range(0, FT - 1)
 			var c := img.get_pixel(x, y)
 			img.set_pixel(x, y, c.darkened(0.15) if i % 2 == 0 else c.lightened(0.1))
+	_build_map_facades(img, em, rng)
 	facade_tex = ImageTexture.create_from_image(img)
 	facade_emit_tex = ImageTexture.create_from_image(em)
+
+
+## Map terrain styles. Facades 16..19 live at pixel row 160 (sandstone strata,
+## granite with snow streaks, ship hull, neon); roofs 8..11 at row 208 are
+## 64x48 (sand, snow, carrier deck, rock).
+func _build_map_facades(img: Image, em: Image, rng: RandomNumberGenerator) -> void:
+	var oy := 160
+	# 16 sandstone: horizontal strata in warm oranges, ragged
+	var ox := 0
+	var strata := [Color(0.86, 0.52, 0.32), Color(0.93, 0.64, 0.40), Color(0.78, 0.44, 0.28), Color(0.95, 0.72, 0.48), Color(0.83, 0.50, 0.34)]
+	var y := 0
+	var si := 0
+	while y < FH:
+		var hgt := rng.randi_range(4, 11)
+		img.fill_rect(Rect2i(ox, oy + y, FT, mini(hgt, FH - y)), strata[si % strata.size()])
+		img.fill_rect(Rect2i(ox, oy + y, FT, 1), (strata[si % strata.size()] as Color).darkened(0.18))
+		y += hgt
+		si += 1
+	for i in 140:
+		var x := ox + rng.randi_range(0, FT - 1)
+		var yy := oy + rng.randi_range(0, FH - 1)
+		img.set_pixel(x, yy, img.get_pixel(x, yy).darkened(0.12) if i % 3 else img.get_pixel(x, yy).lightened(0.1))
+	for x in range(0, FT, rng.randi_range(9, 15)):
+		img.fill_rect(Rect2i(ox + x, oy, 1, FH), Color(0.6, 0.34, 0.22, 0.9)) # vertical cracks
+	# 17 granite with snow streaks
+	ox = FT
+	img.fill_rect(Rect2i(ox, oy, FT, FH), Color(0.46, 0.49, 0.55))
+	for i in 260:
+		var x := ox + rng.randi_range(0, FT - 1)
+		var yy := oy + rng.randi_range(0, FH - 1)
+		img.set_pixel(x, yy, Color(0.36, 0.38, 0.44) if i % 2 else Color(0.56, 0.59, 0.64))
+	for k in 7:
+		var x := ox + rng.randi_range(0, FT - 4)
+		var yy := oy + rng.randi_range(0, FH - 12)
+		var l := rng.randi_range(5, 14)
+		for j in l:
+			img.fill_rect(Rect2i(x + (j % 3) - 1, yy + j, 2, 1), Color(0.92, 0.95, 1.0))
+	img.fill_rect(Rect2i(ox, oy, FT, 3), Color(0.95, 0.97, 1.0)) # snow ledge
+	# 18 ship hull: grey plates, portholes, dark boot stripe
+	ox = FT * 2
+	img.fill_rect(Rect2i(ox, oy, FT, FH), Color(0.52, 0.56, 0.6))
+	for x in range(0, FT, 16):
+		img.fill_rect(Rect2i(ox + x, oy, 1, FH), Color(0.44, 0.47, 0.52))
+	for yy in [12, 36]:
+		img.fill_rect(Rect2i(ox, oy + yy, FT, 1), Color(0.44, 0.47, 0.52))
+	for x in range(4, FT, 8):
+		img.fill_rect(Rect2i(ox + x, oy + 6, 2, 2), Color(0.18, 0.2, 0.24))
+		em.fill_rect(Rect2i(ox + x, oy + 6, 2, 2), Color(1, 0, 0, 1))
+	img.fill_rect(Rect2i(ox, oy + FH - 6, FT, 6), Color(0.25, 0.22, 0.24))
+	# 19 neon: dark tower, bright vertical/horizontal neon bands (glow at night)
+	ox = FT * 3
+	img.fill_rect(Rect2i(ox, oy, FT, FH), Color(0.13, 0.12, 0.2))
+	for fy in 4:
+		for bx in 4:
+			var r := Rect2i(ox + bx * 16 + 2, oy + fy * 12 + 2, 12, 7)
+			img.fill_rect(r, Color(0.2, 0.24, 0.4))
+			em.fill_rect(r, Color(1, 0, 0, 1))
+	var neon := [Color(1.0, 0.2, 0.75), Color(0.15, 0.95, 1.0), Color(0.75, 0.35, 1.0)]
+	for k in 3:
+		var c: Color = neon[k]
+		img.fill_rect(Rect2i(ox + 1 + k * 21, oy, 2, FH), c)
+		em.fill_rect(Rect2i(ox + 1 + k * 21, oy, 2, FH), Color(0, 1, 0, 1))
+	img.fill_rect(Rect2i(ox, oy + 23, FT, 2), neon[1])
+	em.fill_rect(Rect2i(ox, oy + 23, FT, 2), Color(0, 1, 0, 1))
+	# roofs (64x48) at row 208
+	var ry := 208
+	var rh := FACADE_H - ry
+	var rcols := [Color(0.93, 0.68, 0.44), Color(0.95, 0.97, 1.0), Color(0.3, 0.32, 0.36), Color(0.5, 0.52, 0.56)]
+	for ri in rcols.size():
+		var rx := ri * FT
+		var base: Color = rcols[ri]
+		img.fill_rect(Rect2i(rx, ry, FT, rh), base)
+		for i in 160:
+			var x := rx + rng.randi_range(0, FT - 1)
+			var yy := ry + rng.randi_range(0, rh - 1)
+			var c := base.darkened(0.08) if i % 2 else base.lightened(0.06)
+			if ri == 1:
+				c = Color(0.82, 0.88, 0.96) if i % 3 == 0 else base
+			img.set_pixel(x, yy, c)
+		if ri == 2:
+			# carrier deck: plating lines + yellow/white markings
+			for yy in range(0, rh, 12):
+				img.fill_rect(Rect2i(rx, ry + yy, FT, 1), base.darkened(0.25))
+			img.fill_rect(Rect2i(rx + 30, ry, 2, rh), Color(0.95, 0.85, 0.3))
+			for yy in range(0, rh, 12):
+				img.fill_rect(Rect2i(rx + 8, ry + yy, 1, 6), Color(0.9, 0.9, 0.9))
 
 
 # ------------------------------------------------------------------ ground

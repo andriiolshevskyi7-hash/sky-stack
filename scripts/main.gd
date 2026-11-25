@@ -17,6 +17,8 @@ var enemies: Enemies
 var traffic: Traffic
 var daynight: DayNight
 var terrain: MeshInstance3D
+var world_map: WorldMap
+var border_t := 0.0 # seconds outside the warning line
 var clouds: Clouds
 var speed_lines: SpeedLines
 var flash := 0.0
@@ -143,6 +145,10 @@ func _ready() -> void:
 	traffic = Traffic.new()
 	traffic.name = "Traffic"
 	world.add_child(traffic)
+	world_map = WorldMap.new()
+	world_map.name = "WorldMap"
+	world_map.game = self
+	world.add_child(world_map)
 
 	daynight = DayNight.new()
 	daynight.name = "DayNight"
@@ -202,7 +208,7 @@ func _ready() -> void:
 	fleet.spawn_point = func(team: int) -> Array:
 		var a := rng.randf() * TAU
 		var base := jet.position if team == 0 else jet.position + Vector3(cos(a), 0, sin(a)) * 1400.0
-		return [Vector3(base.x + rng.randf_range(-200, 200), 260.0, base.z + rng.randf_range(-200, 200)), rng.randf() * TAU]
+		return [Vector3(base.x + rng.randf_range(-200, 200), world_map.spawn_alt(), base.z + rng.randf_range(-200, 200)), rng.randf() * TAU]
 	fleet.plane_killed.connect(_on_plane_killed)
 	fleet.plane_killed.connect(func(v: Jet, k: Jet, _a: Jet) -> void: match_rules.on_kill(v, k))
 	combat.fleet = fleet
@@ -254,6 +260,7 @@ func _ready() -> void:
 	jet.died.connect(_on_jet_died)
 	jet.damaged.connect(func(a: float) -> void: flash = minf(0.8, flash + 0.25 + a * 0.02))
 
+	world_map.apply(int(Save.settings.get("map", 0)), true)
 	apply_settings("")
 	jet.reset(SPAWN, 0.0)
 	cam.update_cam(0.016, jet, 0.0)
@@ -271,6 +278,15 @@ func _parse_args() -> void:
 			_shot_frames = int(a.substr(9))
 		elif a == "--play":
 			start_game()
+		elif a.begins_with("--map="):
+			world_map.apply(int(a.substr(6)))
+			apply_settings("")
+			chunks.load_all_now()
+		elif a.begins_with("--at="):
+			var v := a.substr(5).split(",")
+			jet.position = Vector3(float(v[0]), float(v[2]) if v.size() > 2 else jet.position.y, float(v[1]))
+			chunks.focus = Vector3(jet.position.x, 0, jet.position.z)
+			chunks.load_all_now()
 		elif a.begins_with("--mode="):
 			_open_lobby(int(a.substr(7)))
 			if not OS.get_cmdline_user_args().has("--lobby"):
@@ -337,6 +353,7 @@ func _process(delta: float) -> void:
 	if (state == State.PLAY or state == State.TITLE or state == State.OVER or state == State.RESULTS) and not frozen:
 		fleet.step(delta)
 	if state == State.PLAY:
+		_update_border(delta)
 		match_rules.update(delta)
 		if _player_respawn > 0.0:
 			_player_respawn -= delta
@@ -387,6 +404,25 @@ func _process(delta: float) -> void:
 			_open_game_over()
 
 
+## Battle-area boundary: warning inside the edge, then the plane is turned
+## back automatically after 4 s outside (or at once far outside).
+func _update_border(delta: float) -> void:
+	if not jet.alive:
+		jet.steer_home = false
+		return
+	var o := world_map.outside(jet.position)
+	if o > -WorldMap.BORDER_WARN:
+		border_t += delta
+	else:
+		border_t = 0.0
+	if (o > 0.0 and border_t > 4.0) or o > 500.0:
+		if not jet.steer_home:
+			Sfx.play("warn", -6.0)
+		jet.steer_home = true
+	elif o < -WorldMap.BORDER_WARN - 200.0:
+		jet.steer_home = false
+
+
 # ------------------------------------------------------------------ states
 
 func _to_title() -> void:
@@ -414,9 +450,9 @@ func _open_mode_menu() -> void:
 	state = State.TITLE
 	screens.close()
 	menu.open("CHOOSE MODE", "Bots fly the same planes you do", [
-		["TEAM DOGFIGHT", func() -> void: _open_lobby(Match.DOGFIGHT)],
-		["BASE STRIKE", func() -> void: _open_lobby(Match.BASE)],
-		["CITY DEFENCE", func() -> void: _open_lobby(Match.CITY)],
+		["TEAM DOGFIGHT", func() -> void: _open_map_menu(Match.DOGFIGHT)],
+		["BASE STRIKE", func() -> void: _open_map_menu(Match.BASE)],
+		["CITY DEFENCE", func() -> void: _open_map_menu(Match.CITY)],
 		["DUEL", _open_duel_menu],
 		["BACK", _to_title],
 	], [], 0.35)
@@ -424,12 +460,33 @@ func _open_mode_menu() -> void:
 
 func _open_duel_menu() -> void:
 	menu.open("DUEL", "Choose your opponent", [
-		["ROOKIE", func() -> void: _open_lobby(Match.DUEL, 0.15)],
-		["REGULAR", func() -> void: _open_lobby(Match.DUEL, 0.45)],
-		["VETERAN", func() -> void: _open_lobby(Match.DUEL, 0.7)],
-		["ACE", func() -> void: _open_lobby(Match.DUEL, 0.95)],
+		["ROOKIE", func() -> void: _open_map_menu(Match.DUEL, 0.15)],
+		["REGULAR", func() -> void: _open_map_menu(Match.DUEL, 0.45)],
+		["VETERAN", func() -> void: _open_map_menu(Match.DUEL, 0.7)],
+		["ACE", func() -> void: _open_map_menu(Match.DUEL, 0.95)],
 		["BACK", _open_mode_menu],
 	], [], 0.35)
+
+
+## Map choice for a mode (city defence needs a city: no ocean map).
+func _open_map_menu(mode: int, duel_skill: float = 0.5) -> void:
+	var items: Array = []
+	for i in Maps.LIST.size():
+		var m: Dictionary = Maps.LIST[i]
+		if mode == Match.CITY and float(m["city"]) <= 0.0:
+			continue
+		var idx := i
+		items.append([m["name"], func() -> void: _choose_map(idx, mode, duel_skill)])
+	items.append(["BACK", _open_mode_menu])
+	menu.open("CHOOSE MAP", Match.MODE_NAMES[mode], items, [], 0.35)
+
+
+func _choose_map(i: int, mode: int, duel_skill: float) -> void:
+	Save.settings["map"] = i
+	Save.store()
+	world_map.apply(i)
+	apply_settings("time")
+	_open_lobby(mode, duel_skill)
 
 
 ## Bot skill centre matched to the player's progress (rank in phase 4).
@@ -448,7 +505,7 @@ func _open_lobby(mode: int, duel_skill: float = 0.5) -> void:
 	state = State.LOBBY
 	match_rules.configure(mode, int(Save.settings.get("team_size", 4)), rank_skill(), duel_skill)
 	screens.show_page("lobby", {
-		"mode_name": Match.MODE_NAMES[mode], "mode_info": Match.MODE_INFO[mode], "map_name": "TROPICAL ISLANDS",
+		"mode_name": Match.MODE_NAMES[mode], "mode_info": Match.MODE_INFO[mode], "map_name": world_map.current()["name"], "map_info": world_map.current()["info"],
 		"roster": match_rules.roster, "on_start": start_match, "on_back": _open_mode_menu,
 	})
 
@@ -492,6 +549,14 @@ func start_match() -> void:
 	jet.shots_fired = 0
 	jet.shots_hit = 0
 	kill_feed.clear()
+	border_t = 0.0
+	jet.steer_home = false
+	daynight.t = world_map.time_of_day()
+	fleet.bound_half = world_map.half
+	if world_map.current()["carriers"]:
+		# two carrier fleets on the open sea, in every mode
+		bases.build_naval(0, Vector3(0, 0, 3000), 0.0)
+		bases.build_naval(1, Vector3(0, 0, -3000), PI)
 	match_rules.start()
 	if match_rules.mode == Match.CITY:
 		fleet.respawn_delay = [12.0, -1.0]
@@ -505,8 +570,9 @@ func start_match() -> void:
 	between_t = 0.0
 	tutorial.step = -1
 	if match_rules.mode == Match.BASE:
-		bases.build(0, Bases.find_land(Vector3(0, 0, 3200)), 0.0)
-		bases.build(1, Bases.find_land(Vector3(0, 0, -3200)), PI)
+		if not bases.naval:
+			bases.build(0, Bases.find_land(Vector3(0, 0, 3200)), 0.0)
+			bases.build(1, Bases.find_land(Vector3(0, 0, -3200)), PI)
 		fleet.extra_targets = func(team: int) -> Array: return bases.alive_targets(1 - team)
 	else:
 		fleet.extra_targets = Callable()
@@ -540,7 +606,7 @@ func start_match() -> void:
 func _city_spawn(team: int) -> Array:
 	var a := rng.randf() * TAU
 	var base := jet.position if team == 0 else jet.position + Vector3(cos(a), 0, sin(a)) * 1400.0
-	return [Vector3(base.x + rng.randf_range(-200, 200), 260.0, base.z + rng.randf_range(-200, 200)), rng.randf() * TAU]
+	return [Vector3(base.x + rng.randf_range(-200, 200), world_map.spawn_alt(), base.z + rng.randf_range(-200, 200)), rng.randf() * TAU]
 
 
 func _respawn_player() -> void:
@@ -555,7 +621,7 @@ func _respawn_player() -> void:
 func on_structure_destroyed(s: Object, src: Object) -> void:
 	var who: String = src.pilot if src != null and is_instance_valid(src) and "pilot" in src else "Crash"
 	var col := Color(0.5, 0.8, 1.0) if s.team == 1 else Color(1.0, 0.45, 0.4)
-	kill_feed.append(["%s  >  %s %s" % [who, "RED" if s.team == 1 else "BLUE", Bases.KIND_NAMES[s.kind]], 0.0, col])
+	kill_feed.append(["%s  >  %s %s" % [who, "RED" if s.team == 1 else "BLUE", bases.kind_name(s.kind)], 0.0, col])
 	if src == jet:
 		score += 200
 		popups.append([s.pos, "+200", 0.0])
@@ -930,12 +996,14 @@ func apply_settings(key: String) -> void:
 		cam._since_switch = 0.0
 	daynight.cycle = st["day_cycle"]
 	if key == "time" or key == "":
-		daynight.t = [0.42, 0.74, 0.0][int(st["time"])]
-	if key == "islands" or key == "seed":
-		Stacks.rebuild_islands(int(st["seed"]), float(st["islands"]))
-		chunks.reset_all()
-		traffic._urban.clear()
-	var cover := lerpf(0.82, 0.5, float(st["clouds"])) if float(st["clouds"]) > 0.0 else 1.1
+		daynight.t = world_map.time_of_day()
+	if (key == "islands" or key == "seed") and world_map.index == 0:
+		world_map.apply(0, true)
+	if world_map.current()["feature"] != CityGen.FEAT_NONE:
+		jet.cfg["cruise"] = maxf(float(st["cruise"]), world_map.spawn_alt())
+		fleet.plane_cfg["cruise"] = jet.cfg["cruise"]
+	var camt := world_map.cloud_amount()
+	var cover := lerpf(0.82, 0.5, camt) if camt > 0.0 else 1.1
 	clouds.cover = cover
 	RenderingServer.global_shader_parameter_set("cloud_cover", cover)
 	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(Stacks.get_sheet("jet").w) if st["jet_shadow"] else 0.0001)
@@ -1224,5 +1292,38 @@ func test_hook(t: Node) -> Array:
 	await t.get_tree().create_timer(4.6).timeout
 	if not jet.alive or pilot != null:
 		errs.append("pilot was not rescued into a new jet")
-	print("    enemies=%d cars=%d fx=%d score=%d" % [enemies.count_active(), traffic.active_cars, fx.n, score])
+	# --- maps: relief, carriers, borders
+	world_map.apply(1)
+	var relief := 0
+	for bz in range(-40, 40, 2):
+		for bx in range(-40, 40, 2):
+			if CityGen.relief_h(bx, bz) > 0.0:
+				relief += 1
+	if relief < 40:
+		errs.append("desert has too few mesas (%d)" % relief)
+	if CityGen.relief_hw(0.0, 2400.0) > 0.0:
+		errs.append("desert relief on the spawn point")
+	world_map.apply(2)
+	var peak := 0.0
+	for bz in range(-40, 40):
+		for bx in range(-40, 40):
+			peak = maxf(peak, CityGen.relief_h(bx, bz))
+	if peak < 150.0:
+		errs.append("snow mountains too low (%.0f)" % peak)
+	world_map.apply(4)
+	_open_lobby(Match.BASE)
+	start_match()
+	match_rules.countdown = 0.0
+	if not bases.naval or bases.structures.size() != 22:
+		errs.append("ocean carrier fleets not built (%d)" % bases.structures.size())
+	jet.position = Vector3(world_map.half + 700.0, 400.0, 0.0)
+	jet.yaw = -PI * 0.5 # flying +X, away from the area
+	await t.get_tree().create_timer(0.3).timeout
+	if not jet.steer_home:
+		errs.append("leaving the battle area did not turn the plane back")
+	await t.get_tree().create_timer(2.5).timeout
+	if absf(wrapf(jet.yaw - atan2(jet.position.x, jet.position.z), -PI, PI)) > 0.8:
+		errs.append("plane not heading home (yaw %.2f)" % jet.yaw)
+	world_map.apply(0)
+	print("    enemies=%d cars=%d fx=%d score=%d relief=%d peak=%.0f" % [enemies.count_active(), traffic.active_cars, fx.n, score, relief, peak])
 	return errs

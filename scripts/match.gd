@@ -108,7 +108,8 @@ func spawn_point(team: int) -> Array:
 	var base: Vector3 = Vector3(0, 0, z)
 	if mode == BASE and game != null:
 		base = game.bases.centers[team]
-	var p := Vector3(base.x + rng.randf_range(-250, 250), rng.randf_range(300.0, 420.0), base.z + rng.randf_range(-150, 150))
+	var alt: float = game.world_map.spawn_alt() if game != null else 360.0
+	var p := Vector3(base.x + rng.randf_range(-250, 250), alt + rng.randf_range(-60.0, 60.0), base.z + rng.randf_range(-150, 150))
 	return [p, yaw]
 
 

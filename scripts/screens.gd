@@ -86,7 +86,7 @@ func _team_list(x: float, y: float, w: float, team: Array, col: Color, title: St
 
 func _draw_lobby(vs: Vector2) -> void:
 	_txt(Vector2(0, 70 * s), info.get("mode_name", ""), 40, Color.WHITE, vs.x, HORIZONTAL_ALIGNMENT_CENTER)
-	_txt(Vector2(0, 104 * s), "%s   -   %s" % [info.get("map_name", ""), info.get("mode_info", "")], 18, Color(0.75, 0.8, 0.9), vs.x, HORIZONTAL_ALIGNMENT_CENTER)
+	_txt(Vector2(0, 104 * s), "%s  -  %s     %s" % [info.get("map_name", ""), info.get("map_info", ""), info.get("mode_info", "")], 18, Color(0.75, 0.8, 0.9), vs.x, HORIZONTAL_ALIGNMENT_CENTER)
 	var roster: Array = info.get("roster", [[], []])
 	var w := minf(560.0 * s, vs.x * 0.42)
 	var gap := 40.0 * s

@@ -157,7 +157,7 @@ func _process(delta: float) -> void:
 					jet.damage(dmg[i])
 				fx.hit(p)
 				remove = true
-			elif p.y < 400.0 and chunks.collide(p.x, p.z, 0.5, p.y) != Vector2.ZERO:
+			elif p.y < 640.0 and chunks.collide(p.x, p.z, 0.5, p.y) != Vector2.ZERO:
 				fx.sparks(p, 3)
 				remove = true
 				# enemy attackers strafing the city damage the building they hit

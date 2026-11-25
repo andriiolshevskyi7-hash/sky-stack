@@ -6,15 +6,18 @@ render_mode unshaded, cull_disabled, depth_draw_opaque;
 
 #include "res://shaders/common.gdshaderinc"
 
-const vec3 DEEPEST = vec3(0.07, 0.30, 0.66);
-const vec3 DEEP = vec3(0.12, 0.45, 0.85);
-const vec3 SHALLOW = vec3(0.25, 0.78, 0.92);
+// per-map palette (set by WorldMap)
+uniform vec3 DEEPEST = vec3(0.07, 0.30, 0.66);
+uniform vec3 DEEP = vec3(0.12, 0.45, 0.85);
+uniform vec3 SHALLOW = vec3(0.25, 0.78, 0.92);
 const vec3 FOAM = vec3(0.96, 0.99, 1.0);
-const vec3 SAND = vec3(0.96, 0.87, 0.62);
-const vec3 SAND_WET = vec3(0.86, 0.76, 0.52);
-const vec3 GRASS = vec3(0.39, 0.76, 0.31);
-const vec3 GRASS_LIGHT = vec3(0.55, 0.84, 0.36);
-const vec3 FOREST = vec3(0.22, 0.56, 0.24);
+uniform vec3 SAND = vec3(0.96, 0.87, 0.62);
+uniform vec3 SAND_WET = vec3(0.86, 0.76, 0.52);
+uniform vec3 GRASS = vec3(0.39, 0.76, 0.31);
+uniform vec3 GRASS_LIGHT = vec3(0.55, 0.84, 0.36);
+uniform vec3 FOREST = vec3(0.22, 0.56, 0.24);
+uniform bool frozen = false; // water is ice (snow map)
+uniform float bound_half = 0.0; // battle area half size (world), 0 = none
 
 varying vec3 wpos;
 
@@ -26,7 +29,16 @@ void fragment() {
 	vec2 p = floor(wpos.xz) + 0.5; // one terrain sample per world unit = crisp pixels
 	float h = island_h(p * 0.5); // map is in virtual units (world scale 2)
 	vec3 col;
-	if (h < 0.5) {
+	if (h < 0.5 && frozen) {
+		// frozen lake: pale ice, snow drifts and dark cracks
+		float depth = 0.5 - h;
+		col = mix(SHALLOW, DEEP, smoothstep(0.0, 0.12, depth));
+		float n = hash12(floor(p / 6.0));
+		if (n > 0.85) col = mix(col, vec3(0.95, 0.97, 1.0), 0.6);
+		vec2 c = abs(fract(p / vec2(97.0, 61.0) + vec2(sin(p.y * 0.02) * 0.1, 0.0)) - 0.5);
+		if (min(c.x, c.y) < 0.006) col *= 0.82;
+		if (depth < 0.008) col = vec3(0.95, 0.97, 1.0);
+	} else if (h < 0.5) {
 		float depth = 0.5 - h;
 		col = mix(SHALLOW, DEEP, smoothstep(0.0, 0.07, depth));
 		col = mix(col, DEEPEST, smoothstep(0.12, 0.35, depth));
@@ -45,6 +57,12 @@ void fragment() {
 	} else {
 		float f = texture(cloud_tex, fract(p / 4400.0 + vec2(0.37, 0.61))).r;
 		col = f > 0.55 ? FOREST : (h < 0.535 ? GRASS_LIGHT : GRASS);
+	}
+	if (bound_half > 0.0) {
+		// battle area: outside is dimmed and tinted red, edge = dashed red line
+		float e = max(abs(p.x), abs(p.y)) - bound_half;
+		if (e > 0.0) col = mix(col * 0.6, vec3(0.6, 0.1, 0.1), 0.25);
+		if (abs(e) < 6.0 && fract((p.x + p.y) / 80.0) < 0.6) col = vec3(1.0, 0.18, 0.12);
 	}
 	ALBEDO = fogged(lit(col, wpos), wpos);
 }

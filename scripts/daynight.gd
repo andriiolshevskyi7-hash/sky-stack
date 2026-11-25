@@ -30,11 +30,12 @@ const WIND := Vector2(18.0, 8.0)
 
 var beams: Array[MeshInstance3D] = []
 var _bt := 0.0
+var beam_count := 5 # Night City sweeps 9 searchlights
 
 
 func _ready() -> void:
 	var m := _beam_mesh()
-	for i in 5:
+	for i in 9:
 		var mi := MeshInstance3D.new()
 		mi.mesh = m
 		mi.material_override = Stacks.beam_mat
@@ -104,11 +105,12 @@ func _update_beams(delta: float) -> void:
 	var grid := 640.0
 	var gx := roundf(focus.x / grid) * grid
 	var gz := roundf(focus.z / grid) * grid
-	var offs := [Vector2(0, 0), Vector2(grid, 0), Vector2(-grid, 0), Vector2(0, grid), Vector2(0, -grid)]
+	var offs := [Vector2(0, 0), Vector2(grid, 0), Vector2(-grid, 0), Vector2(0, grid), Vector2(0, -grid),
+		Vector2(grid, grid) * 0.5, Vector2(-grid, grid) * 0.5, Vector2(grid, -grid) * 0.5, Vector2(-grid, -grid) * 0.5]
 	for i in beams.size():
 		var b := beams[i]
-		b.visible = on
-		if not on:
+		b.visible = on and i < beam_count
+		if not b.visible:
 			continue
 		var o: Vector2 = offs[i]
 		var bx := gx + o.x + CityGen.hashf(int(gx + o.x), int(gz + o.y), 5) * 200.0 - 100.0

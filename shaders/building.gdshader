@@ -19,12 +19,16 @@ void vertex() {
 
 void fragment() {
 	if (fade_hides(VERTEX, VIEW_MATRIX, FRAGCOORD.xy)) discard;
-	bool roof = UV2.y > 0.37;
-	vec2 tile = roof ? vec2(32.0 / 256.0, 32.0 / 128.0) : vec2(32.0 / 256.0, 24.0 / 128.0);
+	// facades: rows 0-96 and 160-208 px; roofs: 96-160 (64 tall) and 208-256 (48 tall)
+	bool roof = (UV2.y > 0.37 && UV2.y < 0.6) || UV2.y > 0.8;
+	vec2 tile = roof ? vec2(32.0 / 256.0, UV2.y > 0.8 ? 24.0 / 128.0 : 32.0 / 128.0) : vec2(32.0 / 256.0, 24.0 / 128.0);
 	vec2 uv = UV2 + fract(UV) * tile;
-	vec3 col = lit(texture(facade_tex, uv).rgb * COLOR.rgb, wpos);
+	vec3 base = texture(facade_tex, uv).rgb * COLOR.rgb;
+	vec3 col = lit(base, wpos);
 	if (!roof && night > 0.02) {
-		float win = texture(facade_emit, uv).r;
+		vec4 em = texture(facade_emit, uv);
+		if (em.g > 0.5) col = mix(col, base * 1.6, night); // neon keeps glowing
+		float win = em.r;
 		if (win > 0.5) {
 			vec2 cell = floor(UV * 4.0);
 			float h = hash12(cell + vec2(COLOR.a * 311.0, COLOR.a * 97.0));
