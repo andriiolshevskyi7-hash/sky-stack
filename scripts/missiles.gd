@@ -250,7 +250,8 @@ func _process(delta: float) -> void:
 					if tj == jet:
 						hits_taken += 1
 					tj.last_hit_missile = true
-					tj.damage(25.0, m.shooter)
+					# ~4-5 missiles kill any plane, light or armoured
+					tj.damage(maxf(25.0, tj.max_health * 0.22), m.shooter)
 					fx.explosion(m.pos, 0.8)
 					done = true
 		elif m.target != null and m.target.has_method("take_damage") and tp != Vector3.INF:
