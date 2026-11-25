@@ -2,7 +2,7 @@ extends Node
 ## Autoload "Save": high score + all settings in user://save.cfg
 
 const PATH := "user://save.cfg"
-const VERSION := 2
+const VERSION := 3
 var high_score := 0
 var settings := {}
 
@@ -38,9 +38,13 @@ func _ready() -> void:
 		for k in saved:
 			if settings.has(k) or k == "map":
 				settings[k] = saved[k]
-		if ver < VERSION:
+		if ver < 2:
 			# world became 2x bigger: altitudes/speed defaults changed
 			for k in ["speed", "cruise", "ceiling", "clearance"]:
+				settings[k] = SettingsScreen.defaults()[k]
+		if ver < 3:
+			# calmer look for long sessions
+			for k in ["glow", "contrast", "vignette", "grain"]:
 				settings[k] = SettingsScreen.defaults()[k]
 	apply()
 

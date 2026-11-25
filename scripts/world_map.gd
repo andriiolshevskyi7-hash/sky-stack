@@ -53,7 +53,7 @@ func apply(i: int, force: bool = false) -> void:
 	_build_landmarks()
 	_apply_palette()
 	if game != null and game.daynight != null:
-		game.daynight.beam_count = 9 if CityGen.neon else 5
+		game.daynight.beam_count = 4 if CityGen.neon else 3
 	if game != null:
 		game.chunks.reset_all()
 		game.traffic._urban.clear()

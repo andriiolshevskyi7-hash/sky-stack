@@ -997,6 +997,8 @@ func apply_settings(key: String) -> void:
 		cam.mode = int(st["view"]) as GameCamera.Mode
 		cam._since_switch = 0.0
 	daynight.cycle = st["day_cycle"]
+	if key == "traffic" or key == "":
+		traffic.set_level(int(st["traffic"]))
 	if key == "time" or key == "":
 		daynight.t = world_map.time_of_day()
 	if (key == "islands" or key == "seed") and world_map.index == 0:
@@ -1099,8 +1101,8 @@ func test_hook(t: Node) -> Array:
 	await t.get_tree().create_timer(1.5).timeout
 	if enemies.count_active() == 0:
 		errs.append("no enemies spawned in wave 4")
-	if traffic.active_cars < 20:
-		errs.append("too few cars (%d)" % traffic.active_cars)
+	if traffic.active_cars < Traffic.LEVEL_CARS[traffic.level] / 3:
+		errs.append("too few cars (%d of %d)" % [traffic.active_cars, Traffic.LEVEL_CARS[traffic.level]])
 	# shoot: guaranteed kill of one enemy through the combat path
 	var before := kills
 	for e in enemies.pool:
@@ -1272,7 +1274,7 @@ func test_hook(t: Node) -> Array:
 	tutorial.stop()
 	# --- settings apply live (and defaults match the spec)
 	var d := SettingsScreen.defaults()
-	if d["speed"] != 130.0 or d["cruise"] != 220.0 or d["missiles"] != 6.0 or d["islands"] != 0.33 or d["glow"] != 0.8:
+	if d["speed"] != 130.0 or d["cruise"] != 220.0 or d["missiles"] != 6.0 or d["islands"] != 0.33 or d["glow"] != 0.6 or d["contrast"] != 0.05 or d["traffic"] != 1:
 		errs.append("settings defaults differ from the spec")
 	settings_ui.set_value("speed", 150.0)
 	if float(jet.cfg["speed"]) != 150.0:
@@ -1286,6 +1288,12 @@ func test_hook(t: Node) -> Array:
 		errs.append("islands change did not reset the streamed chunks")
 	for k in ["speed", "time", "islands"]:
 		settings_ui.set_value(k, d[k])
+	# RESET TO DEFAULTS restores every value and re-applies it
+	settings_ui.set_value("speed", 200.0)
+	settings_ui.set_value("traffic", 2)
+	settings_ui.reset_to_defaults()
+	if float(jet.cfg["speed"]) != float(d["speed"]) or traffic.level != int(d["traffic"]) or Save.settings.size() < d.size():
+		errs.append("reset to defaults did not restore settings")
 	# cockpit view: camera locks into the canopy, jet hidden, overlay shown
 	cam.mode = GameCamera.Mode.COCKPIT
 	cam._since_switch = 0.0

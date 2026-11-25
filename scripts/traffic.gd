@@ -5,6 +5,10 @@ extends Node3D
 ## boats/ships cruising the ocean between the islands. Pooled + instanced.
 
 const CARS := 150
+## Settings "traffic": 0 off, 1 low (few cars, main avenues only), 2 normal.
+const LEVEL_CARS := [0, 24, CARS]
+const MAIN_EVERY := 4 # low traffic: only every 4th street is a main avenue
+var level := 1
 const RADIUS := 760.0
 const LANE := 4.0 * CityGen.S
 
@@ -84,6 +88,19 @@ func _yaw(axis: int, dir: float) -> float:
 	return PI if dir > 0.0 else 0.0
 
 
+func set_level(l: int) -> void:
+	level = clampi(l, 0, 2)
+	for i in CARS:
+		c_speed[i] = 0.0 # respawn under the new rules
+
+
+func _main_ok(axis: int, p: Vector3) -> bool:
+	if level != 1:
+		return true
+	var line := roundi((p.z if axis == 0 else p.x) / CityGen.WBLOCK)
+	return posmod(line, MAIN_EVERY) == 0
+
+
 func _respawn_car(i: int) -> void:
 	for attempt in 8:
 		var axis := rng.randi() % 2
@@ -97,7 +114,7 @@ func _respawn_car(i: int) -> void:
 		else:
 			var col := roundi((focus.x + across) / CityGen.WBLOCK)
 			p = Vector3(col * CityGen.WBLOCK - LANE * dir, 0.0, focus.z + along)
-		if not _drivable(p.x, p.z, axis == 0):
+		if not _drivable(p.x, p.z, axis == 0) or not _main_ok(axis, p):
 			continue
 		c_pos[i] = p
 		c_axis[i] = axis
@@ -122,7 +139,7 @@ func _cars(delta: float) -> void:
 	bus_batch.begin()
 	active_cars = 0
 	var respawns := 0
-	for i in CARS:
+	for i in LEVEL_CARS[level]:
 		var p := c_pos[i]
 		if c_speed[i] <= 0.0 or Vector2(p.x - focus.x, p.z - focus.z).length() > RADIUS + 90.0:
 			if respawns < 10:
@@ -139,7 +156,7 @@ func _cars(delta: float) -> void:
 			var inter := c_next[i]
 			c_next[i] += CityGen.WBLOCK * dir
 			var r := rng.randf()
-			if r < 0.3:
+			if r < 0.3 and level == 2:
 				# turn onto the crossing street (right-hand traffic lanes)
 				var new_dir := 1.0 if rng.randf() < 0.5 else -1.0
 				var np: Vector3

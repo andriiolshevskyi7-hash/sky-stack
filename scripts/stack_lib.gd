@@ -312,22 +312,20 @@ func _build_facades() -> void:
 		var ox := (si % 8) * FT
 		var oy := (si / 8) * FH
 		var wall := Pal.c(st[0])
-		var frame := Pal.c(st[6])
+		# calm facades: frames sit close to the wall colour, low contrast
+		var frame := Pal.c(st[6]).lerp(wall, 0.55)
 		img.fill_rect(Rect2i(ox, oy, FT, FH), wall)
 		var kind: int = st[7]
 		match kind:
 			2:
 				# brick courses
 				for y in range(0, FH, 3):
-					img.fill_rect(Rect2i(ox, oy + y, FT, 1), wall.darkened(0.15))
-					var sh := 0 if (y / 3) % 2 == 0 else 3
-					for x in range(sh, FT, 6):
-						img.set_pixel(ox + x, oy + y + 1, wall.darkened(0.15))
+					img.fill_rect(Rect2i(ox, oy + y, FT, 1), wall.darkened(0.06))
 			3:
 				# corrugated sheet
-				for x in range(0, FT, 4):
-					img.fill_rect(Rect2i(ox + x, oy, 1, FH), frame)
-					img.fill_rect(Rect2i(ox + x + 1, oy, 1, FH), wall.lightened(0.12))
+				for x in range(0, FT, 8):
+					img.fill_rect(Rect2i(ox + x, oy, 1, FH), wall.darkened(0.08))
+					img.fill_rect(Rect2i(ox + x + 1, oy, 1, FH), wall.lightened(0.05))
 				if si == 5:
 					for x in range(4, FT, 16):
 						img.fill_rect(Rect2i(ox + x, oy + 2, 8, 4), Pal.c(Pal.STEEL))
@@ -343,7 +341,7 @@ func _build_facades() -> void:
 				for i in 300:
 					img.set_pixel(ox + rng.randi_range(0, FT - 1), oy + rng.randi_range(0, FH - 1), Pal.c([Pal.BROWN_D, Pal.CHAR, Pal.GRAY][i % 3]))
 		if st[1] != -1:
-			var glass := Pal.c(st[1])
+			var glass := Pal.c(st[1]).lerp(wall, 0.3)
 			for fy in 4:
 				for bx in 4:
 					var cx := ox + bx * 16
@@ -353,21 +351,12 @@ func _build_facades() -> void:
 						img.fill_rect(r.grow(1), frame)
 					img.fill_rect(r, glass)
 					em.fill_rect(r, Color(1, 0, 0, 1))
-					# reflection streak + mullion
-					for k in mini(r.size.y, 4):
-						img.set_pixel(r.position.x + 1 + k, r.position.y + r.size.y - 1 - k, glass.lightened(0.3))
-					if r.size.x >= 10:
-						img.fill_rect(Rect2i(r.position.x + r.size.x / 2, r.position.y, 1, r.size.y), glass.darkened(0.25))
-					if kind == 0 or kind == 2:
-						img.fill_rect(Rect2i(r.position.x - 1, r.end.y + 1, r.size.x + 2, 1), wall.lightened(0.25))
-				# floor ledge with highlight
-				img.fill_rect(Rect2i(ox, oy + fy * 12 + 11, FT, 1), frame.darkened(0.2))
+					# one soft sky reflection on the upper part of the pane
+					img.fill_rect(Rect2i(r.position.x, r.position.y, r.size.x, maxi(1, r.size.y / 3)), glass.lightened(0.06))
+				# floor ledge
+				img.fill_rect(Rect2i(ox, oy + fy * 12 + 11, FT, 1), wall.darkened(0.08))
 				if kind == 1:
 					img.fill_rect(Rect2i(ox, oy + fy * 12, FT, 1), frame)
-		for i in 24:
-			var x := ox + rng.randi_range(0, FT - 1)
-			var y := oy + rng.randi_range(0, FH - 1)
-			img.set_pixel(x, y, img.get_pixel(x, y).darkened(0.08))
 	# roofs (64x64): gravel, tar, green, tiles, metal, concrete, field, rubble
 	var roofs := [Pal.GRAY, Pal.CHAR, Pal.GREEN, Pal.RED_D, Pal.LGRAY, Pal.LGRAY, Pal.GREEN, Pal.DGRAY]
 	for ri in roofs.size():
@@ -406,6 +395,10 @@ func _build_facades() -> void:
 			var c := img.get_pixel(x, y)
 			img.set_pixel(x, y, c.darkened(0.15) if i % 2 == 0 else c.lightened(0.1))
 	_build_map_facades(img, em, rng)
+	# mipmaps: distant facades average into calm colour (and distant lit
+	# windows into a soft glow) instead of shimmering single pixels
+	img.generate_mipmaps()
+	em.generate_mipmaps()
 	facade_tex = ImageTexture.create_from_image(img)
 	facade_emit_tex = ImageTexture.create_from_image(em)
 
@@ -465,13 +458,9 @@ func _build_map_facades(img: Image, em: Image, rng: RandomNumberGenerator) -> vo
 			var r := Rect2i(ox + bx * 16 + 2, oy + fy * 12 + 2, 12, 7)
 			img.fill_rect(r, Color(0.2, 0.24, 0.4))
 			em.fill_rect(r, Color(1, 0, 0, 1))
-	var neon := [Color(1.0, 0.2, 0.75), Color(0.15, 0.95, 1.0), Color(0.75, 0.35, 1.0)]
-	for k in 3:
-		var c: Color = neon[k]
-		img.fill_rect(Rect2i(ox + 1 + k * 21, oy, 2, FH), c)
-		em.fill_rect(Rect2i(ox + 1 + k * 21, oy, 2, FH), Color(0, 1, 0, 1))
-	img.fill_rect(Rect2i(ox, oy + 23, FT, 2), neon[1])
-	em.fill_rect(Rect2i(ox, oy + 23, FT, 2), Color(0, 1, 0, 1))
+	# a single muted neon strip on the corner (subtle, glows at night)
+	img.fill_rect(Rect2i(ox + 1, oy, 1, FH), Color(0.75, 0.3, 0.6))
+	em.fill_rect(Rect2i(ox + 1, oy, 1, FH), Color(0, 1, 0, 1))
 	# roofs (64x48) at row 208
 	var ry := 208
 	var rh := FACADE_H - ry

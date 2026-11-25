@@ -30,7 +30,7 @@ const WIND := Vector2(18.0, 8.0)
 
 var beams: Array[MeshInstance3D] = []
 var _bt := 0.0
-var beam_count := 5 # Night City sweeps 9 searchlights
+var beam_count := 3 # Night City sweeps 4 searchlights
 
 
 func _ready() -> void:

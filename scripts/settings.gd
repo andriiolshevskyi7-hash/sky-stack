@@ -37,10 +37,11 @@ const SCHEMA := [
 	["WORLD", "clouds", "Clouds", "f", 0.45, 0.0, 1.0, 0.05],
 	["WORLD", "seed", "World seed", "f", 7.0, 1.0, 99.0, 1.0],
 	["WORLD", "jet_shadow", "Jet shadow", "b", true],
-	["LOOK", "glow", "Glow (fire, sun, engines, glints)", "f", 0.8, 0.0, 2.0, 0.05],
-	["LOOK", "contrast", "Colour depth and contrast", "f", 0.15, 0.0, 1.0, 0.05],
-	["LOOK", "vignette", "Darkened corners", "f", 0.3, 0.0, 1.0, 0.05],
-	["LOOK", "grain", "Film grain", "f", 0.25, 0.0, 1.0, 0.05],
+	["WORLD", "traffic", "Traffic", "c", 1, ["off", "low", "normal"]],
+	["LOOK", "glow", "Glow (fire, sun, engines, glints)", "f", 0.6, 0.0, 2.0, 0.05],
+	["LOOK", "contrast", "Colour depth and contrast", "f", 0.05, 0.0, 1.0, 0.05],
+	["LOOK", "vignette", "Darkened corners", "f", 0.2, 0.0, 1.0, 0.05],
+	["LOOK", "grain", "Film grain", "f", 0.1, 0.0, 1.0, 0.05],
 	["LOOK", "sprite_snap", "Sprite turn: 64 steps", "b", false],
 	["EFFECTS", "flames", "Thruster flames", "c", 0, ["pixel", "realistic"]],
 	["EFFECTS", "afterburner", "Afterburner", "f", 0.75, 0.0, 2.0, 0.05],
@@ -74,6 +75,12 @@ var _drag_scroll := false
 var _drag_y := 0.0
 var _press_p := Vector2.ZERO
 var _content_h := 0.0
+var _reset := Rect2()
+var _confirm := false # reset confirmation dialog open
+var _yes := Rect2()
+var _no := Rect2()
+## Keys that RESET TO DEFAULTS keeps (not settings in the schema sense).
+const KEEP_ON_RESET := ["map", "lang"]
 
 
 func _ready() -> void:
@@ -86,6 +93,7 @@ func _ready() -> void:
 
 func open() -> void:
 	scroll = 0.0
+	_confirm = false
 	visible = true
 
 
@@ -116,6 +124,11 @@ func _layout() -> void:
 		y += rh
 	_content_h = y + scroll - (pr.position.y + 70 * s)
 	_done = Rect2(Vector2(pr.end.x - 170 * s, pr.position.y + 12 * s), Vector2(150 * s, 46 * s))
+	_reset = Rect2(Vector2(_done.position.x - 250 * s, _done.position.y), Vector2(234 * s, 46 * s))
+	var cw := 520.0 * s
+	var cc := pr.get_center()
+	_yes = Rect2(Vector2(cc.x + 10 * s, cc.y + 20 * s), Vector2(cw * 0.5 - 30 * s, 56 * s))
+	_no = Rect2(Vector2(cc.x - cw * 0.5 + 20 * s, cc.y + 20 * s), Vector2(cw * 0.5 - 30 * s, 56 * s))
 
 
 func _val(key: String) -> Variant:
@@ -170,7 +183,20 @@ func _draw() -> void:
 	draw_rect(Rect2(pr.position, Vector2(pr.size.x, 64 * s)), Color(0.13, 0.13, 0.15))
 	_t(Vector2(pr.position.x + 24 * s, pr.position.y + 44 * s), "SETTINGS", 26, Color.WHITE)
 	draw_rect(_done, Color("f0580e"))
-	_t(Vector2(_done.position.x, _done.position.y + 31 * s), "DONE", 20, Color.WHITE, _done.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	_t(Vector2(_done.position.x, _done.position.y + 31 * s), tr("DONE"), 20, Color.WHITE, _done.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	draw_rect(_reset, Color(0.28, 0.28, 0.32))
+	_t(Vector2(_reset.position.x, _reset.position.y + 31 * s), tr("RESET TO DEFAULTS"), 17, Color.WHITE, _reset.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	if _confirm:
+		draw_rect(pr, Color(0, 0, 0, 0.6))
+		var cc := pr.get_center()
+		var box := Rect2(Vector2(cc.x - 260 * s, cc.y - 90 * s), Vector2(520 * s, 196 * s))
+		draw_rect(box, Color(0.17, 0.17, 0.2))
+		draw_rect(box, Color(0.4, 0.4, 0.45), false, 2.0)
+		_t(Vector2(box.position.x, box.position.y + 50 * s), tr("Reset all settings to their default values?"), 19, Color.WHITE, box.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		draw_rect(_yes, Color("f0580e"))
+		_t(Vector2(_yes.position.x, _yes.position.y + 36 * s), tr("RESET"), 20, Color.WHITE, _yes.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		draw_rect(_no, Color(0.3, 0.3, 0.34))
+		_t(Vector2(_no.position.x, _no.position.y + 36 * s), tr("CANCEL"), 20, Color.WHITE, _no.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _opt_rect(r: Rect2, n: int, i: int, ow: float) -> Rect2:
@@ -202,9 +228,32 @@ func _row_at(p: Vector2) -> int:
 	return -1
 
 
+## Restore every schema default (keeps the chosen map and language).
+func reset_to_defaults() -> void:
+	var keep := {}
+	for k in KEEP_ON_RESET:
+		if Save.settings.has(k):
+			keep[k] = Save.settings[k]
+	Save.settings = defaults()
+	Save.settings.merge(keep, true)
+	Save.store()
+	changed.emit("")
+	changed.emit("islands")
+
+
 func _press(p: Vector2) -> void:
 	_layout()
 	_press_p = p
+	if _confirm:
+		if _yes.has_point(p):
+			_confirm = false
+			reset_to_defaults()
+		elif _no.has_point(p):
+			_confirm = false
+		return
+	if _reset.has_point(p):
+		_confirm = true
+		return
 	if _done.has_point(p):
 		visible = false
 		Save.store()
@@ -220,6 +269,8 @@ func _press(p: Vector2) -> void:
 
 
 func _release(p: Vector2) -> void:
+	if _confirm:
+		return
 	if _drag_scroll and p.distance_to(_press_p) < 12.0 * s:
 		var i := _row_at(p)
 		if i >= 0:

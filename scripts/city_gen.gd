@@ -81,7 +81,7 @@ const G_SLABS := 15
 
 enum { PK_TOWER, PK_MID, PK_HOUSE, PK_FLAT }
 
-const LAMP_GLOW := Color(1.0, 0.8, 0.5, 0.55)
+const LAMP_GLOW := Color(1.0, 0.8, 0.5, 0.42)
 
 ## Flat ground layers (virtual units; world = x2). Every layer is a fixed step
 ## apart so no two coplanar surfaces ever share a depth value: at the far edge
@@ -507,7 +507,7 @@ static func _roof_props(cb: Build, rng: RandomNumberGenerator, t: Rect2, y: floa
 		_stack(cb, "ac_unit", 0, Vector3(px, y + 0.3, pz), PI * 0.5 * rng.randi_range(0, 3))
 	if rng.randf() < 0.3 and minf(w, d) > 12.0:
 		_stack(cb, "water_tank", 0, Vector3(t.position.x + 6.0, y + 0.3, t.end.y - 6.0), 0.0)
-	if rng.randf() < 0.4 and w >= 24.0 and d >= 10.0:
+	if rng.randf() < 0.12 and w >= 24.0 and d >= 10.0:
 		var side := rng.randi_range(0, 3)
 		var v := rng.randi_range(0, 2)
 		match side:
@@ -560,9 +560,10 @@ static func _lamps(cb: Build, lx0: float, lz0: float, lx1: float, lz1: float) ->
 			var yaw := atan2(-s[3], s[2])
 			cb.p.add_stack(lamp, 0, Vector3(s[0], Y_WALK + 0.04, s[1]), yaw, 1.0, Color.WHITE, 2)
 			var gc: Color = LAMP_GLOW
-			if neon:
-				gc = NEON[hashi(int(s[0]), int(s[1]), 9) % NEON.size()]
-			_glow(cb, s[0] + s[2] * 3.5, s[1] + s[3] * 3.5, 18.0 if neon else 15.0, gc)
+			if neon and hashi(int(s[0]), int(s[1]), 9) % 6 == 0:
+				gc = NEON[hashi(int(s[0]), int(s[1]), 10) % NEON.size()]
+				gc.a = 0.35 # occasional subtle neon pool
+			_glow(cb, s[0] + s[2] * 3.5, s[1] + s[3] * 3.5, 15.0, gc)
 
 
 static func _trees(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, avoid: Array[Rect2], pine_bias: float = 0.25) -> void:
@@ -621,7 +622,7 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 				var h := 22.0 + pow(rng.randf(), 2.2) * 135.0 * clampf((cv - 0.8) * 4.0, 0.4, 1.0)
 				var styles := [F_GLASS, F_GLASS_DARK, F_OFFICE, F_LUX, F_MODERN, F_GREEN]
 				if neon:
-					styles = [F_NEON, F_GLASS_DARK, F_NEON, F_LUX, F_GLASS_DARK, F_NEON]
+					styles = [F_GLASS_DARK, F_OFFICE, F_LUX, F_GLASS_DARK, F_MODERN, F_NEON]
 				var roofs := [R_TAR, R_GRAVEL, R_METAL]
 				_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y, h,
 					styles[rng.randi() % styles.size()], roofs[rng.randi() % roofs.size()], PK_TOWER)
@@ -633,7 +634,7 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 				var h := 14.0 + rng.randf() * 36.0
 				var styles := [F_OFFICE, F_BRICK, F_BEIGE, F_MODERN, F_WHITE]
 				if neon:
-					styles = [F_NEON, F_BRICK, F_GLASS_DARK, F_MODERN, F_NEON]
+					styles = [F_BRICK, F_GLASS_DARK, F_MODERN, F_OFFICE, F_BEIGE, F_NEON]
 				var roofs := [R_GRAVEL, R_TAR, R_GREEN]
 				_building(cb, rng, building_id(bx, bz, i), r.position.x, r.position.y, r.end.x, r.end.y, h,
 					styles[rng.randi() % styles.size()], roofs[rng.randi() % roofs.size()], PK_MID)
