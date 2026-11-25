@@ -343,6 +343,9 @@ func _parse_args() -> void:
 			_debug_plane = int(pv[0])
 			_debug_skin = int(pv[1]) if pv.size() > 1 else 0
 			apply_player_plane()
+		elif a.begins_with("--look="):
+			var lv := a.substr(7).split(",")
+			controls.debug_look = Vector2(float(lv[0]), float(lv[1]) if lv.size() > 1 else 0.0)
 		elif a == "--nofog":
 			cam.fog_enabled = false
 		elif a == "--nodebug":
@@ -478,7 +481,10 @@ func _process(delta: float) -> void:
 			if _player_respawn <= 0.0:
 				_respawn_player()
 	cam.update_cam(delta, jet, jet.speed_ratio())
-	jet.visible = jet.alive and cam.cockpit_blend < 0.6
+	# in the cockpit the own plane shows only when looking out to the side /
+	# back (wings, tail) - the near plane clips the canopy around the eye
+	cam.look_target = controls.look
+	jet.visible = jet.alive and (cam.cockpit_blend < 0.6 or absf(cam.look.x) > 0.75)
 	cockpit.size = Vector2(pv.low)
 	cockpit.alpha = cam.cockpit_blend if state != State.TITLE else 0.0
 	chunks.radius = 2 if cam.mode == GameCamera.Mode.OVERHEAD else 3

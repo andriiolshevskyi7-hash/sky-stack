@@ -126,6 +126,7 @@ first if Android refuses to update it (`adb uninstall com.skystack.game`).
 | MISSILE icon (count, reload ring) | M |
 | LOOP icon (flown for you; it can stall at the top if you start slow) | L |
 | Eye icon: overhead → chase → cockpit; **II** pause; INTEL lists all controls | C or V, Esc / P, I |
+| Cockpit: hold the eye icon and drag to look around (springs back when released) | hold Q / E, middle mouse drag |
 
 Vibration on hits, lock-on, stall and crash (Settings → HELPERS).
 
@@ -174,7 +175,7 @@ All values persist in `user://save.cfg`. Defaults:
 | City on the islands (districts, parks, port, stadiums, forests) | `scripts/city_gen.gd` |
 | Threaded chunk streaming, ~4 draw calls per chunk | `scripts/chunk_manager.gd` |
 | Perspective camera blending overhead / chase / cockpit, horizon fog, shake, dither fade | `scripts/game_camera.gd`, `shaders/common.gdshaderinc` |
-| Pixel-art cockpit (canopy, HUD pitch ladder + heading, radar, attitude, gauges) | `scripts/cockpit.gd` |
+| Pixel-art cockpit per class / tier: canopy bow, HUD combiner with green symbology, keypad, displays (radar, flight, engine, moving map, panoramic), consoles, knees + stick, head look | `scripts/cockpit.gd` |
 
 The pixel view: the world renders into a `SubViewport` whose height is
 280–400 px and whose width follows the screen aspect, chosen so it scales to the

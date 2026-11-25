@@ -10,9 +10,13 @@ extends Node
 ##  Small icons at the top: VIEW, PAUSE (+ INTEL).
 ##  DOUBLE TAP anywhere free = barrel roll (works with a second finger while
 ##  the first one keeps steering).
+##  VIEW (eye): tap = next camera; hold and drag = look around in the
+##  cockpit (springs back to the front when released).
 ## Keyboard: A/D or arrows bank, S/Down pull, W/Up push, T / G throttle up /
 ## down, Shift afterburner, Space/J fire, M missile, L loop, R roll, C/V view,
-## Esc/P pause, I intel.
+## Esc/P pause, I intel, hold Q / E look left / right (both = over the
+## left shoulder),
+## middle mouse drag = look around.
 
 signal cam_pressed
 signal pause_pressed
@@ -23,6 +27,9 @@ signal intel_pressed
 signal tutorial_pressed
 
 var stick := Vector2.ZERO # x: + = bank right, y: + = pull (already inverted)
+var look := Vector2.ZERO # head look in the cockpit (rad, x + = left, y + = up)
+var looking := false
+var debug_look := Vector2.INF # tests / screenshots: fixed head look
 var boost := false # afterburner requested (throttle in the AB zone or Shift)
 var fire := false
 var throttle := 0.85 # lever position 0..1 (Jet.THR_MIL = military, >= THR_AB = afterburner)
@@ -56,6 +63,8 @@ var _touch_p0 := {}
 var _touch_max := {} # index -> furthest movement (px)
 var _drag_index := -1
 var _mouse_fire := false
+var _mouse_look := false
+var _look_drag := Vector2.ZERO
 var _last_tap_ms := -10000
 
 # diagnostics
@@ -169,7 +178,7 @@ func _input(event: InputEvent) -> void:
 				return
 			match b:
 				"view":
-					cam_pressed.emit()
+					_look_drag = Vector2.ZERO # tap = next view (on release), drag = look
 				"loop":
 					loop_pressed.emit()
 				"missile":
@@ -192,6 +201,12 @@ func _input(event: InputEvent) -> void:
 		else:
 			var role: String = _touch_role.get(e.index, "")
 			_touch_role.erase(e.index)
+			if role == "view":
+				var dtv: int = Time.get_ticks_msec() - int(_touch_t0.get(e.index, 0))
+				var mv: float = maxf(float(_touch_max.get(e.index, 0.0)), e.position.distance_to(_touch_p0.get(e.index, e.position)))
+				if mv < 14.0 * ui_scale and dtv < 450 and enabled:
+					cam_pressed.emit()
+				_look_drag = Vector2.ZERO
 			if role == "drag" or role == "tap":
 				var dt: int = Time.get_ticks_msec() - int(_touch_t0.get(e.index, 0))
 				var moved: float = maxf(float(_touch_max.get(e.index, 0.0)), e.position.distance_to(_touch_p0.get(e.index, e.position)))
@@ -207,17 +222,24 @@ func _input(event: InputEvent) -> void:
 		var role: String = _touch_role.get(e.index, "")
 		if role == "throttle" and enabled:
 			_set_throttle_from(e.position)
+		elif role == "view":
+			_look_drag = e.position - _touch_p0.get(e.index, e.position)
 		elif e.index == _drag_index:
 			drag_pos = e.position
 			var d := drag_pos - drag_start
 			if d.length() > drag_radius * 1.5:
 				drag_start = drag_pos - d.normalized() * drag_radius * 1.5
+	elif event is InputEventMouseMotion and _mouse_look:
+		_look_drag += (event as InputEventMouseMotion).relative
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.device == InputEvent.DEVICE_ID_EMULATION:
 			return
 		if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
 			_mouse_fire = mb.pressed
+		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
+			_mouse_look = mb.pressed
+			_look_drag = Vector2.ZERO
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
 			throttle = minf(1.0, throttle + 0.05)
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -276,6 +298,25 @@ func _process(delta: float) -> void:
 	var raw := t if k == Vector2.ZERO else k
 	# screen-down = pull (+y); invert flips it
 	stick = Vector2(raw.x, -raw.y if invert else raw.y)
+	# head look: drag on the eye (or middle mouse) - one screen height of
+	# drag turns the head ~140 degrees; Q / E look left / right, both = back
+	var lk := Vector2.ZERO
+	var kq := Input.is_physical_key_pressed(KEY_Q)
+	var ke := Input.is_physical_key_pressed(KEY_E)
+	if kq and ke:
+		lk = Vector2(2.0, 0.2)
+	elif kq:
+		lk = Vector2(1.5, 0.05)
+	elif ke:
+		lk = Vector2(-1.5, 0.05)
+	var view_held := _touch_role.values().has("view") or _mouse_look
+	if view_held:
+		var hs := get_viewport().get_visible_rect().size.y
+		lk = Vector2(-_look_drag.x, -_look_drag.y) / hs * 2.4
+	if debug_look != Vector2.INF:
+		lk = debug_look
+	looking = lk != Vector2.ZERO or view_held
+	look = lk
 	pressed.clear()
 	var held_fire := false
 	for i in _touch_role:

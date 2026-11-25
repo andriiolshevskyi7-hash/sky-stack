@@ -388,6 +388,19 @@ func test_touch(main: Node) -> void:
 	await _frames(2)
 	check(main.cam.mode != mode_before, "VIEW button cycles the view")
 	main.cam.mode = mode_before
+	# hold VIEW and drag = look around (no view change), springs back
+	var vc: Vector2 = c.button_center("view")
+	main.cam.mode = GameCamera.Mode.COCKPIT
+	_touch(vc, true)
+	await _frames(1)
+	_drag(vc + Vector2(-300, 0))
+	await _frames(25)
+	var looked: float = main.cam.look.x
+	_touch(vc + Vector2(-300, 0), false)
+	await _frames(60)
+	check(main.cam.mode == GameCamera.Mode.COCKPIT and looked > 0.3 and absf(main.cam.look.x) < 0.1,
+		"hold + drag VIEW looks left (%.2f rad) without changing the view, then springs back (%.2f)" % [looked, main.cam.look.x])
+	main.cam.mode = mode_before
 	# PAUSE -> RESUME
 	_touch(c.button_center("pause"), true)
 	await _frames(2)

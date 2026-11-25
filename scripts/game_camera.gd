@@ -41,6 +41,12 @@ var chase_dist := 2.6 # jet lengths (1 length = 64 units incl. trail)
 var chase_height := 25.0
 var transition := 1.4 # seconds for a view change
 var shake_mult := 1.0
+## Cockpit head look (x = yaw, + = left; y = pitch, + = up), radians:
+## look_target comes from the controls, look follows it smoothly.
+var look := Vector2.ZERO
+var look_target := Vector2.ZERO
+const LOOK_MAX := Vector2(2.0, 1.2) # ~115 deg to the side: the seat blocks the view further back
+const LOOK_MIN_PITCH := -0.45
 
 
 func _ready() -> void:
@@ -95,11 +101,18 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 			return tr
 		_:
 			var b: Basis = jet.visual_basis()
-			return Transform3D(b, jp + b * Vector3(0.0, 4.5, -7.0))
+			var eye := jp + b * Vector3(0.0, 6.4, -7.0)
+			return Transform3D(b * Basis(Vector3.UP, look.x) * Basis(Vector3.RIGHT, look.y), eye)
 
 
 func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	_since_switch += delta
+	if mode != Mode.COCKPIT or override != null:
+		look_target = Vector2.ZERO
+	var lt := Vector2(clampf(look_target.x, -LOOK_MAX.x, LOOK_MAX.x), clampf(look_target.y, LOOK_MIN_PITCH, LOOK_MAX.y))
+	look = look.lerp(lt, 1.0 - exp(-delta * 9.0))
+	if look.length() < 0.002 and lt == Vector2.ZERO:
+		look = Vector2.ZERO
 	var t := _target(mode, jet)
 	if override != null and is_instance_valid(override):
 		var op := override.global_position
