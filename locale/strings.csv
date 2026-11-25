@@ -290,7 +290,7 @@ ATTACKERS,ATTACKERS,ШТУРМОВИКИ
 COINS %d,COINS %d,МОНЕТИ %d
 RANK %s,RANK %s,РАНГ %s
 NEEDS %s,NEEDS %s,ПОТРІБЕН %s
-%d KILLS,%d KILLS,%d ЗБИТИХ
+%d KILLS,%d KILLS,ЗБИТИХ: %d
 RANK UP!,RANK UP!,НОВИЙ РАНГ!
 %s   %d / %d XP,%s   %d / %d XP,%s   %d / %d ДОСВІДУ
 %s     COINS %d     HIGH SCORE %d,%s     COINS %d     HIGH SCORE %d,%s     МОНЕТИ %d     РЕКОРД %d
@@ -317,3 +317,84 @@ MIDNIGHT,MIDNIGHT,ОПІВНІЧ
 TIGER,TIGER,ТИГР
 ACE GOLD,ACE GOLD,ЗОЛОТО АСА
 AGGRESSOR,AGGRESSOR,АГРЕСОР
+MISSIONS,MISSIONS,МІСІЇ
+PROFILE,PROFILE,ПРОФІЛЬ
+DAILY,DAILY,ЩОДЕННІ
+WEEKLY,WEEKLY,ТИЖНЕВІ
+CLAIM,CLAIM,ЗАБРАТИ
+CLAIMED,CLAIMED,ОТРИМАНО
+REROLL,REROLL,ЗАМІНИТИ
+NEW IN %d:%02d,NEW IN %d:%02d,НОВІ ЧЕРЕЗ %d:%02d
+1 FREE REROLL,1 FREE REROLL,1 БЕЗКОШТОВНА ЗАМІНА
++%d COINS  +%d XP,+%d COINS  +%d XP,+%d МОНЕТ  +%d ДОСВІДУ
+%d / %d TIERS,%d / %d TIERS,%d / %d РІВНІВ
+ACHIEVEMENTS,ACHIEVEMENTS,ДОСЯГНЕННЯ
+ACHIEVEMENT,ACHIEVEMENT,ДОСЯГНЕННЯ
+ACHIEVEMENT: %s,ACHIEVEMENT: %s,ДОСЯГНЕННЯ: %s
+BRONZE,BRONZE,БРОНЗА
+SILVER,SILVER,СРІБЛО
+GOLD,GOLD,ЗОЛОТО
+EDIT,EDIT,ЗМІНИТИ
+BATTLES,BATTLES,БОЇВ
+WINS,WINS,ПЕРЕМОГ
+WIN RATE,WIN RATE,ВІДСОТОК ПЕРЕМОГ
+K/D,K/D,З/С
+ACCURACY,ACCURACY,ВЛУЧНІСТЬ
+FAVOURITE PLANE,FAVOURITE PLANE,УЛЮБЛЕНИЙ ЛІТАК
+BEST STREAK,BEST STREAK,НАЙКРАЩА СЕРІЯ
+TIME PLAYED,TIME PLAYED,ЧАС У ГРІ
+Destroy %d AA guns,Destroy %d AA guns,Знищити зеніток: %d
+Win %d Team Dogfights,Win %d Team Dogfights,Перемоги в командних боях: %d
+Get %d missile kills,Get %d missile kills,Збиті ракетами: %d
+Fly %d min below 150 m,Fly %d min below 150 m,"Політ нижче 150 м, хв: %d"
+Shoot down %d planes with the cannon,Shoot down %d planes with the cannon,Збиті з гармати: %d
+Get %d assists,Get %d assists,Допомоги: %d
+Dodge %d missiles,Dodge %d missiles,Ухилитися від ракет: %d
+Win %d Base Strike,Win %d Base Strike,Перемоги в ударі по базі: %d
+Play %d battles,Play %d battles,Зіграти боїв: %d
+Destroy %d ground targets,Destroy %d ground targets,Знищити наземних цілей: %d
+Win %d Duel,Win %d Duel,Перемоги в дуелях: %d
+Shoot down %d planes,Shoot down %d planes,Збити літаків: %d
+Play %d battles on Desert Canyon,Play %d battles on Desert Canyon,Бої в Пустельному каньйоні: %d
+Play %d battles on Snow Mountains,Play %d battles on Snow Mountains,Бої в Снігових горах: %d
+Play %d battles on Ocean Carrier,Play %d battles on Ocean Carrier,Бої на Авіаносцях в океані: %d
+Win %d battles,Win %d battles,Перемоги: %d
+Destroy %d carriers,Destroy %d carriers,Знищити авіаносців: %d
+Be MVP %d times,Be MVP %d times,Стати MVP разів: %d
+SKY HUNTER,SKY HUNTER,НЕБЕСНИЙ МИСЛИВЕЦЬ
+VICTOR,VICTOR,ПЕРЕМОЖЕЦЬ
+MATADOR,MATADOR,МАТАДОР
+DECOY,DECOY,ПРИМАНКА
+AEROBAT,AEROBAT,АКРОБАТ
+DEMOLISHER,DEMOLISHER,РУЙНІВНИК
+SINK THE FLEET,SINK THE FLEET,ПОТОПИ ФЛОТ
+LOCK AND LAUNCH,LOCK AND LAUNCH,ЗАХОПИ І ПУСКАЙ
+GUNSLINGER,GUNSLINGER,СТРІЛЕЦЬ
+ACE HUNTER,ACE HUNTER,МИСЛИВЕЦЬ НА АСІВ
+MOST VALUABLE,MOST VALUABLE,НАЙЦІННІШИЙ
+NAP OF THE EARTH,NAP OF THE EARTH,НАД САМОЮ ЗЕМЛЕЮ
+ON A ROLL,ON A ROLL,НА ХВИЛІ
+DUELLIST,DUELLIST,ДУЕЛЯНТ
+BASE BREAKER,BASE BREAKER,РУЙНІВНИК БАЗ
+GUARDIAN,GUARDIAN,ОХОРОНЕЦЬ
+ISLAND HOPPER,ISLAND HOPPER,ОСТРІВНИЙ ПІЛОТ
+DUST DEVIL,DUST DEVIL,ПИЛОВИЙ ВИХОР
+ICE COLD,ICE COLD,КРИЖАНИЙ
+NIGHT OWL,NIGHT OWL,НІЧНА СОВА
+BLUE WATER,BLUE WATER,ВІДКРИТЕ МОРЕ
+LIGHTWEIGHT,LIGHTWEIGHT,ЛЕГКА ВАГА
+HEAVYWEIGHT,HEAVYWEIGHT,ВАЖКА ВАГА
+MUD MOVER,MUD MOVER,ШТУРМОВИК-АС
+Save yourself with flares %d times,Save yourself with flares %d times,Порятунки пастками: %d
+Fly %d loops and flips,Fly %d loops and flips,Петлі й перекиди: %d
+Get %d cannon kills,Get %d cannon kills,Збиті з гармати: %d
+Shoot down %d ace pilots,Shoot down %d ace pilots,Збиті аси: %d
+Get %d kills in one life,Get %d kills in one life,Збиті за одне життя: %d
+Win %d duels,Win %d duels,Перемоги в дуелях: %d
+Win %d Base Strikes,Win %d Base Strikes,Перемоги в ударі по базі: %d
+Survive %d city waves,Survive %d city waves,Відбиті хвилі атаки на місто: %d
+Play %d battles on Tropical Islands,Play %d battles on Tropical Islands,Бої на Тропічних островах: %d
+Play %d battles on Night City,Play %d battles on Night City,Бої в Нічному місті: %d
+Shoot down %d planes in light fighters,Shoot down %d planes in light fighters,Збиті на легких винищувачах: %d
+Shoot down %d planes in heavy fighters,Shoot down %d planes in heavy fighters,Збиті на важких винищувачах: %d
+Shoot down %d planes in attackers,Shoot down %d planes in attackers,Збиті на штурмовиках: %d

@@ -257,6 +257,8 @@ func _ready() -> void:
 	jet.ejected.connect(_on_ejected)
 	jet.trick.connect(func(n: String) -> void:
 		if state == State.PLAY:
+			if n != "ROLL":
+				Profile.track("loop")
 			score += 25
 			show_banner(n, "", 0.8))
 	jet.died.connect(_on_jet_died)
@@ -283,6 +285,13 @@ func _parse_args() -> void:
 			start_game()
 		elif a == "--hangar":
 			_open_hangar()
+		elif a == "--missions":
+			_open_missions()
+		elif a == "--achievements":
+			_open_missions()
+			screens.mtab = 1
+		elif a == "--profile":
+			_open_profile()
 		elif a == "--skins":
 			_open_hangar()
 			screens.page = "skins"
@@ -365,10 +374,12 @@ func _process(delta: float) -> void:
 		fleet.step(delta)
 	if state == State.PLAY:
 		_update_border(delta)
+		_track_live(delta)
 		# flares go out by themselves just before an enemy missile hits
 		if jet.alive and jet.flares > 0 and jet.flares_active <= 0.0 and missiles.incoming_t < 0.45:
 			jet.flares -= 1
 			jet.flares_active = 1.5
+			Profile.track("flare_save")
 			popups.append([jet.position, "FLARES", 0.0])
 		match_rules.update(delta)
 		if _player_respawn > 0.0:
@@ -452,9 +463,26 @@ func _to_title() -> void:
 	match_rules.running = false
 	match_rules.mode = Match.CITY
 	menu.open("SKY STACK", "Offline air combat",
-		[["PLAY", _open_mode_menu], ["HANGAR", _open_hangar], ["SETTINGS", _open_settings_from_title]],
-		[func() -> String: return tr("%s     COINS %d     HIGH SCORE %d") % [tr(Profile.RANKS[Profile.rank()]), Profile.coins(), Save.high_score],
-		"TAP ANYWHERE TO PLAY"], 0.25, true)
+		[["PLAY", _open_mode_menu], ["HANGAR", _open_hangar, Profile.has_new_plane], ["SKINS", _open_skins, Profile.has_new_skin],
+		["MISSIONS", _open_missions, Profile.has_claimable], ["PROFILE", _open_profile], ["SETTINGS", _open_settings_from_title]],
+		[], 0.25, false, true)
+	Profile.flush()
+
+
+func _open_skins() -> void:
+	_open_hangar()
+	screens.skin_sel = Profile.skin_of(screens.sel)
+	screens.page = "skins"
+
+
+func _open_missions() -> void:
+	menu.close()
+	screens.show_page("missions", {"on_back": _to_title})
+
+
+func _open_profile() -> void:
+	menu.close()
+	screens.show_page("profile", {"on_back": _to_title})
 
 
 func _open_hangar() -> void:
@@ -584,6 +612,11 @@ func start_match() -> void:
 	jet.shots_fired = 0
 	jet.shots_hit = 0
 	kill_feed.clear()
+	_life_kills = 0
+	_low_acc = 0.0
+	_dodges_seen = missiles.dodges
+	_match_achievements.clear()
+	Profile.toasts.clear()
 	apply_player_plane()
 	jet.health = jet.max_health
 	jet.flares = jet.max_flares
@@ -673,6 +706,12 @@ func on_structure_destroyed(s: Object, src: Object) -> void:
 	if src == jet:
 		score += 200
 		popups.append([s.pos, "+200", 0.0])
+		if state == State.PLAY:
+			Profile.track("structure")
+			if s.kind == Bases.AA:
+				Profile.track("aa_kill")
+			if bases.naval and s.kind == Bases.AIRFIELD:
+				Profile.track("carrier_kill")
 
 
 func on_match_finished() -> void:
@@ -689,7 +728,43 @@ func on_match_finished() -> void:
 	screens.show_page("results", res)
 
 
+var _life_kills := 0
+var _low_acc := 0.0
+var _dodges_seen := 0
+
+
+## Live mission / achievement counters (low flying, dodges) + toasts.
+func _track_live(delta: float) -> void:
+	if jet.alive and match_rules.countdown <= 0.0 and jet.position.y < CityGen.LOW_ALT:
+		_low_acc += delta
+		if _low_acc >= 1.0:
+			_low_acc -= 1.0
+			Profile.track("low_seconds", 1.0)
+	if missiles.dodges > _dodges_seen:
+		Profile.track("dodge", missiles.dodges - _dodges_seen)
+		_dodges_seen = missiles.dodges
+	while not Profile.toasts.is_empty():
+		var t: Array = Profile.toasts.pop_front()
+		hud.toast(t[0], t[1])
+		_match_achievements.append(t)
+
+
+var _match_achievements: Array = []
+
+
 func _finish_profile(res: Dictionary, mode_key: String) -> void:
+	# missions / achievements: battle results
+	Profile.track("battle")
+	if res.get("won", false):
+		Profile.track("win")
+		if mode_key in ["dogfight", "base", "duel"]:
+			Profile.track("win_" + mode_key)
+	if res.get("me_mvp", false):
+		Profile.track("mvp")
+	Profile.track("map_" + str(world_map.current()["id"]))
+	while not Profile.toasts.is_empty():
+		_match_achievements.append(Profile.toasts.pop_front())
+	res["achievements"] = _match_achievements.duplicate()
 	var xp0 := Profile.xp()
 	var rank0 := Profile.rank()
 	Profile.record_match({
@@ -791,6 +866,7 @@ func _update_waves(delta: float) -> void:
 		var bonus := 500 * wave + int(city_hp / city_max * 500.0)
 		score += bonus
 		jet.health = minf(jet.max_health, jet.health + 20.0)
+		Profile.track("wave")
 		show_banner(tr("WAVE %d CLEAR") % wave, tr("+%d bonus   +20 HP") % bonus, 3.0)
 		Sfx.play("clear")
 		between_t = 4.0
@@ -837,15 +913,28 @@ func _on_plane_killed(victim: Jet, killer: Jet, assist: Jet) -> void:
 	kill_feed.append(["%s  >  %s" % [kn, victim.pilot], 0.0, col])
 	if kill_feed.size() > 5:
 		kill_feed.pop_front()
+	if victim == jet:
+		_life_kills = 0
 	if killer == jet and victim != jet:
 		on_enemy_killed(Enemies.JET, victim.position, 300)
+		if state == State.PLAY:
+			Profile.track("missile_kill" if victim.last_hit_missile else "gun_kill")
+			if victim.brain != null and victim.brain.skill >= 0.8:
+				Profile.track("ace_kill")
+			if jet.plane >= 0:
+				Profile.track("kill_" + ["light", "heavy", "attack"][int(Planes.LIST[jet.plane]["branch"])])
 	elif assist == jet:
+		Profile.track("assist")
 		score += 100
 		popups.append([victim.position, "ASSIST +100", 0.0])
 
 
 func on_enemy_killed(type: int, at: Vector3, value: int) -> void:
 	kills += 1
+	if state == State.PLAY:
+		_life_kills += 1
+		Profile.track("kill")
+		Profile.track("streak", _life_kills)
 	var pts := value * jet.multiplier
 	score += pts
 	popups.append([at, "+%d" % pts, 0.0])
@@ -1448,6 +1537,52 @@ func test_hook(t: Node) -> Array:
 		errs.append("red team should fly the aggressor scheme (%d)" % red_skin)
 	if Profile.rank_of(0)[0] != 0 or Profile.rank_of(999999)[0] != Profile.RANKS.size() - 1:
 		errs.append("rank table wrong")
+	# --- missions, weekly challenges, achievements
+	Profile.data["missions"]["day"] = "1999-01-01" # yesterday's list
+	var dl: Array = Profile.daily()
+	if dl.size() != 3 or Profile.data["missions"]["day"] != Missions.day_key():
+		errs.append("daily missions not refreshed for a new day")
+	if Profile.weekly().size() != 3:
+		errs.append("weekly challenges missing")
+	var mev: String = Missions.daily_def(dl[0]["id"])[2]
+	var goal := float(Missions.daily_def(dl[0]["id"])[3])
+	var coins0 := Profile.coins()
+	Profile.track(mev, goal)
+	if not Profile.mission_done(dl[0], false) or not Profile.has_claimable():
+		errs.append("mission progress not tracked (%s)" % mev)
+	if not Profile.claim_mission(0, false) or Profile.coins() <= coins0 or Profile.claim_mission(0, false):
+		errs.append("mission claim failed or claimed twice")
+	var old_id: String = Profile.daily()[1]["id"]
+	if not Profile.reroll(1) or Profile.daily()[1]["id"] == old_id or Profile.reroll(2):
+		errs.append("free daily reroll wrong")
+	Profile.data["skins"].erase(Missions.TIGER_SKIN)
+	Profile.data["skins"].erase(float(Missions.TIGER_SKIN))
+	Profile.data["ach_seen"].erase("aces")
+	Profile.data["counters"]["ace_kill"] = 0
+	Profile.toasts.clear()
+	Profile.track("ace_kill")
+	if Profile.ach_reached("aces") != 0 or Profile.toasts.is_empty() or not Profile.has_skin(Missions.TIGER_SKIN):
+		errs.append("achievement tier / toast / Tiger skin unlock failed")
+	if not Profile.claim_achievement("aces") or Profile.claim_achievement("aces"):
+		errs.append("achievement claim wrong")
+	Profile.track("streak", 4)
+	Profile.track("streak", 2)
+	if Profile.counter("streak") < 4.0:
+		errs.append("best streak should keep the maximum")
+	Profile.set_player_name("  Viper  ")
+	if Profile.player_name() != "Viper":
+		errs.append("profile name not saved")
+	# battle events feed missions: a structure kill by the player
+	_open_lobby(Match.BASE)
+	start_match()
+	match_rules.countdown = 0.0
+	var st0 := Profile.counter("structure")
+	for st in bases.alive_targets(1):
+		if st.kind == Bases.AA:
+			st.take_damage(999.0, jet)
+			break
+	if Profile.counter("structure") != st0 + 1.0 or Profile.counter("aa_kill") < 1.0:
+		errs.append("structure kills not tracked")
 	Profile.data = backup
 	Profile.save()
 	_to_title()

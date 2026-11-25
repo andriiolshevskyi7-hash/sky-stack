@@ -227,6 +227,7 @@ func hit_test(p: Vector3, team: int, dmg: float, src: Object, radius: float = HI
 			continue
 		var d := j.position - p
 		if absf(d.y) < radius and absf(d.x) < radius and absf(d.z) < radius and Vector2(d.x, d.z).length() < radius:
+			j.last_hit_missile = false
 			j.damage(dmg, src)
 			return true
 	return false

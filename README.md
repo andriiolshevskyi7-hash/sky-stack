@@ -59,6 +59,29 @@ its own outline, painted in code:
 * Ranks: Bronze III → Silver → Gold → Platinum → Diamond I → Ace. Bots in a
   match are matched to your rank, and their plane tier follows their skill.
 
+## Missions, achievements, profile
+
+The main menu has PLAY, HANGAR, SKINS, MISSIONS, PROFILE and SETTINGS, with
+your rank and coins at the top. A red dot means something is ready (a reward
+to claim, a plane you can buy, a skin that unlocked).
+
+* **Daily missions**: 3 per day, refreshed at local midnight. Each gives coins
+  and XP, and you get one free reroll per day.
+* **Weekly challenges**: 3 bigger goals per week (from Monday) with bigger
+  rewards.
+* **Achievements**: 26 achievements, each with bronze, silver and gold tiers
+  (kills, wins, dodges, flare saves, loops, ground targets, carriers,
+  missile and cannon kills, aces, MVP, streaks, each mode, each map, each
+  plane branch). Every tier gives coins and XP. A toast pops up in battle
+  and the results screen lists them. Bronze of ACE HUNTER unlocks the
+  TIGER skin.
+* **Profile**: editable name, rank badge, battles, wins, win rate, K/D,
+  accuracy, favourite plane, best streak, time played, MVPs and achievement
+  progress.
+
+Everything is saved locally (`user://profile.json`) through the Profile
+storage interface.
+
 ## Download & install the APK (from GitHub Actions)
 
 Every push to any branch builds a debug APK.

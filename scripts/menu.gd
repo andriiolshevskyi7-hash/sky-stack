@@ -1,7 +1,8 @@
 class_name Menu
 extends Control
 ## Simple full-resolution overlay menu (title / pause / game over).
-## Items: [[label (String or Callable->String), action Callable], ...]
+## Items: [[label (String or Callable->String), action Callable, badge
+## Callable->bool (optional, red dot)], ...]. More than 5 items -> 2 columns.
 
 var title := ""
 var subtitle := ""
@@ -14,6 +15,8 @@ var _hover := -1
 var dim := 0.55
 ## If set, a tap anywhere outside the buttons triggers item 0 (title screen).
 var tap_anywhere := false
+## Main menu: rank badge + coins bar across the top.
+var status_bar := false
 
 
 func _ready() -> void:
@@ -24,8 +27,9 @@ func _ready() -> void:
 	visible = false
 
 
-func open(p_title: String, p_sub: String, p_items: Array, p_lines: Array = [], p_dim: float = 0.55, p_tap_anywhere: bool = false) -> void:
+func open(p_title: String, p_sub: String, p_items: Array, p_lines: Array = [], p_dim: float = 0.55, p_tap_anywhere: bool = false, p_status: bool = false) -> void:
 	tap_anywhere = p_tap_anywhere
+	status_bar = p_status
 	title = p_title
 	subtitle = p_sub
 	items = p_items
@@ -68,7 +72,29 @@ func _draw() -> void:
 		var r := _rects[i]
 		draw_rect(r, Color(0.1, 0.14, 0.28, 0.9) if i != _hover else Color(0.2, 0.3, 0.55, 0.95))
 		draw_rect(r, Color(0.6, 0.8, 1.0, 0.8), false, 2.0 * s)
-		_ctext(vs.x * 0.5, r.position.y + r.size.y * 0.68, _str(items[i][0]), 24, Color.WHITE)
+		_ctext(r.get_center().x, r.position.y + r.size.y * 0.68, _str(items[i][0]), 24, Color.WHITE)
+		if items[i].size() > 2 and (items[i][2] as Callable).call():
+			draw_circle(r.position + Vector2(r.size.x - 14 * s, 14 * s), 8 * s, Color(0.95, 0.2, 0.15))
+	if status_bar:
+		_draw_status(vs)
+
+
+func _draw_status(vs: Vector2) -> void:
+	var rk := Profile.rank_of(Profile.xp())
+	var rc: Color = Profile.rank_color(rk[0])
+	var r := Rect2(Vector2(20 * s, 16 * s), Vector2(300 * s, 50 * s))
+	draw_rect(r, Color(0.05, 0.08, 0.16, 0.85))
+	draw_rect(r, rc, false, 2.0 * s)
+	var fs := int(18 * s)
+	draw_string(font, r.position + Vector2(14 * s, 24 * s), tr(Profile.RANKS[rk[0]]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, rc)
+	var bar := Rect2(r.position + Vector2(14 * s, 32 * s), Vector2(r.size.x - 28 * s, 7 * s))
+	draw_rect(bar, Color(0, 0, 0, 0.5))
+	if rk[2] > 0:
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * float(rk[1]) / rk[2], bar.size.y)), rc)
+	var cr := Rect2(Vector2(vs.x - 300 * s, 16 * s), Vector2(280 * s, 50 * s))
+	draw_rect(cr, Color(0.05, 0.08, 0.16, 0.85))
+	draw_rect(cr, Color(1, 0.85, 0.35), false, 2.0 * s)
+	draw_string(font, cr.position + Vector2(0, 34 * s), tr("COINS %d") % Profile.coins(), HORIZONTAL_ALIGNMENT_CENTER, cr.size.x, int(22 * s), Color(1, 0.85, 0.35))
 
 
 ## Button rects in screen pixels. Computed independently of drawing so input
@@ -81,8 +107,17 @@ func layout() -> void:
 		y += 34 * s
 	y += 28 * s * lines.size() + 14 * s
 	_rects.clear()
-	var bw := 420.0 * s
 	var bh := 54.0 * s
+	if items.size() > 5:
+		# two columns
+		var bw := 340.0 * s
+		var rows := (items.size() + 1) / 2
+		for i in items.size():
+			var col := i / rows
+			var row := i % rows
+			_rects.append(Rect2(Vector2(vs.x * 0.5 + (-bw - 8 * s if col == 0 else 8 * s), y + row * (bh + 12 * s)), Vector2(bw, bh)))
+		return
+	var bw := 420.0 * s
 	for i in items.size():
 		_rects.append(Rect2(Vector2(vs.x * 0.5 - bw * 0.5, y), Vector2(bw, bh)))
 		y += bh + 12 * s

@@ -249,6 +249,7 @@ func _process(delta: float) -> void:
 				else:
 					if tj == jet:
 						hits_taken += 1
+					tj.last_hit_missile = true
 					tj.damage(25.0, m.shooter)
 					fx.explosion(m.pos, 0.8)
 					done = true

@@ -69,6 +69,8 @@ func _draw() -> void:
 		_draw_team_bar(vs, game.match_rules)
 		var cockpit_on: bool = game.cam.cockpit_blend >= 0.5
 		_draw_minimap(Vector2((22.0 + 90.0) * s, (150.0 if cockpit_on else 240.0) * s), 82.0 * s)
+	if not _toasts.is_empty():
+		_draw_toasts(vs)
 	if playing:
 		_draw_border_warning(vs)
 		_draw_tags(vs)
@@ -212,6 +214,42 @@ func _draw_missile_arrow(vs: Vector2) -> void:
 
 
 ## Floating "+150" kill popups.
+# ------------------------------------------------------------------ achievement toasts
+
+var _toasts: Array = [] # [name, tier, age]
+
+
+func toast(name: String, tier: int) -> void:
+	_toasts.append([name, tier, 0.0])
+	Sfx.play("tone", -4.0, 1.5)
+
+
+func _draw_toasts(vs: Vector2) -> void:
+	var dt := get_process_delta_time()
+	var y := 150.0 * s
+	var i := 0
+	while i < _toasts.size():
+		var t: Array = _toasts[i]
+		t[2] += dt
+		if t[2] > 4.0:
+			_toasts.remove_at(i)
+			continue
+		# slide in from the right, slide out after 3.5 s
+		var k := clampf(t[2] / 0.3, 0.0, 1.0) * clampf((4.0 - t[2]) / 0.3, 0.0, 1.0)
+		var w := 420.0 * s
+		var h := 64.0 * s
+		var x := vs.x - (w + 20 * s) * (1.0 - pow(1.0 - k, 3.0))
+		var tc: Color = Missions.TIER_COLORS[t[1]]
+		var r := Rect2(Vector2(x, y), Vector2(w, h))
+		draw_rect(r, Color(0.05, 0.08, 0.16, 0.92))
+		draw_rect(r, tc, false, maxf(1.0, 2.0 * s))
+		draw_rect(Rect2(r.position, Vector2(8 * s, h)), tc)
+		text(Vector2(x + 22 * s, y + 26 * s), tr("ACHIEVEMENT") + "  -  " + tr(Missions.TIER_NAMES[t[1]]), 15, tc)
+		text(Vector2(x + 22 * s, y + 52 * s), tr(t[0]), 22, Color.WHITE)
+		y += h + 10 * s
+		i += 1
+
+
 func _draw_popups() -> void:
 	for pp in game.popups:
 		var wp: Vector3 = pp[0]

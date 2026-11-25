@@ -83,6 +83,8 @@ var skin := 0
 var speed_mult := 1.0
 var turn_mult := 1.0
 var max_flares := 0
+## Was the last hit a missile (for missile / cannon kill stats)?
+var last_hit_missile := false
 ## virtual inputs (bots write these; the player's come from Controls)
 var in_stick := Vector2.ZERO
 var in_boost := false

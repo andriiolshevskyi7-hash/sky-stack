@@ -19,7 +19,16 @@ const RED := Color(1.0, 0.42, 0.38)
 const GOLD := Color(1.0, 0.85, 0.35)
 
 
+var _name_edit: LineEdit
+
+
 func _ready() -> void:
+	_name_edit = LineEdit.new()
+	_name_edit.visible = false
+	_name_edit.max_length = 16
+	_name_edit.text_submitted.connect(func(t: String) -> void: _finish_name())
+	_name_edit.focus_exited.connect(_finish_name)
+	add_child(_name_edit)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -37,6 +46,14 @@ func show_page(p: String, p_info: Dictionary) -> void:
 func close() -> void:
 	visible = false
 	page = ""
+	if _name_edit != null:
+		_name_edit.visible = false
+
+
+func _finish_name() -> void:
+	if _name_edit.visible:
+		Profile.set_player_name(_name_edit.text)
+		_name_edit.visible = false
 
 
 func _process(delta: float) -> void:
@@ -68,6 +85,10 @@ func _draw() -> void:
 			_draw_results(vs)
 		"hangar":
 			_draw_hangar(vs)
+		"missions":
+			_draw_missions(vs)
+		"profile":
+			_draw_profile(vs)
 		"skins":
 			_draw_skins(vs)
 
@@ -142,6 +163,12 @@ func _draw_results(vs: Vector2) -> void:
 	var f: float = lerpf(info.get("rank_from", 0.0), info.get("rank_to", 0.0), k)
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(fmod(f, 1.0) if info.get("rank_to", 0.0) - info.get("rank_from", 0.0) < 1.0 else f - floorf(f), 0.0, 1.0), bar.size.y)), BLUE)
 	_txt(Vector2(0, y + 60 * s), info.get("rank_text", ""), 18, Color(0.8, 0.85, 0.95), vs.x, HORIZONTAL_ALIGNMENT_CENTER)
+	var achs: Array = info.get("achievements", [])
+	if not achs.is_empty():
+		var names: Array = []
+		for a in achs:
+			names.append(tr(a[0]) + " (" + tr(Missions.TIER_NAMES[a[1]]) + ")")
+		_fit_txt(Vector2(30 * s, y + 88 * s), tr("ACHIEVEMENT") + ":  " + ", ".join(names), 16, Missions.TIER_COLORS[achs[-1][1]], vs.x - 60 * s)
 	var bw := 260.0 * s
 	var bh := 58.0 * s
 	_button(Rect2(Vector2(vs.x * 0.5 + 10 * s, vs.y - bh - 18 * s), Vector2(bw, bh)), "PLAY AGAIN", info.get("on_again", Callable()))
@@ -385,6 +412,169 @@ func _draw_skins(vs: Vector2) -> void:
 				if owned_plane:
 					Profile.equip_skin(sel, skin_sel), Color(0.94, 0.35, 0.06) if lock == "" else Color(0.3, 0.3, 0.36))
 	_button(Rect2(Vector2(24 * s, vs.y - 70 * s), Vector2(200 * s, 54 * s)), "BACK", func() -> void: page = "hangar", Color(0.25, 0.3, 0.42))
+
+
+# ------------------------------------------------------------------ missions
+
+var mtab := 0 # 0 missions, 1 achievements
+
+
+func _tab(r: Rect2, label: String, on: bool, cb: Callable) -> void:
+	_buttons.append([r, label, cb, Color.WHITE])
+	draw_rect(r, Color(0.95, 0.95, 0.97) if on else PANEL)
+	draw_rect(r, Color(0.6, 0.75, 1.0, 0.7), false, maxf(1.0, 2.0 * s))
+	_txt(Vector2(r.position.x, r.get_center().y + 7 * s), label, 18, Color(0.05, 0.08, 0.18) if on else Color.WHITE, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+func _mission_row(r: Rect2, e: Dictionary, d: Array, weekly_list: bool, idx: int) -> void:
+	draw_rect(r, PANEL)
+	var goal := float(d[3])
+	var p := minf(float(e["p"]), goal)
+	var done := p >= goal
+	_fit_txt(Vector2(r.position.x + 14 * s, r.position.y + 26 * s), tr(d[1]) % Missions.shown(d[2], goal), 17, Color.WHITE, r.size.x * 0.55)
+	var bar := Rect2(Vector2(r.position.x + 14 * s, r.position.y + 36 * s), Vector2(r.size.x * 0.4, 9 * s))
+	draw_rect(bar, Color(0, 0, 0, 0.5))
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * p / goal, bar.size.y)), GOLD if done else BLUE)
+	_txt(Vector2(bar.end.x + 10 * s, bar.end.y + 1 * s), "%d / %d" % [Missions.shown(d[2], p), Missions.shown(d[2], goal)], 13, Color(0.75, 0.8, 0.9))
+	_txt(Vector2(r.position.x + r.size.x * 0.58, r.position.y + 34 * s), tr("+%d COINS  +%d XP") % [int(d[4]), int(d[5])], 14, GOLD)
+	var br := Rect2(Vector2(r.end.x - 130 * s, r.position.y + 8 * s), Vector2(120 * s, r.size.y - 16 * s))
+	if e["claimed"]:
+		_txt(Vector2(br.position.x, br.get_center().y + 6 * s), "CLAIMED", 15, Color(0.6, 0.65, 0.75), br.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	elif done:
+		_small_button(br, "CLAIM", func() -> void:
+			if Profile.claim_mission(idx, weekly_list):
+				Sfx.play("tone", -4.0, 1.3), Color(0.94, 0.35, 0.06))
+		draw_circle(br.position + Vector2(br.size.x - 6 * s, 6 * s), 6 * s, Color(0.95, 0.2, 0.15))
+	elif not weekly_list and not Profile.data["missions"]["reroll_used"]:
+		_small_button(br, "REROLL", func() -> void: Profile.reroll(idx), Color(0.25, 0.3, 0.42))
+
+
+func _draw_missions(vs: Vector2) -> void:
+	_header(vs, "MISSIONS")
+	var top := 84.0 * s
+	var tw := 240.0 * s
+	_tab(Rect2(Vector2(vs.x * 0.5 - tw - 6 * s, top), Vector2(tw, 40 * s)), "MISSIONS", mtab == 0, func() -> void: mtab = 0)
+	_tab(Rect2(Vector2(vs.x * 0.5 + 6 * s, top), Vector2(tw, 40 * s)), "ACHIEVEMENTS", mtab == 1, func() -> void: mtab = 1)
+	var x := 40.0 * s
+	var w := vs.x - 80 * s
+	var y := top + 56 * s
+	if mtab == 0:
+		var now := Time.get_time_dict_from_system()
+		var left := 86400 - (int(now["hour"]) * 3600 + int(now["minute"]) * 60 + int(now["second"]))
+		_txt(Vector2(x, y + 18 * s), "DAILY", 20, BLUE)
+		_txt(Vector2(x, y + 18 * s), tr("NEW IN %d:%02d") % [left / 3600, (left / 60) % 60] + ("" if Profile.data["missions"]["reroll_used"] else "     " + tr("1 FREE REROLL")), 14, Color(0.7, 0.75, 0.85), w, HORIZONTAL_ALIGNMENT_RIGHT)
+		y += 28 * s
+		var rh := 58.0 * s
+		var dl: Array = Profile.daily()
+		for i in dl.size():
+			_mission_row(Rect2(Vector2(x, y), Vector2(w, rh - 6 * s)), dl[i], Missions.daily_def(dl[i]["id"]), false, i)
+			y += rh
+		y += 10 * s
+		_txt(Vector2(x, y + 18 * s), "WEEKLY", 20, GOLD)
+		y += 28 * s
+		var wl: Array = Profile.weekly()
+		for i in wl.size():
+			_mission_row(Rect2(Vector2(x, y), Vector2(w, rh - 6 * s)), wl[i], Missions.weekly_def(wl[i]["id"]), true, i)
+			y += rh
+	else:
+		var ap := Profile.ach_progress()
+		_txt(Vector2(x, y + 16 * s), tr("%d / %d TIERS") % [ap[0], ap[1]], 16, Color(0.75, 0.8, 0.9))
+		y += 26 * s
+		var cols := 2
+		var n := Missions.ACHIEVEMENTS.size()
+		var rows := (n + cols - 1) / cols
+		var cw := (w - 12 * s) / cols
+		var rh := minf(46.0 * s, (vs.y - y - 86 * s) / rows)
+		for i in n:
+			var a: Array = Missions.ACHIEVEMENTS[i]
+			var r := Rect2(Vector2(x + (i / rows) * (cw + 12 * s), y + (i % rows) * rh), Vector2(cw, rh - 4 * s))
+			draw_rect(r, PANEL)
+			var reached := Profile.ach_reached(a[0])
+			var claimed := Profile.ach_claimed(a[0])
+			for t in 3:
+				var pc: Color = Missions.TIER_COLORS[t] if t <= reached else Color(0.25, 0.28, 0.36)
+				draw_rect(Rect2(r.position + Vector2(8 * s + t * 12 * s, r.size.y * 0.5 - 5 * s), Vector2(9 * s, 10 * s)), pc)
+			var next := mini(reached + 1, 2)
+			var goal := float(a[4][next])
+			_fit_txt(Vector2(r.position.x + 50 * s, r.position.y + r.size.y * 0.42), a[1], 15, Color.WHITE, cw * 0.48)
+			_fit_txt(Vector2(r.position.x + 50 * s, r.position.y + r.size.y * 0.86), tr(a[2]) % Missions.shown(a[3], goal), 11, Color(0.65, 0.7, 0.8), cw * 0.48)
+			var prog := "%d / %d" % [Missions.shown(a[3], minf(Profile.counter(a[3]), goal)), Missions.shown(a[3], goal)]
+			_txt(Vector2(r.position.x + cw * 0.58, r.position.y + r.size.y * 0.5 + 5 * s), prog, 13, Color(0.7, 0.75, 0.85))
+			if reached > claimed:
+				var aid: String = a[0]
+				_small_button(Rect2(Vector2(r.end.x - 100 * s, r.position.y + 3 * s), Vector2(94 * s, r.size.y - 6 * s)), "CLAIM", func() -> void:
+					if Profile.claim_achievement(aid):
+						Sfx.play("tone", -4.0, 1.3), Color(0.94, 0.35, 0.06))
+			elif reached >= 0:
+				_txt(Vector2(r.end.x - 100 * s, r.position.y + r.size.y * 0.5 + 5 * s), Missions.TIER_NAMES[reached], 13, Missions.TIER_COLORS[reached], 94 * s, HORIZONTAL_ALIGNMENT_CENTER)
+	_button(Rect2(Vector2(24 * s, vs.y - 70 * s), Vector2(200 * s, 54 * s)), "BACK", info.get("on_back", Callable()), Color(0.25, 0.3, 0.42))
+
+
+# ------------------------------------------------------------------ profile
+
+func _draw_profile(vs: Vector2) -> void:
+	_header(vs, "PROFILE")
+	var top := 100.0 * s
+	var x := 40.0 * s
+	# name + edit
+	var nr := Rect2(Vector2(x, top), Vector2(vs.x * 0.42, 56 * s))
+	draw_rect(nr, PANEL)
+	if not _name_edit.visible:
+		_txt(Vector2(nr.position.x + 16 * s, nr.position.y + 38 * s), Profile.player_name(), 28, Color.WHITE)
+	var er := Rect2(Vector2(nr.end.x + 10 * s, top), Vector2(120 * s, 56 * s))
+	_small_button(er, "EDIT", func() -> void:
+		_name_edit.position = nr.position + Vector2(8 * s, 8 * s)
+		_name_edit.size = nr.size - Vector2(16 * s, 16 * s)
+		_name_edit.add_theme_font_size_override("font_size", int(24 * s))
+		_name_edit.text = Profile.player_name()
+		_name_edit.visible = true
+		_name_edit.grab_focus()
+		_name_edit.select_all(), Color(0.25, 0.4, 0.6))
+	# rank badge
+	var rk := Profile.rank_of(Profile.xp())
+	var rc: Color = Profile.rank_color(rk[0])
+	var bc := Vector2(vs.x * 0.78, top + 110 * s)
+	var pts := PackedVector2Array()
+	for k in 6:
+		var a := TAU * k / 6.0 - PI * 0.5
+		pts.append(bc + Vector2(cos(a), sin(a)) * 74 * s)
+	draw_colored_polygon(pts, rc.darkened(0.55))
+	pts.append(pts[0])
+	draw_polyline(pts, rc, maxf(2.0, 4.0 * s))
+	_txt(Vector2(bc.x - 150 * s, bc.y + 10 * s), Profile.RANKS[rk[0]], 24, rc, 300 * s, HORIZONTAL_ALIGNMENT_CENTER)
+	if rk[2] > 0:
+		_txt(Vector2(bc.x - 150 * s, bc.y + 106 * s), "%d / %d XP" % [rk[1], rk[2]], 15, Color(0.75, 0.8, 0.9), 300 * s, HORIZONTAL_ALIGNMENT_CENTER)
+	# stats
+	var battles := Profile.stat("battles")
+	var wins := Profile.stat("wins")
+	var deaths := maxf(1.0, Profile.stat("deaths"))
+	var shots := Profile.stat("shots")
+	var t := int(Profile.stat("play_time"))
+	var rows := [
+		["BATTLES", str(int(battles))],
+		["WINS", str(int(wins))],
+		["WIN RATE", "%d%%" % int(round(100.0 * wins / maxf(1.0, battles)))],
+		["K/D", "%.2f" % (Profile.stat("kills") / deaths)],
+		["ACCURACY", "%d%%" % int(round(100.0 * Profile.stat("hits") / shots)) if shots > 0 else "-"],
+		["FAVOURITE PLANE", Profile.favourite_plane()],
+		["BEST STREAK", str(int(Profile.counter("streak")))],
+		["TIME PLAYED", "%dh %02dm" % [t / 3600, (t / 60) % 60]],
+		["MVP", str(int(Profile.stat("mvp")))],
+	]
+	var y := top + 80 * s
+	var rw := vs.x * 0.42 + 130 * s
+	for r in rows:
+		draw_rect(Rect2(Vector2(x, y), Vector2(rw, 38 * s)), PANEL)
+		_txt(Vector2(x + 16 * s, y + 26 * s), r[0], 17, Color(0.75, 0.8, 0.9))
+		_txt(Vector2(x, y + 26 * s), r[1], 19, Color.WHITE, rw - 16 * s, HORIZONTAL_ALIGNMENT_RIGHT)
+		y += 42 * s
+	# achievements progress
+	var ap := Profile.ach_progress()
+	var ar := Rect2(Vector2(vs.x * 0.62, top + 250 * s), Vector2(vs.x * 0.33, 14 * s))
+	_txt(Vector2(ar.position.x, ar.position.y - 10 * s), tr("ACHIEVEMENTS") + "  " + "%d / %d" % [ap[0], ap[1]], 18, Color.WHITE)
+	draw_rect(ar, Color(0, 0, 0, 0.5))
+	draw_rect(Rect2(ar.position, Vector2(ar.size.x * float(ap[0]) / ap[1], ar.size.y)), GOLD)
+	_button(Rect2(Vector2(24 * s, vs.y - 70 * s), Vector2(200 * s, 54 * s)), "BACK", info.get("on_back", Callable()), Color(0.25, 0.3, 0.42))
 
 
 func button_center(label: String) -> Vector2:

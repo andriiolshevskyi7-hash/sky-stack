@@ -64,7 +64,7 @@ const SKINS := [
 	{"name": "DESERT CAMO", "body": "c9a46a", "dark": "7d6644", "light": "dcc08c", "acc": "6b3a1e", "canopy": "2a5a6a", "camo": "8a6a40", "pattern": 1, "unlock": ["coins", 800]},
 	{"name": "JUNGLE CAMO", "body": "5b6b3c", "dark": "3a4428", "light": "7b8a52", "acc": "c8b040", "canopy": "1e6a70", "camo": "3b3a26", "pattern": 1, "unlock": ["coins", 800]},
 	{"name": "MIDNIGHT", "body": "2a2a34", "dark": "141418", "light": "3e3e4c", "acc": "d02828", "canopy": "6a1414", "camo": "", "pattern": 0, "unlock": ["rank", 5]},
-	{"name": "TIGER", "body": "e8902a", "dark": "a05a14", "light": "f5b25a", "acc": "1c1c1c", "canopy": "1e6a80", "camo": "1c1c1c", "pattern": 2, "unlock": ["kills", 100]},
+	{"name": "TIGER", "body": "e8902a", "dark": "a05a14", "light": "f5b25a", "acc": "1c1c1c", "canopy": "1e6a80", "camo": "1c1c1c", "pattern": 2, "unlock": ["achievement", "aces"]},
 	{"name": "ACE GOLD", "body": "d4aa3a", "dark": "8a6a1c", "light": "f0d070", "acc": "1a1a1a", "canopy": "3a2a10", "camo": "", "pattern": 0, "unlock": ["rank", 15]},
 	{"name": "AGGRESSOR", "body": "8a3a34", "dark": "4e2220", "light": "b0504a", "acc": "f0e0d0", "canopy": "d08a20", "camo": "", "pattern": 0, "unlock": ["none", 0]},
 ]

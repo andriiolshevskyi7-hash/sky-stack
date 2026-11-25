@@ -147,6 +147,8 @@ func _process(delta: float) -> void:
 			elif bases != null and bases.hit_test(p, team, dmg[i], s):
 				fx.sparks(p, 4)
 				remove = true
+				if s != null and "shots_hit" in s:
+					s.shots_hit += 1
 			elif fleet != null and fleet.hit_test(p, team, dmg[i], s):
 				fx.hit(p)
 				remove = true
