@@ -48,11 +48,11 @@ var hud_quad: PackedVector3Array
 
 const CLASS := [
 	{"panel": ["262a31", "6f7681", "878e99", "a3aab4", "c9ced6"], "arch": ["15171b", "2c2f36", "5a5f69"], "suit": "a68d63",
-		"glow": Color(0.35, 1.0, 0.5), "wf": 0.54, "wb": 0.62, "bow": 0.035},
+		"glow": Color(0.35, 1.0, 0.5), "wf": 0.54, "wb": 0.62, "bow": 0.012},
 	{"panel": ["0d0e11", "1d1f24", "2b2e35", "3f434b", "666c78"], "arch": ["0b0c0e", "1f2125", "43474f"], "suit": "5b6246",
-		"glow": Color(0.4, 1.0, 0.75), "wf": 0.58, "wb": 0.68, "bow": 0.045},
+		"glow": Color(0.4, 1.0, 0.75), "wf": 0.58, "wb": 0.68, "bow": 0.014},
 	{"panel": ["101109", "20221a", "2e3125", "454936", "6c715a"], "arch": ["0d0e0a", "23251d", "4b4f40"], "suit": "4f5a3c",
-		"glow": Color(1.0, 0.72, 0.3), "wf": 0.56, "wb": 0.66, "bow": 0.055},
+		"glow": Color(1.0, 0.72, 0.3), "wf": 0.56, "wb": 0.66, "bow": 0.016},
 ]
 
 const Z_PT := -0.74
@@ -62,7 +62,9 @@ const Y_PB := -0.5
 const PT_HW := 0.52
 const PB_HW := 0.36
 const SILL_Y := -0.19
-const BOW_Z := -0.44 # front canopy bow: where it leaves the sills
+const BOW_Z := -0.4 # front canopy bow: where it leaves the sills
+const BOW_OUT := 0.14 # bow runs this far outside the tub walls
+const BOW_H := 0.6
 
 
 func _ready() -> void:
@@ -105,7 +107,7 @@ func _ready() -> void:
 	glass_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	glass_mat.albedo_color = Color(0.45, 0.9, 0.6, 0.12)
+	glass_mat.albedo_color = Color(0.85, 0.95, 0.9, 0.035)
 	_body = MeshInstance3D.new()
 	_body.material_override = mat
 	_root.add_child(_body)
@@ -326,16 +328,18 @@ func _build(c: Dictionary) -> void:
 	for sx in [-1.0, 1.0]:
 		quad(Vector3(sx * uw, ut, -0.68), Vector3(sx * uw, ut, -0.615), Vector3(sx * uw, ut - uh, -0.63), Vector3(sx * uw, ut - uh, -0.69), R["metal"], true, Color(0.7, 0.7, 0.7))
 	# HUD: projector housing, two posts, top bar, combiner glass
-	var hw := 0.125
-	var hb := ut + 0.008
-	quad(Vector3(-hw * 0.7, hb + 0.022, -0.67), Vector3(hw * 0.7, hb + 0.022, -0.67), Vector3(hw * 0.7, hb + 0.022, -0.625), Vector3(-hw * 0.7, hb + 0.022, -0.625), R["metal"])
-	quad(Vector3(-hw * 0.7, hb + 0.022, -0.625), Vector3(hw * 0.7, hb + 0.022, -0.625), Vector3(hw * 0.7, hb - 0.008, -0.62), Vector3(-hw * 0.7, hb - 0.008, -0.62), R["metal"], true, Color(0.75, 0.75, 0.75))
-	var gb := hb + 0.024
-	var gt := gb + 0.17
+	var hw := 0.19
+	var hb := ut
+	var hh := 0.06 # projector housing
+	var pw := 0.075
+	quad(Vector3(-pw, hb + hh, -0.68), Vector3(pw, hb + hh, -0.68), Vector3(pw, hb + hh, -0.635), Vector3(-pw, hb + hh, -0.635), R["metal"])
+	quad(Vector3(-pw, hb + hh, -0.635), Vector3(pw, hb + hh, -0.635), Vector3(pw, hb, -0.628), Vector3(-pw, hb, -0.628), R["metal"], true, Color(0.75, 0.75, 0.75))
+	var gb := hb + hh + 0.004
+	var gt := gb + 0.24
 	for sx in [-1.0, 1.0]:
-		bar(Vector3(sx * (hw + 0.006), hb, -0.64), Vector3(sx * (hw + 0.01), gt + 0.01, -0.675), 0.012, 0.012, Vector3(0, 0, 1), R["metal"])
-	bar(Vector3(-hw - 0.01, gt + 0.008, -0.675), Vector3(hw + 0.01, gt + 0.008, -0.675), 0.01, 0.008, Vector3(0, 1, 0), R["metal"])
-	hud_quad = PackedVector3Array([Vector3(-hw, gt, -0.675), Vector3(hw, gt, -0.675), Vector3(hw, gb, -0.643), Vector3(-hw, gb, -0.643)])
+		bar(Vector3(sx * (hw + 0.004), hb + hh * 0.5, -0.655), Vector3(sx * (hw + 0.006), gt + 0.006, -0.685), 0.008, 0.008, Vector3(0, 0, 1), R["metal"])
+	bar(Vector3(-hw - 0.006, gt + 0.005, -0.685), Vector3(hw + 0.006, gt + 0.005, -0.685), 0.006, 0.005, Vector3(0, 1, 0), R["metal"])
+	hud_quad = PackedVector3Array([Vector3(-hw, gt, -0.685), Vector3(hw, gt, -0.685), Vector3(hw, gb, -0.66), Vector3(-hw, gb, -0.66)])
 	# tub walls, consoles, sill rails
 	for sx in [-1.0, 1.0]:
 		var wfront := Vector3(sx * wf, SILL_Y, -0.7)
@@ -361,31 +365,32 @@ func _build(c: Dictionary) -> void:
 		quad(ri0, wfront + Vector3(0, 0.012, 0), wback + Vector3(0, 0.012, 0), ri1, R["sill"], true, Color.WHITE, Rect2(0, 0, 1, 0.4))
 		quad(ri1, ri0, ri0 + Vector3(0, -0.05, 0), ri1 + Vector3(0, -0.05, 0), R["sill"], true, Color(0.85, 0.85, 0.85))
 	# canopy bows: the big front arc overhead, a rear bow behind the head
-	_bow(wf + 0.03, SILL_Y, BOW_Z, 0.52, 0.14, bow, R["metal"])
+	_bow(wf + BOW_OUT, SILL_Y, BOW_Z, BOW_H, 0.14, bow, R["metal"])
 	_bow(wb, SILL_Y, 0.42, 0.62, 0.06, bow, R["metal"])
 	# rear-view mirrors on the front bow
 	for k in [-1, 0, 1]:
 		var th: float = PI * 0.5 + k * 0.42
-		var p := _bow_pt(wf + 0.03, SILL_Y, BOW_Z, 0.52, 0.14, th) + Vector3(0, -bow * 0.6, 0.02)
+		var p := _bow_pt(wf + BOW_OUT, SILL_Y, BOW_Z, BOW_H, 0.14, th) + Vector3(0, -bow * 0.6, 0.02)
 		var mside := Vector3(cos(th - PI * 0.5), 0, 0) * 0.0
 		var mw := 0.05
 		quad(p + Vector3(-mw, 0.012, 0) + mside, p + Vector3(mw, 0.012, 0), p + Vector3(mw, -0.012, 0.004), p + Vector3(-mw, -0.012, 0.004), R["glass"], false, Color(0.5, 0.62, 0.8))
 	if cls == Planes.ATTACK:
 		# heavy windscreen posts from the glareshield corners up to the bow
 		for sx in [-1.0, 1.0]:
-			var x: float = sx * 0.3
-			var th := acos(clampf(-x / (wf + 0.03), -1.0, 1.0))
-			var top := _bow_pt(wf + 0.03, SILL_Y, BOW_Z, 0.52, 0.14, th)
-			bar(Vector3(x * 0.85, -0.17, -0.66), top, 0.022, 0.026, Vector3(0, 0, 1), R["metal"])
+			var x: float = sx * 0.42
+			var th := acos(clampf(-x / (wf + BOW_OUT), -1.0, 1.0))
+			var top := _bow_pt(wf + BOW_OUT, SILL_Y, BOW_Z, BOW_H, 0.14, th)
+			bar(Vector3(sx * 0.36, -0.172, -0.66), top, 0.014, 0.016, Vector3(0, 0, 1), R["metal"])
 	# legs: thighs to the knees, shins under the panel; kneeboard on the right
 	for sx in [-1.0, 1.0]:
-		var hip := Vector3(sx * 0.12, -0.6, 0.12)
-		var knee := Vector3(sx * 0.15, -0.33, -0.44)
-		var ankle := Vector3(sx * 0.14, -0.95, -0.55)
-		tube([hip, hip.lerp(knee, 0.55), knee.lerp(hip, 0.12), knee + Vector3(0, 0.005, -0.03), knee + Vector3(0, -0.06, -0.06), ankle],
-			[0.09, 0.08, 0.068, 0.058, 0.055, 0.05], R["suit"])
-	var kb := Vector3(0.155, -0.27, -0.3)
-	quad(kb + Vector3(-0.04, 0.012, -0.05), kb + Vector3(0.04, 0.012, -0.05), kb + Vector3(0.045, -0.02, 0.05), kb + Vector3(-0.045, -0.02, 0.05), R["board"])
+		# thigh tapering to a rounded knee cap, shin dropping under the panel
+		var hip := Vector3(sx * 0.13, -0.64, 0.12)
+		var knee := Vector3(sx * 0.2, -0.385, -0.42)
+		var ankle := Vector3(sx * 0.18, -0.97, -0.56)
+		tube([hip, hip.lerp(knee, 0.5), knee.lerp(hip, 0.15), knee + Vector3(0, 0.004, -0.025), knee + Vector3(0, -0.045, -0.05), knee.lerp(ankle, 0.4), ankle],
+			[0.074, 0.066, 0.054, 0.056, 0.05, 0.046, 0.042], R["suit"])
+	var kb := Vector3(0.2, -0.33, -0.27)
+	quad(kb + Vector3(-0.035, 0.01, -0.045), kb + Vector3(0.035, 0.01, -0.045), kb + Vector3(0.04, -0.018, 0.045), kb + Vector3(-0.04, -0.018, 0.045), R["board"])
 	# seat headrest and sides behind the pilot
 	quad(Vector3(-0.17, 0.2, 0.24), Vector3(0.17, 0.2, 0.24), Vector3(0.17, -0.25, 0.26), Vector3(-0.17, -0.25, 0.26), R["seat"])
 	for sx in [-1.0, 1.0]:
@@ -425,7 +430,7 @@ func _bow(w: float, y0: float, z0: float, hgt: float, back: float, t: float, reg
 		var p1 := _bow_pt(w, y0, z0, hgt, back, th1)
 		var mid := (p0 + p1) * 0.5
 		var inward := Vector3(-mid.x, -(mid.y - y0), 0).normalized()
-		bar(p0, p1, 0.035, t, inward, reg)
+		bar(p0, p1, 0.014, t, inward, reg)
 
 
 # ------------------------------------------------------------------ per frame
@@ -458,7 +463,7 @@ func update(delta: float, alpha: float) -> void:
 	mat.set_shader_parameter("night", nt)
 	mat.set_shader_parameter("glow_col", Vector3(glow.r, glow.g, glow.b))
 	mat.set_shader_parameter("flash", 0.0)
-	glass_mat.albedo_color = Color(glow.r * 0.5, glow.g * 0.7, glow.b * 0.6, 0.1 + 0.06 * nt)
+	glass_mat.albedo_color = Color(0.85, 0.95, 0.9, 0.035 + 0.015 * nt)
 	# head: sinks under G, leans against the roll, shakes in turbulence
 	_t += delta
 	var gc: GameCamera = game.cam

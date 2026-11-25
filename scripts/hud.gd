@@ -62,7 +62,10 @@ func _draw() -> void:
 	if (playing or game.state == game.State.PAUSE) and game.cam.cockpit_blend < 0.5:
 		_draw_status(vs)
 	elif playing and not game.match_rules.is_team_mode():
-		ctext(vs.x * 0.5, 96 * s, "%07d" % game.score, 22, Color(1, 1, 1, 0.85))
+		# cockpit: the score is a small tag in the top-left corner
+		var sr := Rect2(Vector2(22 * s, 22 * s), Vector2(150 * s, 34 * s))
+		UI.panel(self, sr, s, Color(0.05, 0.08, 0.18, 0.55), Color(0.62, 0.74, 0.98, 0.4))
+		text(Vector2(sr.position.x + 10 * s, sr.position.y + 23 * s), "%07d" % game.score, 16, Color(1, 1, 1, 0.8))
 	if playing and game.match_rules.is_team_mode():
 		_draw_team_bar(vs, game.match_rules)
 		var cockpit_on: bool = game.cam.cockpit_blend >= 0.5

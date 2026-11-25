@@ -65,9 +65,10 @@ func _draw() -> void:
 	var hs: Array = c3.hud_screen()
 	var hr: Rect2 = hs[0]
 	var bs: Vector2 = hs[1]
-	if hr.size.x > 10.0 and bs != Vector2.INF:
-		_hud(jet, hr, bs.round(), c3.tier)
 	var head_turned: bool = game.cam.look.length() > 0.25
+	# the HUD is only readable looking through the combiner
+	if hr.size.x > 10.0 and bs != Vector2.INF and game.cam.look.length() < 0.3:
+		_hud(jet, hr, bs.round(), c3.tier)
 	_targets(jet, bs.round() if bs != Vector2.INF else size * 0.5, ly, head_turned)
 
 
@@ -140,33 +141,35 @@ func _hud(jet: Jet, hr: Rect2, c: Vector2, tier: int) -> void:
 		_reticle(c, tier)
 	# heading tape along the top
 	var hdg := fposmod(rad_to_deg(-jet.yaw), 360.0)
-	var hy := _clip.position.y + 9
+	var hy := _clip.position.y + 6
 	for d in range(-20, 21, 5):
 		var a := roundi(hdg / 5.0) * 5 + d
 		var x := roundf(c.x + (a - hdg) * 1.6)
 		if x < _clip.position.x + 2 or x > _clip.end.x - 2:
 			continue
-		draw_line(Vector2(x, hy), Vector2(x, hy - (3.0 if posmod(a, 10) == 0 else 1.0)), HUD, 1.0)
-	ptext(Vector2(c.x, hy + 2), "%03d" % int(hdg), HUD, true)
-	# boxed speed (left) and altitude (right) at boresight height
-	var by := clampf(c.y - 3, _clip.position.y + 18, _clip.end.y - 20)
+		draw_line(Vector2(x, hy), Vector2(x, hy - (3.0 if posmod(a, 10) == 0 else 1.0)), HUD_DIM, 1.0)
+	ptext(Vector2(c.x, hy + 2), "%03d" % int(hdg), HUD, true, 2)
+	# boxed speed (left) and altitude (right) at boresight height, big digits
+	var by := clampf(c.y - 5, _clip.position.y + 20, maxf(_clip.position.y + 20, _clip.end.y - 34))
 	var lx := _clip.position.x + 1
 	var rx := _clip.end.x - 1
 	var spd := str(int(jet.speed * 3.6))
 	var alt := str(int(jet.position.y))
-	var bw := maxi(PixFont.width(spd), PixFont.width(alt)) + 4
-	draw_rect(Rect2(lx, by - 2, bw, 9), HUD, false, 1.0)
-	ptext(Vector2(lx + 2, by), spd, HUD)
-	draw_rect(Rect2(rx - bw, by - 2, bw, 9), HUD, false, 1.0)
-	ptext(Vector2(rx - bw + 2, by), alt, HUD)
-	# read-outs along the bottom
-	var ry := _clip.end.y - 7
-	ptext(Vector2(lx, ry - 7), "G%.1f" % jet.g_load, YEL if jet.g_load > 7.0 else HUD)
-	ptext(Vector2(lx, ry), "%d" % int(jet.ammo), HUD_DIM)
+	var bws := PixFont.width(spd, 2) + 5
+	var bwa := PixFont.width(alt, 2) + 5
+	draw_rect(Rect2(lx, by - 2, bws, 14), HUD, false, 1.0)
+	ptext(Vector2(lx + 3, by + 1), spd, HUD, false, 2)
+	draw_rect(Rect2(rx - bwa, by - 2, bwa, 14), HUD, false, 1.0)
+	ptext(Vector2(rx - bwa + 3, by + 1), alt, HUD, false, 2)
+	# read-outs along the bottom: G and missiles big, rounds / throttle small
+	var ry := _clip.end.y - 18
+	var gs := "G%.1f" % jet.g_load
+	ptext(Vector2(lx, ry), gs, YEL if jet.g_load > 7.0 else HUD, false, 2)
+	ptext(Vector2(lx, ry + 12), "%d" % int(jet.ammo), HUD_DIM)
 	var aam := "M%d" % game.missiles_left()
-	ptext(Vector2(rx - PixFont.width(aam), ry - 7), aam, HUD)
+	ptext(Vector2(rx - PixFont.width(aam, 2), ry), aam, HUD, false, 2)
 	var thr := ("AB" if jet.boosting else "%d" % int(jet.throttle * 100.0))
-	ptext(Vector2(rx - PixFont.width(thr), ry), thr, ORANGE if jet.boosting else HUD_DIM)
+	ptext(Vector2(rx - PixFont.width(thr), ry + 12), thr, ORANGE if jet.boosting else HUD_DIM)
 	if jet.stalling and int(Time.get_ticks_msec() / 220) % 2 == 0:
 		ptext(Vector2(c.x, _clip.end.y - 14), "STALL", RED, true)
 	if game.missiles.counter_t > 0.0:

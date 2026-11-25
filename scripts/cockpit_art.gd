@@ -162,10 +162,6 @@ func plate(r: Rect2, salt: int, rows: int = -1) -> void:
 				draw_rect(Rect2(x + 1, y + 2, 5, 4), c(3))
 				x += 9
 			k += 1
-		# a label under the row
-		if h01(row, salt, 5) < 0.7 and y + 10 < r.end.y:
-			var labels := ["ARM", "MODE", "FUEL", "NAV", "ECM", "TACAN", "IFF", "RDR", "AUTO", "MAN", "ENG", "HYD", "OXY", "CMDS"]
-			txt(Vector2(r.position.x + 5 + int(h01(row, salt, 7) * 12), y + 9), labels[int(h01(row, salt, 9) * labels.size()) % labels.size()], label())
 
 
 ## Display bezel (screen hole is drawn by the display quad) with soft keys.
@@ -239,10 +235,6 @@ func _panel() -> void:
 	striped(Rect2(280, 2, 22, 6))
 	if cls == Planes.ATTACK:
 		striped(Rect2(126, 104, 52, 6))
-	txt(Vector2(14, 15), "MFD", label())
-	txt(Vector2(188, 15), "MFD", label())
-	if tier >= 3:
-		txt(Vector2(244, 15), "DATA", label())
 
 
 func _knee() -> void:
@@ -268,16 +260,15 @@ func _console(r: Rect2, left: bool) -> void:
 			draw_rect(Rect2(pr.position.x + 40, pr.position.y + 3, 6, pr.size.y - 6), Color(0.02, 0.02, 0.02))
 			for d in 4:
 				draw_rect(Rect2(pr.position.x + 36, pr.position.y + 5 + d * (pr.size.y - 10) / 3.0, 14, 1), c(3))
-			txt(Vector2(pr.position.x + 52, pr.position.y + 4), "AB", Color("ffb030"))
-			txt(Vector2(pr.position.x + 52, pr.end.y - 8), "OFF", label())
+			draw_rect(Rect2(pr.position.x + 52, pr.position.y + 4, 6, 3), Color("ffb030") * lerpf(1.0, 0.7, night()))
 			plate(Rect2(pr.position.x + 64, pr.position.y + 2, pr.size.x - 66, pr.size.y - 4), 61)
 		elif not left and k == 2:
 			draw_rect(pr, c(1))
 			var sr := Rect2(pr.position.x + 6, pr.position.y + 3, 40, pr.size.y - 6)
 			draw_rect(sr.grow(2), c(0))
 			draw_rect(sr, Color("0a1410"))
-			for i in 4:
-				txt(sr.position + Vector2(2, 2 + i * 7), ["COM1", "243", "UHF", "PRST"][i], owner3d.glow * Color(1, 1, 1, 0.9))
+			for i in 3:
+				draw_rect(Rect2(sr.position + Vector2(3, 3 + i * 6), Vector2(10 + i * 7, 3)), owner3d.glow * Color(1, 1, 1, 0.8))
 			plate(Rect2(pr.position.x + 52, pr.position.y + 2, pr.size.x - 54, pr.size.y - 4), 62)
 		else:
 			plate(pr, 70 + k + (0 if left else 20))
@@ -429,16 +420,12 @@ func hud() -> Color:
 
 func _screen(r: Rect2) -> void:
 	draw_rect(r, SCREEN)
-	# page title strip + soft-key labels along the top
-	draw_rect(Rect2(r.position, Vector2(r.size.x, 7)), Color(0.06, 0.12, 0.09))
+
 
 
 func _radar(jet: Jet, r: Rect2) -> void:
 	_screen(r)
 	var g := hud()
-	var labels := ["RWS", "RNG", "TWS", "40"]
-	for i in labels.size():
-		PixFont.draw(self, r.position + Vector2(2 + i * r.size.x / 4.0, 1), labels[i], g * Color(1, 1, 1, 0.8))
 	var cc := Vector2(floorf(r.get_center().x), floorf(r.end.y - 4))
 	var rad := minf(r.size.y - 14, r.size.x * 0.5 - 4)
 	var dim := Color(g.r, g.g, g.b, 0.35)
@@ -473,8 +460,8 @@ func _radar(jet: Jet, r: Rect2) -> void:
 			col = Color(0.4, 0.9, 1.0)
 		if e == lt:
 			col = RED
-			draw_rect(Rect2((cc + p).round() - Vector2(3, 3), Vector2(7, 6)), col, false, 1.0)
-		draw_rect(Rect2((cc + p).round() - Vector2(1, 1), Vector2(3, 2)), col)
+			draw_rect(Rect2((cc + p).round() - Vector2(4, 4), Vector2(9, 9)), col, false, 1.0)
+		draw_rect(Rect2((cc + p).round() - Vector2(1, 1), Vector2(3, 3)), col)
 	draw_colored_polygon(PackedVector2Array([cc + Vector2(0, -3), cc + Vector2(-3, 1), cc + Vector2(3, 1)]), g)
 
 
@@ -484,7 +471,7 @@ func _adi(jet: Jet, r: Rect2, tapes: bool) -> void:
 	_screen(r)
 	var cc := r.get_center().floor() + Vector2(0, 3)
 	var wide := tapes and r.size.x > 60
-	var inner := Rect2(r.position + Vector2(14 if wide else 2, 8), Vector2(r.size.x - (28 if wide else 4), r.size.y - 16))
+	var inner := Rect2(r.position + Vector2(12 if wide else 2, 4), Vector2(r.size.x - (24 if wide else 4), r.size.y - 8))
 	var roll := jet.roll + jet.roll_extra
 	var n := Vector2(-sin(roll), cos(roll))
 	var tang := Vector2(n.y, -n.x)
@@ -520,46 +507,40 @@ func _adi(jet: Jet, r: Rect2, tapes: bool) -> void:
 	var rp := cc + Vector2(sin(roll), -cos(roll)) * (inner.size.y * 0.45)
 	draw_colored_polygon(PackedVector2Array([rp, rp + Vector2(-2, -3), rp + Vector2(2, -3)]), Color.WHITE)
 	if wide:
-		draw_rect(Rect2(r.position.x, cc.y - 4, 14, 8), Color.BLACK)
-		PixFont.draw(self, Vector2(r.position.x + 1, cc.y - 2), str(int(jet.speed * 3.6)).left(3), Color.WHITE)
-		draw_rect(Rect2(r.end.x - 14, cc.y - 4, 14, 8), Color.BLACK)
-		PixFont.draw(self, Vector2(r.end.x - 13, cc.y - 2), str(int(jet.position.y / 10.0)).left(3), Color.WHITE)
-	PixFont.draw(self, Vector2(cc.x, r.end.y - 7), "%03d" % int(fposmod(rad_to_deg(-jet.yaw), 360.0)), Color.WHITE, true)
-	PixFont.draw(self, r.position + Vector2(2, 1), "ADI", hud())
+		# speed (left) and altitude (right) as simple tape bars
+		var sv := clampf(jet.speed / jet.boost_speed(), 0.0, 1.0)
+		var av := clampf(jet.position.y / 1500.0, 0.0, 1.0)
+		draw_rect(Rect2(r.position.x + 3, inner.position.y, 6, inner.size.y), Color(0.12, 0.12, 0.14))
+		draw_rect(Rect2(r.position.x + 3, inner.end.y - inner.size.y * sv, 6, inner.size.y * sv), Color(0.9, 0.9, 0.9))
+		draw_rect(Rect2(r.end.x - 9, inner.position.y, 6, inner.size.y), Color(0.12, 0.12, 0.14))
+		draw_rect(Rect2(r.end.x - 9, inner.end.y - inner.size.y * av, 6, inner.size.y * av), Color(0.4, 0.9, 1.0))
 
 
 ## Engine page: bars, two round dials, digits, engine icon.
 func _engine(jet: Jet, r: Rect2) -> void:
 	_screen(r)
 	var g := hud()
-	PixFont.draw(self, r.position + Vector2(2, 1), "ENG", g)
-	PixFont.draw(self, r.position + Vector2(r.size.x - 22, 1), "FUEL", g * Color(1, 1, 1, 0.7))
-	var bh := r.size.y - 22
-	var vals := [jet.throttle, jet.heat / 100.0, clampf(jet.speed / jet.boost_speed(), 0.0, 1.0)]
-	var names := ["THR", "EGT", "N2"]
+	var bh := r.size.y - 14
+	var vals := [jet.throttle, jet.heat / 100.0, clampf(jet.health / jet.max_health, 0.0, 1.0)]
 	for k in 3:
-		var x := r.position.x + 4 + k * 13
-		draw_rect(Rect2(x, r.position.y + 10, 8, bh), Color(g.r, g.g, g.b, 0.12))
+		var x := r.position.x + 5 + k * 14
+		draw_rect(Rect2(x, r.position.y + 7, 10, bh), Color(g.r, g.g, g.b, 0.12))
 		var col: Color = g
-		if k == 1:
-			col = RED if jet.overheated else (ORANGE if vals[k] > 0.6 else g)
-		elif k == 0 and jet.boosting:
+		if k == 0 and jet.boosting:
 			col = ORANGE
+		elif k == 1:
+			col = RED if jet.overheated else (ORANGE if vals[k] > 0.6 else g)
+		elif k == 2 and vals[k] < 0.4:
+			col = RED
 		var fh := floorf(bh * clampf(vals[k], 0.0, 1.0))
-		draw_rect(Rect2(x, r.position.y + 10 + bh - fh, 8, fh), col)
-		PixFont.draw(self, Vector2(x - 1, r.end.y - 9), names[k].left(2), g * Color(1, 1, 1, 0.7))
-	for k in 2:
-		var dc := Vector2(r.end.x - 18, r.position.y + 22 + k * 26)
-		draw_arc(dc, 10.0, PI * 0.75, PI * 2.25, 16, Color(1, 1, 1, 0.5), 1.0)
-		draw_arc(dc, 10.0, PI * 2.0, PI * 2.25, 4, RED, 1.0)
-		var v2: float = [jet.throttle, clampf(jet.g_load / 9.0, 0.0, 1.0)][k]
-		var an := lerpf(PI * 0.75, PI * 2.25, v2)
-		draw_line(dc, (dc + Vector2(cos(an), sin(an)) * 9.0).round(), YEL, 1.0)
-		PixFont.draw(self, dc + Vector2(-7, 4), ["RPM", "G"][k], Color(1, 1, 1, 0.7))
-	PixFont.draw(self, Vector2(r.position.x + 44, r.position.y + 12), "%d" % int(jet.speed * 3.6), Color.WHITE)
-	PixFont.draw(self, Vector2(r.position.x + 44, r.position.y + 20), "%.1f" % jet.g_load, Color.WHITE)
-	PixFont.draw(self, Vector2(r.position.x + 44, r.position.y + 28), "AB" if jet.boosting else "MIL", ORANGE if jet.boosting else g)
-	PixFont.draw(self, Vector2(r.position.x + 44, r.position.y + 40), "%d" % int(jet.health / jet.max_health * 100.0), RED if jet.health < jet.max_health * 0.4 else g)
+		draw_rect(Rect2(x, r.position.y + 7 + bh - fh, 10, fh), col)
+	# one big dial (RPM) and one big number (G)
+	var dc := Vector2(r.end.x - 22, r.position.y + 24)
+	draw_arc(dc, 15.0, PI * 0.75, PI * 2.25, 20, Color(1, 1, 1, 0.6), 2.0)
+	draw_arc(dc, 15.0, PI * 2.0, PI * 2.25, 5, RED, 2.0)
+	var an := lerpf(PI * 0.75, PI * 2.25, jet.throttle)
+	draw_line(dc, (dc + Vector2(cos(an), sin(an)) * 13.0).round(), YEL, 2.0)
+	PixFont.draw(self, Vector2(r.end.x - 22, r.end.y - 16), "%.1f" % jet.g_load, YEL if jet.g_load > 7.0 else Color.WHITE, true, 2)
 
 
 ## Moving map: terrain colours (sea, land, forest, city, rock) sampled from
@@ -609,7 +590,7 @@ func _map(jet: Jet, r: Rect2) -> void:
 	var fw := Vector2(-sin(jet.yaw), -cos(jet.yaw))
 	var rt := Vector2(-fw.y, fw.x)
 	draw_colored_polygon(PackedVector2Array([cc + fw * 6.0, cc - fw * 3.0 + rt * 4.0, cc - fw * 3.0 - rt * 4.0]), Color.WHITE)
-	PixFont.draw(self, r.position + Vector2(2, 1), "MAP  N", hud())
+	draw_colored_polygon(PackedVector2Array([r.position + Vector2(6, 3), r.position + Vector2(3, 9), r.position + Vector2(9, 9)]), Color.WHITE) # north
 
 
 ## Analog cluster: four round gauges on a dark face (older planes).
@@ -617,11 +598,9 @@ func _cluster(jet: Jet, r: Rect2) -> void:
 	draw_rect(r, Color(0.08, 0.08, 0.09))
 	var gr := floorf(minf(r.size.x, r.size.y) * 0.25 - 2)
 	var vals := [jet.speed / (jet.boost_speed() * 1.05), jet.position.y / 1000.0, jet.throttle, jet.health / jet.max_health]
-	var names := ["KMH", "ALT", "RPM", "HYD"]
 	for k in 4:
 		var gc := (r.position + Vector2(r.size.x * (0.26 + 0.48 * (k % 2)), r.size.y * (0.27 + 0.48 * (k / 2)))).floor()
 		_gauge(gc, gr, vals[k])
-		PixFont.draw(self, gc + Vector2(0, gr * 0.35), names[k], Color(0.85, 0.85, 0.8), true)
 
 
 func _standby(jet: Jet, r: Rect2) -> void:
@@ -658,23 +637,21 @@ func _panoramic(jet: Jet, r: Rect2) -> void:
 		draw_line(Vector2(r.position.x + third * (k + 1), r.position.y), Vector2(r.position.x + third * (k + 1), r.end.y), Color(0.3, 0.35, 0.3), 1.0)
 
 
-## Up-front control: two read-outs over a keypad with lit keys.
+## Up-front control: one big read-out (heading) over a keypad of lit keys.
 func _ufc(jet: Jet, r: Rect2) -> void:
 	draw_rect(r, c(1))
 	draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), c(3))
 	var g := hud()
-	var ro := Rect2(r.position + Vector2(4, 3), Vector2(r.size.x - 8, 9))
+	var ro := Rect2(r.position + Vector2(4, 3), Vector2(r.size.x - 8, 15))
 	draw_rect(ro, Color(0.02, 0.05, 0.03))
-	PixFont.draw(self, ro.position + Vector2(2, 2), "%03d" % int(fposmod(rad_to_deg(-jet.yaw), 360.0)), g)
-	PixFont.draw(self, Vector2(ro.end.x - 24, ro.position.y + 2), "%d" % int(jet.position.y), g)
-	var keys := ["1", "2", "3", "A", "4", "5", "6", "B", "7", "8", "9", "C", "-", "0", ".", "E"]
+	PixFont.draw(self, Vector2(ro.get_center().x, ro.position.y + 3), "%03d" % int(fposmod(rad_to_deg(-jet.yaw), 360.0)), g, true, 2)
 	var kw := (r.size.x - 8) / 4.0
-	var lit := lerpf(0.75, 1.0, night())
-	for i in 16:
-		var kp := r.position + Vector2(4 + (i % 4) * kw, 15 + (i / 4) * 8)
+	var lit := lerpf(0.55, 1.0, night())
+	for i in 12:
+		var kp := r.position + Vector2(4 + (i % 4) * kw, 21 + (i / 4) * 9)
 		draw_rect(Rect2(kp, Vector2(kw - 2, 7)), Color(0.05, 0.05, 0.06))
 		draw_rect(Rect2(kp, Vector2(kw - 2, 1)), c(3))
-		PixFont.draw(self, kp + Vector2(floorf((kw - 2) * 0.5) - 1, 1), keys[i], g * lit if night() > 0.3 else Color(0.9, 0.92, 0.9))
+		draw_rect(Rect2(kp + Vector2(floorf(kw * 0.5) - 3, 3), Vector2(4, 2)), g * lit)
 
 
 func _warn(jet: Jet, r: Rect2) -> void:
