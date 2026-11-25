@@ -94,6 +94,7 @@ func button_center(i: int) -> Vector2:
 
 
 func _ctext(cx: float, y: float, t: String, size: float, col: Color) -> void:
+	t = tr(t)
 	var fs := int(size * s)
 	var w := get_viewport_rect().size.x
 	draw_string_outline(font, Vector2(cx - w * 0.5, y), t, HORIZONTAL_ALIGNMENT_CENTER, w, fs, maxi(2, int(5 * s)), Color(0, 0, 0, 0.8))

@@ -46,7 +46,7 @@ func _process(delta: float) -> void:
 
 
 func _txt(p: Vector2, t: String, size: float, col: Color, w: float = -1.0, al: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	draw_string(font, p, t, al, w, int(size * s), col)
+	draw_string(font, p, tr(t), al, w, int(size * s), col)
 
 
 func _button(r: Rect2, label: String, cb: Callable, col: Color = Color(0.94, 0.35, 0.06)) -> void:
@@ -77,16 +77,16 @@ func _team_list(x: float, y: float, w: float, team: Array, col: Color, title: St
 		draw_rect(Rect2(Vector2(x, y), Vector2(w, rh - 6 * s)), PANEL)
 		var nm: String = e["name"]
 		var is_me: bool = e.get("player", false)
-		_txt(Vector2(x + 18 * s, y + rh * 0.62), nm + ("  (YOU)" if is_me else ""), 19, GOLD if is_me else Color.WHITE)
+		_txt(Vector2(x + 18 * s, y + rh * 0.62), nm + (("  " + tr("(YOU)")) if is_me else ""), 19, GOLD if is_me else Color.WHITE)
 		if not is_me:
-			var lbl: String = Match.skill_label(e["skill"]) + "  " + BotBrain.ROLE_NAMES[e["role"]]
+			var lbl: String = tr(Match.skill_label(e["skill"])) + "  " + tr(BotBrain.ROLE_NAMES[e["role"]])
 			_txt(Vector2(x, y + rh * 0.62), lbl, 14, Color(0.7, 0.75, 0.85), w - 18 * s, HORIZONTAL_ALIGNMENT_RIGHT)
 		y += rh
 
 
 func _draw_lobby(vs: Vector2) -> void:
 	_txt(Vector2(0, 70 * s), info.get("mode_name", ""), 40, Color.WHITE, vs.x, HORIZONTAL_ALIGNMENT_CENTER)
-	_txt(Vector2(0, 104 * s), "%s  -  %s     %s" % [info.get("map_name", ""), info.get("map_info", ""), info.get("mode_info", "")], 18, Color(0.75, 0.8, 0.9), vs.x, HORIZONTAL_ALIGNMENT_CENTER)
+	_txt(Vector2(0, 104 * s), "%s  -  %s     %s" % [tr(info.get("map_name", "")), tr(info.get("map_info", "")), tr(info.get("mode_info", ""))], 18, Color(0.75, 0.8, 0.9), vs.x, HORIZONTAL_ALIGNMENT_CENTER)
 	var roster: Array = info.get("roster", [[], []])
 	var w := minf(560.0 * s, vs.x * 0.42)
 	var gap := 40.0 * s
@@ -105,7 +105,7 @@ func _draw_results(vs: Vector2) -> void:
 	var tcol := Color(0.8, 0.8, 0.8) if info.get("draw", false) else (GOLD if info.get("won", false) else RED)
 	_txt(Vector2(0, 72 * s), title, 52, tcol, vs.x, HORIZONTAL_ALIGNMENT_CENTER)
 	var sc: Array = info.get("score", [0, 0])
-	_txt(Vector2(0, 108 * s), "%s   %d  :  %d   %s" % ["BLUE", sc[0], sc[1], "RED"], 22, Color.WHITE, vs.x, HORIZONTAL_ALIGNMENT_CENTER)
+	_txt(Vector2(0, 108 * s), "%s   %d  :  %d   %s" % [tr("BLUE"), sc[0], sc[1], tr("RED")], 22, Color.WHITE, vs.x, HORIZONTAL_ALIGNMENT_CENTER)
 	# table
 	var rows: Array = info.get("rows", [])
 	var w := minf(1100.0 * s, vs.x - 60 * s)
@@ -121,9 +121,10 @@ func _draw_results(vs: Vector2) -> void:
 		var col := BLUE if r["team"] == 0 else RED
 		draw_rect(Rect2(Vector2(x, y), Vector2(w, rh - 3 * s)), col.darkened(0.7) if not r["player"] else col.darkened(0.45))
 		var nm: String = r["name"]
-		if nm == info.get("mvp", ""):
-			nm = "* " + nm + "  MVP"
-		_txt(Vector2(x + 10 * s, y + rh * 0.7), nm, 17, GOLD if nm.ends_with("MVP") else Color.WHITE)
+		var is_mvp: bool = nm == info.get("mvp", "")
+		if is_mvp:
+			nm = "* " + nm + "  " + tr("MVP")
+		_txt(Vector2(x + 10 * s, y + rh * 0.7), nm, 17, GOLD if is_mvp else Color.WHITE)
 		var vals := [str(r["k"]), str(r["a"]), str(r["d"]), str(r["dmg"]) + ("+%d" % r["base"] if r["base"] > 0 else ""), str(r["score"])]
 		for i in vals.size():
 			_txt(Vector2(x + w * cols[i + 1] + 10 * s, y + rh * 0.7), vals[i], 17, Color.WHITE)
@@ -131,7 +132,7 @@ func _draw_results(vs: Vector2) -> void:
 	# rewards
 	y = vs.y - 190 * s
 	var k := clampf(_t / 1.2, 0.0, 1.0)
-	_txt(Vector2(0, y), "+%d XP     +%d COINS%s" % [int(info.get("xp", 0) * k), int(info.get("coins", 0) * k), "     MVP BONUS" if info.get("me_mvp", false) else ""], 26, GOLD, vs.x, HORIZONTAL_ALIGNMENT_CENTER)
+	_txt(Vector2(0, y), tr("+%d XP     +%d COINS") % [int(info.get("xp", 0) * k), int(info.get("coins", 0) * k)] + (("     " + tr("MVP BONUS")) if info.get("me_mvp", false) else ""), 26, GOLD, vs.x, HORIZONTAL_ALIGNMENT_CENTER)
 	var bar := Rect2(Vector2(vs.x * 0.5 - 300 * s, y + 18 * s), Vector2(600 * s, 18 * s))
 	draw_rect(bar, Color(0, 0, 0, 0.5))
 	var f: float = lerpf(info.get("rank_from", 0.0), info.get("rank_to", 0.0), k)

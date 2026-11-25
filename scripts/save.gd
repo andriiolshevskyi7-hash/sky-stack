@@ -51,6 +51,21 @@ func _ready() -> void:
 
 func apply() -> void:
 	RenderingServer.global_shader_parameter_set("sprite_snap", 64.0 if sprite_snap else 0.0)
+	apply_language()
+
+
+## Languages in the "lang" setting (index 0 = follow the device).
+const LANGS := ["", "en", "uk"]
+
+
+## Set the UI language: chosen one, else the device language if we have it,
+## else English. Strings come from locale/strings.csv (one column per language).
+func apply_language() -> void:
+	var code: String = LANGS[clampi(int(settings.get("lang", 0)), 0, LANGS.size() - 1)]
+	if code == "":
+		var dev := OS.get_locale_language()
+		code = dev if dev in LANGS else "en"
+	TranslationServer.set_locale(code)
 
 
 func store() -> void:

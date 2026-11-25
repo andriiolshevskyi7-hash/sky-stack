@@ -44,7 +44,7 @@ func _layout() -> void:
 	_tabs.clear()
 	var x := _panel.position.x + 20 * s
 	for t in TABS:
-		var tw: float = (t.length() * 13.0 + 30.0) * s
+		var tw: float = font.get_string_size(tr(t), HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * s)).x + 30.0 * s
 		_tabs.append(Rect2(Vector2(x, _panel.position.y + 16 * s), Vector2(tw, 38 * s)))
 		x += tw + 10 * s
 
@@ -79,7 +79,7 @@ func _draw() -> void:
 
 
 func _t(p: Vector2, txt: String, size: float, col: Color, w: float) -> void:
-	draw_string(font, p, txt, HORIZONTAL_ALIGNMENT_CENTER if w > 0 else HORIZONTAL_ALIGNMENT_LEFT, w, int(size * s), col)
+	draw_string(font, p, tr(txt), HORIZONTAL_ALIGNMENT_CENTER if w > 0 else HORIZONTAL_ALIGNMENT_LEFT, w, int(size * s), col)
 
 
 func _input(event: InputEvent) -> void:

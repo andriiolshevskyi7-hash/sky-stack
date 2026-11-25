@@ -159,7 +159,7 @@ static func paint(p: Painter, s: int, pi: int, si: int) -> void:
 				p.rect(cx - 1, tail, 2, 2, dark)
 				p.erect(cx - 1, tail + 1, 2, 1, Color("ffb43c"), Painter.EM_ALWAYS)
 			else:
-				for sx in [-1, 1]:
+				for sx: int in [-1, 1]:
 					var x := cx + sx * maxi(1, hw - 1) - (1 if sx < 0 else 0) - (1 if sx > 0 else 0)
 					p.rect(x, tail, 2, 2, dark)
 					p.erect(x, tail + 1, 2, 1, Color("ffb43c"), Painter.EM_ALWAYS)

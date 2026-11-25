@@ -280,6 +280,9 @@ func _parse_args() -> void:
 			_shot_frames = int(a.substr(9))
 		elif a == "--play":
 			start_game()
+		elif a.begins_with("--lang="):
+			Save.settings["lang"] = Save.LANGS.find(a.substr(7))
+			Save.apply_language()
 		elif a.begins_with("--map="):
 			world_map.apply(int(a.substr(6)))
 			apply_settings("")
@@ -439,7 +442,7 @@ func _to_title() -> void:
 	match_rules.mode = Match.CITY
 	menu.open("SKY STACK", "Offline air combat",
 		[["PLAY", _open_mode_menu], ["SETTINGS", _open_settings_from_title]],
-		[func() -> String: return "COINS %d     XP %d     HIGH SCORE %d" % [Profile.coins(), Profile.xp(), Save.high_score],
+		[func() -> String: return tr("COINS %d     XP %d     HIGH SCORE %d") % [Profile.coins(), Profile.xp(), Save.high_score],
 		"TAP ANYWHERE TO PLAY"], 0.25, true)
 
 
@@ -633,7 +636,7 @@ func _respawn_player() -> void:
 func on_structure_destroyed(s: Object, src: Object) -> void:
 	var who: String = src.pilot if src != null and is_instance_valid(src) and "pilot" in src else "Crash"
 	var col := Color(0.5, 0.8, 1.0) if s.team == 1 else Color(1.0, 0.45, 0.4)
-	kill_feed.append(["%s  >  %s %s" % [who, "RED" if s.team == 1 else "BLUE", bases.kind_name(s.kind)], 0.0, col])
+	kill_feed.append(["%s  >  %s %s" % [tr(who), tr("RED" if s.team == 1 else "BLUE"), tr(bases.kind_name(s.kind))], 0.0, col])
 	if src == jet:
 		score += 200
 		popups.append([s.pos, "+200", 0.0])
@@ -664,7 +667,7 @@ func _finish_profile(res: Dictionary, mode_key: String) -> void:
 	})
 	res["rank_from"] = lvl0
 	res["rank_to"] = Profile.xp() / 1000.0
-	res["rank_text"] = "LEVEL %d   %d / 1000 XP" % [Profile.xp() / 1000 + 1, Profile.xp() % 1000]
+	res["rank_text"] = tr("LEVEL %d   %d / 1000 XP") % [Profile.xp() / 1000 + 1, Profile.xp() % 1000]
 
 
 
@@ -700,7 +703,7 @@ func _start_wave(n: int) -> void:
 		sub = "Rooftop anti-air guns detected!"
 	if n % 5 == 0:
 		sub = "BOSS BOMBER APPROACHING"
-	show_banner("WAVE %d" % n, sub, 2.5)
+	show_banner(tr("WAVE %d") % n, sub, 2.5)
 	Sfx.play("alarm", -4.0)
 
 
@@ -751,7 +754,7 @@ func _update_waves(delta: float) -> void:
 		var bonus := 500 * wave + int(city_hp / city_max * 500.0)
 		score += bonus
 		jet.health = minf(jet.max_health, jet.health + 20.0)
-		show_banner("WAVE %d CLEAR" % wave, "+%d bonus   +20 HP" % bonus, 3.0)
+		show_banner(tr("WAVE %d CLEAR") % wave, tr("+%d bonus   +20 HP") % bonus, 3.0)
 		Sfx.play("clear")
 		between_t = 4.0
 
@@ -792,7 +795,7 @@ func _city_target(plane: Jet) -> Object:
 
 
 func _on_plane_killed(victim: Jet, killer: Jet, assist: Jet) -> void:
-	var kn := killer.pilot if killer != null else "Crash"
+	var kn := killer.pilot if killer != null else tr("Crash")
 	var col := Color(0.5, 0.8, 1.0) if (killer != null and killer.team == 0) else Color(1.0, 0.45, 0.4)
 	kill_feed.append(["%s  >  %s" % [kn, victim.pilot], 0.0, col])
 	if kill_feed.size() > 5:
@@ -969,7 +972,7 @@ func _open_pause() -> void:
 		["INTEL", func() -> void:
 			menu.close()
 			intel.open(controls.touch_seen)],
-		[func() -> String: return "VIEW: " + GameCamera.MODE_NAMES[cam.mode], _on_cam],
+		[func() -> String: return tr("VIEW: ") + tr(GameCamera.MODE_NAMES[cam.mode]), _on_cam],
 		["RESTART", start_game],
 		["QUIT TO TITLE", _to_title],
 	])
@@ -1007,6 +1010,8 @@ func apply_settings(key: String) -> void:
 		cam.mode = int(st["view"]) as GameCamera.Mode
 		cam._since_switch = 0.0
 	daynight.cycle = st["day_cycle"]
+	if key == "lang" or key == "":
+		Save.apply_language()
 	if key == "traffic" or key == "":
 		traffic.set_level(int(st["traffic"]))
 	if key == "time" or key == "":
@@ -1081,7 +1086,7 @@ func _on_jet_died() -> void:
 		return
 	if match_rules.is_team_mode():
 		_player_respawn = match_rules.respawn_delay(0)
-		show_banner("SHOT DOWN", "Respawn in %d s" % int(_player_respawn), _player_respawn)
+		show_banner("SHOT DOWN", tr("Respawn in %d s") % int(_player_respawn), _player_respawn)
 		return
 	state = State.OVER
 	_over_t = 0.0
@@ -1095,10 +1100,10 @@ func _open_game_over() -> void:
 	var record := Save.submit_score(score)
 	var res := {"won": false, "my_score": score, "xp": 50 + score / 20 + kills * 30, "coins": 20 + score / 40 + kills * 15}
 	_finish_profile(res, "city")
-	menu.open("GAME OVER", over_reason + ("   -   NEW HIGH SCORE!" if record else ""), [
+	menu.open("GAME OVER", tr(over_reason) + (("   -   " + tr("NEW HIGH SCORE!")) if record else ""), [
 		["RETRY", start_game],
 		["TITLE", _to_title],
-	], ["KILLS  %d      WAVES  %d" % [kills, wave], "SCORE  %d      BEST  %d" % [score, Save.high_score], "TAP ANYWHERE TO RETRY"], 0.55, true)
+	], [tr("KILLS  %d      WAVES  %d") % [kills, wave], tr("SCORE  %d      BEST  %d") % [score, Save.high_score], "TAP ANYWHERE TO RETRY"], 0.55, true)
 
 
 ## Extra checks for the headless launch test (tests/run_tests.gd).

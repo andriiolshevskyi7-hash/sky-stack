@@ -42,6 +42,11 @@ window/vsync/vsync_mode=1
 pointing/emulate_mouse_from_touch=true
 pointing/emulate_touch_from_mouse=false
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://locale/strings.en.translation", "res://locale/strings.uk.translation")
+locale/fallback="en"
+
 [physics]
 
 common/physics_ticks_per_second=60

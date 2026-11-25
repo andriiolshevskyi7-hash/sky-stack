@@ -53,6 +53,7 @@ const SCHEMA := [
 	["HELPERS", "stick_indicator", "Floating stick indicator", "b", true],
 	["HELPERS", "helper_buttons", "Intel button", "b", true],
 	["HELPERS", "debug", "Debug overlay (FPS, draw calls)", "b", false],
+	["LANGUAGE", "lang", "Language", "c", 0, ["auto", "English", "Українська"]],
 	["SOUND", "sound", "Sound", "b", true],
 	["SOUND", "volume", "Volume", "f", 0.6, 0.0, 1.0, 0.05],
 ]
@@ -147,7 +148,7 @@ func _draw() -> void:
 		if r.end.y < clip_top or r.position.y > clip_bot:
 			continue
 		if row[1] is String:
-			_t(Vector2(r.position.x + 6 * s, r.position.y + 28 * s), "v  " + row[2], 17, Color(0.75, 0.75, 0.8))
+			_t(Vector2(r.position.x + 6 * s, r.position.y + 28 * s), "v  " + tr(row[2]), 17, Color(0.75, 0.75, 0.8))
 			continue
 		var sc: Array = row[1]
 		draw_rect(r, Color(0.2, 0.2, 0.23))
@@ -204,7 +205,7 @@ func _opt_rect(r: Rect2, n: int, i: int, ow: float) -> Rect2:
 
 
 func _t(p: Vector2, txt: String, size: float, col: Color, w: float = -1.0, al: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	draw_string(font, p, txt, al, w, int(size * s), col)
+	draw_string(font, p, tr(txt), al, w, int(size * s), col)
 
 
 func set_value(key: String, v: Variant) -> void:

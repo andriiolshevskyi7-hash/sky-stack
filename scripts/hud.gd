@@ -30,6 +30,7 @@ func _process(delta: float) -> void:
 
 func text(pos: Vector2, t: String, size: float, col: Color = C_TEXT, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, width: float = -1.0) -> void:
 	var fs := int(size * s)
+	t = tr(t)
 	draw_string_outline(font, pos, t, align, width, fs, maxi(2, int(4 * s)), C_SHADOW)
 	draw_string(font, pos, t, align, width, fs, col)
 
@@ -104,18 +105,24 @@ func _draw_status(vs: Vector2) -> void:
 	var x := 22.0 * s
 	var y := 22.0 * s
 	# KILLS + HULL panel (reference style)
-	var pw := 360.0 * s
+	# widths follow the translated labels (Ukrainian words are longer)
+	var kills_txt: String = tr("KILLS %02d") % game.kills
+	var kw := font.get_string_size(kills_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * s)).x
+	var hw := font.get_string_size(tr("HULL"), HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * s)).x
+	var hx := x + 16 * s + maxf(kw, 110 * s) + 24 * s
+	var bx := hx + hw + 12 * s
+	var pw := bx - x + 7 * 18 * s + 10 * s
 	var ph := 48.0 * s
 	_panel(Rect2(Vector2(x, y), Vector2(pw, ph)))
-	text(Vector2(x + 16 * s, y + 32 * s), "KILLS %02d" % game.kills, 20)
-	text(Vector2(x + 150 * s, y + 32 * s), "HULL", 20)
+	text(Vector2(x + 16 * s, y + 32 * s), kills_txt, 20)
+	text(Vector2(hx, y + 32 * s), "HULL", 20)
 	var segs := 7
 	var lit := int(ceil(jet.health / jet.max_health * segs))
 	for i in segs:
 		var col := Color(1, 1, 1, 0.95) if i < lit else Color(1, 1, 1, 0.22)
 		if i < lit and lit <= 2:
 			col = Color(1.0, 0.3, 0.25)
-		draw_rect(Rect2(Vector2(x + 210 * s + i * 18 * s, y + 13 * s), Vector2(11 * s, 22 * s)), col)
+		draw_rect(Rect2(Vector2(bx + i * 18 * s, y + 13 * s), Vector2(11 * s, 22 * s)), col)
 	var mr: Match = game.match_rules
 	if mr.is_team_mode():
 		pass # team bar + minimap are drawn in _draw (also in the cockpit)
@@ -126,10 +133,10 @@ func _draw_status(vs: Vector2) -> void:
 		draw_rect(Rect2(Vector2(x + 70 * s, y + ph + 17 * s), Vector2(140 * s, 12 * s)), Color(0, 0, 0, 0.4))
 		draw_rect(Rect2(Vector2(x + 70 * s, y + ph + 17 * s), Vector2(140 * s * game.city_hp / game.city_max, 12 * s)), C_CITY)
 		if game.wave > 0 and not game.tutorial.active():
-			text(Vector2(x + 225 * s, y + ph + 30 * s), "WAVE %d  %d" % [game.wave, game.enemies_left()], 15, Color(1, 0.85, 0.85))
-		text(Vector2(x + 4 * s, y + ph + 66 * s), "ALT %d" % int(jet.position.y), 16, Color(0.85, 0.95, 1.0) if jet.position.y > CityGen.LOW_ALT else Color(1, 0.85, 0.3))
+			text(Vector2(x + 225 * s, y + ph + 30 * s), tr("WAVE %d  %d") % [game.wave, game.enemies_left()], 15, Color(1, 0.85, 0.85))
+		text(Vector2(x + 4 * s, y + ph + 66 * s), tr("ALT %d") % int(jet.position.y), 16, Color(0.85, 0.95, 1.0) if jet.position.y > CityGen.LOW_ALT else Color(1, 0.85, 0.3))
 		ctext(vs.x * 0.5, 40 * s, "%07d" % game.score, 28)
-		ctext(vs.x * 0.5, 62 * s, "HI %07d" % maxi(Save.high_score, game.score), 14, Color(1, 1, 1, 0.7))
+		ctext(vs.x * 0.5, 62 * s, tr("HI %07d") % maxi(Save.high_score, game.score), 14, Color(1, 1, 1, 0.7))
 	# INTEL / TUTORIAL buttons
 	for n in ["intel"]:
 		if not c.helper_buttons:
@@ -139,7 +146,7 @@ func _draw_status(vs: Vector2) -> void:
 		text(Vector2(r.position.x, r.get_center().y + 7 * s), n.to_upper(), 18, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 	if jet.multiplier > 1:
 		var pulse := 0.75 + 0.25 * sin(_t * 10.0)
-		ctext(vs.x * 0.5, vs.y - 40 * s, "LOW FLYING  x%d" % jet.multiplier, 26, Color(1, 0.85, 0.3, pulse))
+		ctext(vs.x * 0.5, vs.y - 40 * s, tr("LOW FLYING  x%d") % jet.multiplier, 26, Color(1, 0.85, 0.3, pulse))
 	# tutorial instruction
 	if game.tutorial.active():
 		var tw := 760.0 * s
@@ -245,11 +252,11 @@ func _draw_team_bar(vs: Vector2, mr: Match) -> void:
 	var tl := maxi(0, int(ceil(mr.time_left)))
 	ctext(vs.x * 0.5, y0 + 29 * s, "%d:%02d" % [tl / 60, tl % 60], 22, Color(1, 0.95, 0.7))
 	if mr.mode != Match.BASE:
-		ctext(vs.x * 0.5, y0 + h + 18 * s, "FIRST TO %d" % mr.kill_target, 13, Color(1, 1, 1, 0.65))
+		ctext(vs.x * 0.5, y0 + h + 18 * s, tr("FIRST TO %d") % mr.kill_target, 13, Color(1, 1, 1, 0.65))
 	if mr.countdown > 0.0:
 		ctext(vs.x * 0.5, vs.y * 0.45, str(ceili(mr.countdown)), 96, Color(1, 0.9, 0.4))
 	if game._player_respawn > 0.0:
-		ctext(vs.x * 0.5, vs.y * 0.45, "RESPAWN %d" % ceili(game._player_respawn), 40, Color(1, 1, 1, 0.9))
+		ctext(vs.x * 0.5, vs.y * 0.45, tr("RESPAWN %d") % ceili(game._player_respawn), 40, Color(1, 1, 1, 0.9))
 
 
 ## Heading-up minimap: planes (blue/red), bases, your jet in the middle.
@@ -311,7 +318,7 @@ func _draw_border_warning(vs: Vector2) -> void:
 	var blink := fmod(Time.get_ticks_msec() / 1000.0, 0.6) < 0.4
 	var col := Color(1, 0.3, 0.25, 1.0 if blink else 0.6)
 	ctext(vs.x * 0.5, vs.y * 0.3, "RETURN TO BATTLE AREA", 34, col)
-	var msg := "TURNING BACK" if jet.steer_home else ("LEAVING THE AREA" if o < 0.0 else "AUTO TURN IN %d" % maxi(1, ceili(4.0 - game.border_t)))
+	var msg := "TURNING BACK" if jet.steer_home else ("LEAVING THE AREA" if o < 0.0 else tr("AUTO TURN IN %d") % maxi(1, ceili(4.0 - game.border_t)))
 	ctext(vs.x * 0.5, vs.y * 0.3 + 34 * s, msg, 18, Color(1, 0.85, 0.8))
 
 

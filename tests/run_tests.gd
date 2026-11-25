@@ -19,6 +19,8 @@ func check(cond: bool, msg: String) -> void:
 func _ready() -> void:
 	print("== Sky Stack tests ==")
 	await get_tree().process_frame
+	test_scripts_compile()
+	test_locale()
 	test_stacks()
 	test_pixel_view()
 	test_world_gen()
@@ -28,6 +30,60 @@ func _ready() -> void:
 	if failures == 0:
 		print("ALL TESTS PASSED")
 	get_tree().quit(1 if failures > 0 else 0)
+
+
+## Every script must compile, even ones nothing loads yet.
+func test_scripts_compile() -> void:
+	print("[scripts]")
+	var bad: Array = []
+	var n := 0
+	for dir in ["res://scripts/", "res://tests/"]:
+		for f in DirAccess.get_files_at(dir):
+			if not f.ends_with(".gd"):
+				continue
+			n += 1
+			var sc: GDScript = load(dir + f)
+			if sc == null or not sc.can_instantiate():
+				bad.append(f)
+	check(bad.is_empty() and n > 30, "all %d scripts compile %s" % [n, bad])
+
+
+## English + Ukrainian: translations load, every Ukrainian string keeps the
+## same placeholders as its key, and the UI font has all the glyphs.
+func test_locale() -> void:
+	print("[locale]")
+	var prev := TranslationServer.get_locale()
+	var keys := PackedStringArray()
+	var f := FileAccess.open("res://locale/strings.csv", FileAccess.READ)
+	var have_csv := f != null
+	if have_csv:
+		f.get_csv_line()
+		while not f.eof_reached():
+			var row := f.get_csv_line()
+			if row.size() >= 3 and row[0] != "":
+				keys.append(row[0])
+	TranslationServer.set_locale("uk")
+	var missing := 0
+	var bad_fmt: Array = []
+	var font := ThemeDB.fallback_font
+	var no_glyph := 0
+	for k in keys:
+		var u := String(TranslationServer.translate(k))
+		if u == k and k.to_upper() != k.to_lower():
+			missing += 1
+		for ph in ["%d", "%02d", "%07d", "%s"]:
+			if k.count(ph) != u.count(ph):
+				bad_fmt.append(k)
+		for i in u.length():
+			if u[i] != " " and not font.has_char(u.unicode_at(i)):
+				no_glyph += 1
+	check(String(TranslationServer.translate("PLAY")) == "ГРАТИ", "Ukrainian translation loaded (PLAY -> %s)" % TranslationServer.translate("PLAY"))
+	check(missing < 12, "Ukrainian covers the keys (%d of %d untranslated)" % [missing, keys.size()])
+	check(bad_fmt.is_empty(), "placeholders match in every translation %s" % [bad_fmt])
+	check(no_glyph == 0, "UI font has every Ukrainian glyph (%d missing)" % no_glyph)
+	TranslationServer.set_locale("en")
+	check(String(TranslationServer.translate("PLAY")) == "PLAY", "English is the fallback")
+	TranslationServer.set_locale(prev)
 
 
 func test_stacks() -> void:
