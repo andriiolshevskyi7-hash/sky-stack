@@ -9,8 +9,22 @@ uniform sampler2D ground_tex : source_color, filter_nearest;
 
 varying vec3 wpos;
 
+// Flat ground layers lie 0.08 (virtual) apart (CityGen.Y_ROAD .. Y_DETAIL).
+// On top of that physical gap, pull each layer towards the camera by a
+// fraction of its distance, so the separation grows with distance just like
+// the depth-buffer error does: road always beats terrain, markings beat road,
+// sidewalk beats markings, lots beat sidewalks, paths beat lots - in every view.
+const float LAYER_STEP = 0.08;
+const float LAYER_PULL = 0.00018; // per layer, fraction of view distance
+
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	vec4 vp = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
+	if (VERTEX.y < 0.8) {
+		float layer = clamp(floor(VERTEX.y / LAYER_STEP + 0.5), 0.0, 8.0);
+		vp.xyz *= 1.0 - layer * LAYER_PULL;
+	}
+	POSITION = PROJECTION_MATRIX * vp;
 }
 
 void fragment() {

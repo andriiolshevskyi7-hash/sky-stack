@@ -82,6 +82,19 @@ const G_SLABS := 15
 enum { PK_TOWER, PK_MID, PK_HOUSE, PK_FLAT }
 
 const LAMP_GLOW := Color(1.0, 0.8, 0.5, 0.55)
+
+## Flat ground layers (virtual units; world = x2). Every layer is a fixed step
+## apart so no two coplanar surfaces ever share a depth value: at the far edge
+## of the streamed chunks (~1.8 km, near plane 4) the 24-bit depth resolution
+## is ~0.05 world units, the step is 0.16 world units, and the ground shader
+## adds a distance-scaled pull per layer on top (see ground.gdshader).
+const Y_ROAD := 0.10 # asphalt, desert/snow pads under relief
+const Y_MARK := 0.18 # lane dashes, zebra crossings
+const Y_WALK := 0.26 # sidewalks
+const Y_LOT := 0.34 # lot surface: grass, plaza, slabs
+const Y_DETAIL := 0.42 # park paths, stadium pitch
+const Y_PROP := Y_LOT + 0.04 # props standing on a lot
+const Y_GLOW := 0.5 # additive light pools (no depth write)
 const NEON := [Color(1.0, 0.25, 0.8, 0.8), Color(0.2, 0.9, 1.0, 0.8), Color(0.7, 0.35, 1.0, 0.8), Color(1.0, 0.55, 0.15, 0.7)]
 
 # ---- per-map generation parameters (set on the main thread by WorldMap
@@ -390,7 +403,7 @@ static func _stack(cb: Build, sheet: String, variant: int, pos: Vector3, yaw: fl
 
 static func _glow(cb: Build, x: float, z: float, size: float, col: Color) -> void:
 	var h := size * 0.5
-	var y := 0.45
+	var y := Y_GLOW
 	cb.gl.quad(Vector3(x - h, y, z - h), Vector3(x + h, y, z - h), Vector3(x + h, y, z + h), Vector3(x - h, y, z + h),
 		Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1), col)
 
@@ -545,7 +558,7 @@ static func _lamps(cb: Build, lx0: float, lz0: float, lx1: float, lz1: float) ->
 		]
 		for s in spots:
 			var yaw := atan2(-s[3], s[2])
-			cb.p.add_stack(lamp, 0, Vector3(s[0], 0.2, s[1]), yaw, 1.0, Color.WHITE, 2)
+			cb.p.add_stack(lamp, 0, Vector3(s[0], Y_WALK + 0.04, s[1]), yaw, 1.0, Color.WHITE, 2)
 			var gc: Color = LAMP_GLOW
 			if neon:
 				gc = NEON[hashi(int(s[0]), int(s[1]), 9) % NEON.size()]
@@ -564,7 +577,7 @@ static func _trees(cb: Build, rng: RandomNumberGenerator, r: Rect2, n: int, avoi
 		if not ok or island_h(x, z) < URBAN_H - 0.03:
 			continue
 		var v := 1 if rng.randf() < pine_bias else (2 if rng.randf() < 0.12 else 0)
-		_stack(cb, "tree", v, Vector3(x, 0.2, z), rng.randf() * TAU, rng.randf_range(0.8, 1.25))
+		_stack(cb, "tree", v, Vector3(x, Y_PROP, z), rng.randf() * TAU, rng.randf_range(0.8, 1.25))
 
 
 # ------------------------------------------------------------------ blocks
@@ -585,8 +598,8 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 		_nature(cb, rng, bx, bz, d)
 		return
 	# streets around the block (adjacent urban blocks overlap seamlessly)
-	cb.g.ground_rect(bx * BLOCK - HALF_ST, bz * BLOCK - HALF_ST, (bx + 1) * BLOCK + HALF_ST, (bz + 1) * BLOCK + HALF_ST, 0.1, G_ASPHALT)
-	cb.g.ground_rect(lx0, lz0, lx1, lz1, 0.2, G_SIDEWALK)
+	cb.g.ground_rect(bx * BLOCK - HALF_ST, bz * BLOCK - HALF_ST, (bx + 1) * BLOCK + HALF_ST, (bz + 1) * BLOCK + HALF_ST, Y_ROAD, G_ASPHALT)
+	cb.g.ground_rect(lx0, lz0, lx1, lz1, Y_WALK, G_SIDEWALK)
 	var inner := Rect2(lx0 + 3.0, lz0 + 3.0, LOT - 6.0, LOT - 6.0)
 	var tile := G_GRASS
 	match d:
@@ -594,7 +607,7 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 			tile = G_PLAZA
 		D_MIDTOWN, D_INDUSTRIAL:
 			tile = G_SLABS
-	cb.g.ground_rect(inner.position.x, inner.position.y, inner.end.x, inner.end.y, 0.25, tile)
+	cb.g.ground_rect(inner.position.x, inner.position.y, inner.end.x, inner.end.y, Y_LOT, tile)
 	var cv := city_val((bx + 0.5) * BLOCK, (bz + 0.5) * BLOCK)
 	match d:
 		D_DOWNTOWN:
@@ -652,31 +665,31 @@ static func _block(cb: Build, bx: int, bz: int, urban: bool) -> void:
 				for k in 3:
 					if rng.randf() < 0.3:
 						continue
-					var p := Vector3(inner.position.x + 6.0 + k * 13.0, 0.25, inner.position.y + 27.0 + row * 9.0)
+					var p := Vector3(inner.position.x + 6.0 + k * 13.0, Y_PROP, inner.position.y + 27.0 + row * 9.0)
 					_stack(cb, "container", rng.randi() % 4, p, PI * 0.5)
 			if rng.randf() < 0.35:
-				_stack(cb, "crane", 0, Vector3(inner.end.x - 8.0, 0.25, inner.end.y - 8.0), rng.randf() * TAU)
+				_stack(cb, "crane", 0, Vector3(inner.end.x - 8.0, Y_PROP, inner.end.y - 8.0), rng.randf() * TAU)
 			elif rng.randf() < 0.4:
 				var chx := inner.end.x - 6.0
 				var chz := inner.end.y - 6.0
-				_stack(cb, "chimney", 0, Vector3(chx, 0.25, chz), 0.0)
+				_stack(cb, "chimney", 0, Vector3(chx, Y_PROP, chz), 0.0)
 				cb.chimneys.append(chx)
 				cb.chimneys.append(36.0)
 				cb.chimneys.append(chz)
 		D_PARK:
 			var avoid: Array[Rect2] = []
 			var c := inner.get_center()
-			cb.g.ground_rect(c.x - 2.0, inner.position.y, c.x + 2.0, inner.end.y, 0.28, G_PATH)
-			cb.g.ground_rect(inner.position.x, c.y - 2.0, inner.end.x, c.y + 2.0, 0.28, G_PATH)
+			cb.g.ground_rect(c.x - 2.0, inner.position.y, c.x + 2.0, inner.end.y, Y_DETAIL, G_PATH)
+			cb.g.ground_rect(inner.position.x, c.y - 2.0, inner.end.x, c.y + 2.0, Y_DETAIL, G_PATH)
 			avoid.append(Rect2(c.x - 2.0, inner.position.y, 4.0, inner.size.y))
 			avoid.append(Rect2(inner.position.x, c.y - 2.0, inner.size.x, 4.0))
 			if rng.randf() < 0.6:
-				_stack(cb, "fountain", 0, Vector3(c.x, 0.3, c.y), 0.0)
+				_stack(cb, "fountain", 0, Vector3(c.x, Y_PROP, c.y), 0.0)
 				avoid.append(Rect2(c.x - 9.0, c.y - 9.0, 18.0, 18.0))
 			_trees(cb, rng, inner, rng.randi_range(7, 12), avoid, 0.2)
 			for k in rng.randi_range(2, 5):
 				var p := inner.position + Vector2(rng.randf(), rng.randf()) * inner.size
-				_stack(cb, "bush", rng.randi() % 2, Vector3(p.x, 0.25, p.y), rng.randf() * TAU)
+				_stack(cb, "bush", rng.randi() % 2, Vector3(p.x, Y_PROP, p.y), rng.randf() * TAU)
 		D_STADIUM:
 			_stadium(cb, inner)
 
@@ -700,7 +713,7 @@ static func _relief(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, h: 
 		z1 -= rng.randf_range(2.0, 10.0) if mesa or relief_h(bx, bz + 1) <= 0.0 else 0.0
 	var style := F_ROCK if mesa else F_GRANITE
 	var roof := R_SAND if mesa else (R_SNOW if h >= 72.0 else R_ROCK)
-	cb.g.ground_rect(bx * BLOCK, bz * BLOCK, (bx + 1) * BLOCK, (bz + 1) * BLOCK, 0.1, G_DIRT if mesa else G_SAND,
+	cb.g.ground_rect(bx * BLOCK, bz * BLOCK, (bx + 1) * BLOCK, (bz + 1) * BLOCK, Y_ROAD, G_DIRT if mesa else G_SAND,
 		Color(0.95, 0.7, 0.5) if mesa else Color(0.85, 0.88, 0.92))
 	_box(cb, x0, z0, x1, z1, 0.0, h, style, roof, hashf(bx, bz, 83), true)
 	_reg(cb, relief_id(bx, bz), x0, z0, x1, z1, h)
@@ -756,7 +769,7 @@ static func _nature(cb: Build, rng: RandomNumberGenerator, bx: int, bz: int, d: 
 
 static func _stadium(cb: Build, r: Rect2) -> void:
 	var c := r.get_center()
-	cb.g.ground_rect(c.x - 13.0, c.y - 10.0, c.x + 13.0, c.y + 10.0, 0.26, G_FIELD, Color.WHITE, 16.0, true)
+	cb.g.ground_rect(c.x - 13.0, c.y - 10.0, c.x + 13.0, c.y + 10.0, Y_DETAIL, G_FIELD, Color.WHITE, 16.0, true)
 	var n := 20
 	var ro := Vector2(r.size.x * 0.5 - 0.5, r.size.y * 0.5 - 1.5)
 	var ri := ro - Vector2(8.0, 7.0)
@@ -782,7 +795,7 @@ static func _stadium(cb: Build, r: Rect2) -> void:
 	for k in 4:
 		var a := TAU * (k + 0.5) / 4.0
 		var p := c + Vector2(cos(a), sin(a)) * (ro + Vector2(1.0, 1.0))
-		_stack(cb, "lamp", 0, Vector3(p.x, 0.2, p.y), atan2(sin(a), -cos(a)), 2.0)
+		_stack(cb, "lamp", 0, Vector3(p.x, Y_DETAIL + 0.04, p.y), atan2(sin(a), -cos(a)), 2.0)
 
 
 # ------------------------------------------------------------------ roads, river, sea
@@ -795,9 +808,9 @@ static func _markings(cb: Build, cx: int, cz: int, urban: Dictionary) -> void:
 			if not (urban[Vector2i(bx, row - 1)] or urban[Vector2i(bx, row)]):
 				continue
 			var sx := bx * BLOCK + HALF_ST
-			cb.g.ground_rect(sx + 5.0, z - 0.75, sx + LOT - 5.0, z + 0.75, 0.15, G_DASH)
-			cb.g.ground_rect(sx + 1.0, z - 7.0, sx + 4.0, z + 7.0, 0.15, G_CROSS, Color.WHITE, 16.0, true)
-			cb.g.ground_rect(sx + LOT - 4.0, z - 7.0, sx + LOT - 1.0, z + 7.0, 0.15, G_CROSS, Color.WHITE, 16.0, true)
+			cb.g.ground_rect(sx + 5.0, z - 0.75, sx + LOT - 5.0, z + 0.75, Y_MARK, G_DASH)
+			cb.g.ground_rect(sx + 1.0, z - 7.0, sx + 4.0, z + 7.0, Y_MARK, G_CROSS, Color.WHITE, 16.0, true)
+			cb.g.ground_rect(sx + LOT - 4.0, z - 7.0, sx + LOT - 1.0, z + 7.0, Y_MARK, G_CROSS, Color.WHITE, 16.0, true)
 	# vertical streets (run along Z) at x = col * 64
 	for col in range(cx * BPC, cx * BPC + BPC):
 		var x := col * BLOCK
@@ -805,6 +818,6 @@ static func _markings(cb: Build, cx: int, cz: int, urban: Dictionary) -> void:
 			if not (urban[Vector2i(col - 1, bz)] or urban[Vector2i(col, bz)]):
 				continue
 			var sz := bz * BLOCK + HALF_ST
-			cb.g.ground_rect(x - 0.75, sz + 5.0, x + 0.75, sz + LOT - 5.0, 0.15, G_DASH, Color.WHITE, 16.0, true)
-			cb.g.ground_rect(x - 7.0, sz + 1.0, x + 7.0, sz + 4.0, 0.15, G_CROSS)
-			cb.g.ground_rect(x - 7.0, sz + LOT - 4.0, x + 7.0, sz + LOT - 1.0, 0.15, G_CROSS)
+			cb.g.ground_rect(x - 0.75, sz + 5.0, x + 0.75, sz + LOT - 5.0, Y_MARK, G_DASH, Color.WHITE, 16.0, true)
+			cb.g.ground_rect(x - 7.0, sz + 1.0, x + 7.0, sz + 4.0, Y_MARK, G_CROSS)
+			cb.g.ground_rect(x - 7.0, sz + LOT - 4.0, x + 7.0, sz + LOT - 1.0, Y_MARK, G_CROSS)

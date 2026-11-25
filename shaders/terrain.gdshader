@@ -21,8 +21,16 @@ uniform float bound_half = 0.0; // battle area half size (world), 0 = none
 
 varying vec3 wpos;
 
+// The terrain plane is the bottom layer under every chunk's ground mesh: it
+// sits 0.5 below y = 0 (main.gd) and is pushed slightly away from the camera
+// so roads, lots and pads drawn above it never z-fight with it.
+const float TERRAIN_PUSH = 0.0004; // fraction of view distance
+
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	vec4 vp = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
+	vp.xyz *= 1.0 + TERRAIN_PUSH;
+	POSITION = PROJECTION_MATRIX * vp;
 }
 
 void fragment() {

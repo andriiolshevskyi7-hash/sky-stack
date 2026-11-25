@@ -41,7 +41,12 @@ var shake_mult := 1.0
 
 func _ready() -> void:
 	projection = PROJECTION_PERSPECTIVE
-	near = 0.5
+	# Depth precision ~ distance^2 / (near * 2^24): near 4 instead of 0.5 gives
+	# 8x finer depth everywhere. Nothing visible is ever closer than ~5 units
+	# (cockpit eye sits 7 ahead of the hidden jet, chase is 166 back). The far
+	# plane hardly affects precision (factor far/(far-near) ~ 1); it stays past
+	# the 7 km fog so the horizon never shows a cut edge.
+	near = 4.0
 	far = 16000.0
 	fov = 62.0
 	current = true
