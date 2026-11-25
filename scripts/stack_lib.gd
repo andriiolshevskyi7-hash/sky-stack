@@ -26,6 +26,7 @@ class Sheet:
 	var block := Vector2i.ZERO
 	var vstride := Vector2i.ZERO
 	var overridden := false
+	var atlas := 0 # 0 = main atlas, 1 = plane atlas
 	var uv_rects: Array[Rect2] = []
 
 	func uv(s: int, variant: int) -> Rect2:
@@ -37,6 +38,11 @@ class Sheet:
 
 var sheets := {}
 var atlas_size := Vector2i(ATLAS_W, 256)
+## Second atlas: one sheet per plane of the aircraft tree, skins = variants.
+const PLANE_ATLAS := Vector2i(1024, 2048)
+var plane_atlas_tex: ImageTexture
+var plane_emit_tex: ImageTexture
+var plane_albedo := {} # plane index -> Image (factory skin strip, for shadows)
 var atlas_tex: ImageTexture
 var emit_tex: ImageTexture
 var facade_tex: ImageTexture
@@ -61,6 +67,9 @@ var build_ms := 0
 func _ready() -> void:
 	var t0 := Time.get_ticks_msec()
 	_build_sheets()
+	var tp := Time.get_ticks_msec()
+	_build_plane_sheets()
+	print("Stacks: plane sheets in %d ms" % (Time.get_ticks_msec() - tp))
 	_build_facades()
 	_build_ground()
 	_build_globals()
@@ -195,6 +204,55 @@ func _total(sh: Sheet) -> Vector2i:
 	return Vector2i(sh.block.x, sh.block.y * sh.v)
 
 
+## The 12 planes of the aircraft tree: 40x40, 11 slices, 8 skins each.
+## Sheet i sits at ((i % 2) * 452, (i / 2) * 328) of the plane atlas; the 8
+## skins are stacked vertically (variant stride 41 px).
+func _build_plane_sheets() -> void:
+	var atlas := Image.create(PLANE_ATLAS.x, PLANE_ATLAS.y, false, Image.FORMAT_RGBA8)
+	var eatlas := Image.create(PLANE_ATLAS.x, PLANE_ATLAS.y, false, Image.FORMAT_RGBA8)
+	var W := Planes.SHEET_W
+	var N := Planes.SLICES
+	var V := Planes.SKINS.size()
+	for pi in Planes.LIST.size():
+		var sh := Sheet.new()
+		sh.name = Planes.sheet_of(pi)
+		sh.w = W
+		sh.h = W
+		sh.n = N
+		sh.v = V
+		sh.atlas = 1
+		sh.cols = N
+		sh.block = Vector2i(N * (W + PAD), W + PAD)
+		sh.vstride = Vector2i(0, W + PAD)
+		sh.origin = Vector2i((pi % 2) * (sh.block.x + 1), (pi / 2) * sh.block.y * V)
+		for vi in V:
+			var a := Image.create(W * N, W, false, Image.FORMAT_RGBA8)
+			var e := Image.create(W * N, W, false, Image.FORMAT_RGBA8)
+			var p := Painter.new(a, e, W, W)
+			for s in N:
+				p.ox = s * W
+				Planes.paint(p, s, pi, vi)
+			if vi == 0:
+				plane_albedo[pi] = a
+			for s in N:
+				var dst := sh.cell(s, vi)
+				atlas.blit_rect(a, Rect2i(s * W, 0, W, W), dst)
+				eatlas.blit_rect(e, Rect2i(s * W, 0, W, W), dst)
+		for vi in V:
+			for s in N:
+				sh.uv_rects.append(slice_uv(sh, s, vi))
+		sheets[sh.name] = sh
+	plane_atlas_tex = ImageTexture.create_from_image(atlas)
+	plane_emit_tex = ImageTexture.create_from_image(eatlas)
+
+
+## Ground shadow of the player's plane (silhouette of every slice).
+func set_player_shadow(plane: int) -> void:
+	if plane_albedo.has(plane):
+		_build_jet_shadow(plane_albedo[plane], get_sheet(Planes.sheet_of(plane)))
+		RenderingServer.global_shader_parameter_set("jet_shadow_tex", jet_shadow_tex)
+
+
 func _build_jet_shadow(img: Image, sh: Sheet) -> void:
 	var s := Image.create(sh.w, sh.h, false, Image.FORMAT_RGBA8)
 	for i in sh.n:
@@ -212,7 +270,8 @@ func get_sheet(sheet_name: String) -> Sheet:
 ## UV rect (in 0..1 atlas space) of one slice, slightly inset against bleeding.
 func slice_uv(sh: Sheet, s: int, variant: int) -> Rect2:
 	var c := sh.cell(s, variant)
-	var inv := Vector2(1.0 / atlas_size.x, 1.0 / atlas_size.y)
+	var asz := Vector2(PLANE_ATLAS) if sh.atlas == 1 else Vector2(atlas_size)
+	var inv := Vector2(1.0 / asz.x, 1.0 / asz.y)
 	var eps := 0.02
 	return Rect2((Vector2(c) + Vector2(eps, eps)) * inv, (Vector2(sh.w, sh.h) - Vector2(eps, eps) * 2.0) * inv)
 
@@ -234,11 +293,12 @@ func batch_material(sheet_name: String) -> ShaderMaterial:
 	var sh := get_sheet(sheet_name)
 	var m := ShaderMaterial.new()
 	m.shader = preload("res://shaders/stack.gdshader")
-	m.set_shader_parameter("albedo_tex", atlas_tex)
-	m.set_shader_parameter("emit_tex", emit_tex)
+	var planes := sh.atlas == 1
+	m.set_shader_parameter("albedo_tex", plane_atlas_tex if planes else atlas_tex)
+	m.set_shader_parameter("emit_tex", plane_emit_tex if planes else emit_tex)
 	m.set_shader_parameter("dynamic", true)
 	m.set_shader_parameter("fadeable", false)
-	m.set_shader_parameter("variant_stride", Vector2(sh.vstride) / Vector2(atlas_size))
+	m.set_shader_parameter("variant_stride", Vector2(sh.vstride) / Vector2(PLANE_ATLAS if planes else atlas_size))
 	_batch_mats[sheet_name] = m
 	return m
 

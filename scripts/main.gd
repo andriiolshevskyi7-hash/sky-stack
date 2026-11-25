@@ -264,6 +264,7 @@ func _ready() -> void:
 
 	world_map.apply(int(Save.settings.get("map", 0)), true)
 	apply_settings("")
+	apply_player_plane()
 	jet.reset(SPAWN, 0.0)
 	cam.update_cam(0.016, jet, 0.0)
 	chunks.focus = cam.ground_point()
@@ -280,6 +281,11 @@ func _parse_args() -> void:
 			_shot_frames = int(a.substr(9))
 		elif a == "--play":
 			start_game()
+		elif a == "--hangar":
+			_open_hangar()
+		elif a == "--skins":
+			_open_hangar()
+			screens.page = "skins"
 		elif a.begins_with("--lang="):
 			Save.settings["lang"] = Save.LANGS.find(a.substr(7))
 			Save.apply_language()
@@ -359,6 +365,11 @@ func _process(delta: float) -> void:
 		fleet.step(delta)
 	if state == State.PLAY:
 		_update_border(delta)
+		# flares go out by themselves just before an enemy missile hits
+		if jet.alive and jet.flares > 0 and jet.flares_active <= 0.0 and missiles.incoming_t < 0.45:
+			jet.flares -= 1
+			jet.flares_active = 1.5
+			popups.append([jet.position, "FLARES", 0.0])
 		match_rules.update(delta)
 		if _player_respawn > 0.0:
 			_player_respawn -= delta
@@ -441,9 +452,16 @@ func _to_title() -> void:
 	match_rules.running = false
 	match_rules.mode = Match.CITY
 	menu.open("SKY STACK", "Offline air combat",
-		[["PLAY", _open_mode_menu], ["SETTINGS", _open_settings_from_title]],
-		[func() -> String: return tr("COINS %d     XP %d     HIGH SCORE %d") % [Profile.coins(), Profile.xp(), Save.high_score],
+		[["PLAY", _open_mode_menu], ["HANGAR", _open_hangar], ["SETTINGS", _open_settings_from_title]],
+		[func() -> String: return tr("%s     COINS %d     HIGH SCORE %d") % [tr(Profile.RANKS[Profile.rank()]), Profile.coins(), Save.high_score],
 		"TAP ANYWHERE TO PLAY"], 0.25, true)
+
+
+func _open_hangar() -> void:
+	menu.close()
+	screens.open_hangar(func() -> void:
+		apply_player_plane()
+		_to_title())
 
 
 func _open_settings_from_title() -> void:
@@ -494,9 +512,21 @@ func _choose_map(i: int, mode: int, duel_skill: float) -> void:
 	_open_lobby(mode, duel_skill)
 
 
-## Bot skill centre matched to the player's progress (rank in phase 4).
+## Bot skill centre matched to the player's rank (Bronze III ~0.2 .. Ace ~0.9).
 func rank_skill() -> float:
-	return clampf(0.25 + Profile.xp() / 25000.0, 0.2, 0.9)
+	return clampf(0.2 + Profile.rank() / 15.0 * 0.7, 0.2, 0.9)
+
+
+## Put the player in the plane chosen in the hangar (stats, skin, missiles).
+func apply_player_plane() -> void:
+	var p := Profile.plane_index()
+	var lv := Profile.levels(p)
+	jet.apply_plane(p, lv, Profile.skin_of(p))
+	var st := Planes.stats(p, lv)
+	missiles.max_missiles = maxi(1, roundi(float(st["missiles"]) * float(Save.settings["missiles"]) / 6.0))
+	missiles.ammo = missiles.max_missiles
+	missiles.lock_time = st["lock_time"]
+	Stacks.set_player_shadow(p)
 
 
 var _lobby_mode := Match.DOGFIGHT
@@ -554,6 +584,9 @@ func start_match() -> void:
 	jet.shots_fired = 0
 	jet.shots_hit = 0
 	kill_feed.clear()
+	apply_player_plane()
+	jet.health = jet.max_health
+	jet.flares = jet.max_flares
 	border_t = 0.0
 	jet.steer_home = false
 	daynight.t = world_map.time_of_day()
@@ -657,17 +690,21 @@ func on_match_finished() -> void:
 
 
 func _finish_profile(res: Dictionary, mode_key: String) -> void:
-	var lvl0 := Profile.xp() / 1000.0
+	var xp0 := Profile.xp()
+	var rank0 := Profile.rank()
 	Profile.record_match({
 		"mode": mode_key, "won": res.get("won", false), "kills": jet.kills, "deaths": jet.deaths, "assists": jet.assists,
 		"shots": jet.shots_fired, "hits": jet.shots_hit, "damage": jet.damage_dealt, "base_damage": jet.base_damage,
 		"ground_kills": jet.ground_kills, "mvp": res.get("me_mvp", false), "score": res.get("my_score", score),
-		"plane": jet.sheet_name, "time": match_rules.elapsed, "xp": res.get("xp", 0), "coins": res.get("coins", 0),
+		"plane": Planes.LIST[maxi(0, jet.plane)]["id"], "time": match_rules.elapsed, "xp": res.get("xp", 0), "coins": res.get("coins", 0),
 		"missile_dodges": missiles.dodges,
 	})
-	res["rank_from"] = lvl0
-	res["rank_to"] = Profile.xp() / 1000.0
-	res["rank_text"] = tr("LEVEL %d   %d / 1000 XP") % [Profile.xp() / 1000 + 1, Profile.xp() % 1000]
+	res["rank_from"] = Profile.rank_float(xp0)
+	res["rank_to"] = Profile.rank_float(Profile.xp())
+	var rk := Profile.rank_of(Profile.xp())
+	res["rank_text"] = tr("%s   %d / %d XP") % [tr(Profile.RANKS[rk[0]]), rk[1], rk[2]] if rk[2] > 0 else tr(Profile.RANKS[rk[0]])
+	if Profile.rank() > rank0:
+		res["rank_text"] = tr("RANK UP!") + "   " + res["rank_text"]
 
 
 
@@ -1379,5 +1416,40 @@ func test_hook(t: Node) -> Array:
 	if absf(wrapf(jet.yaw - atan2(jet.position.x, jet.position.z), -PI, PI)) > 0.8:
 		errs.append("plane not heading home (yaw %.2f)" % jet.yaw)
 	world_map.apply(0)
+	# --- hangar: buy, select, upgrade, skins; the plane is used in battle
+	var backup: Dictionary = Profile.data.duplicate(true)
+	Profile.data["coins"] = 50000
+	Profile.data["xp"] = 4000 # SILVER III
+	_to_title()
+	_open_hangar()
+	screens.sel = Planes.index_of("vireo")
+	if Profile.plane_lock_reason(screens.sel) != "":
+		errs.append("vireo should be buyable at silver (%s)" % Profile.plane_lock_reason(screens.sel))
+	if not Profile.buy_plane(screens.sel) or not Profile.owns(screens.sel):
+		errs.append("buying a plane failed")
+	Profile.select_plane(screens.sel)
+	for k in 3:
+		Profile.upgrade(screens.sel, "engine")
+	if Profile.levels(screens.sel)["engine"] != 3:
+		errs.append("engine upgrades not stored")
+	if Profile.buy_plane(Planes.index_of("zephyr")):
+		errs.append("tier 4 bought without tier 3 / rank")
+	if not Profile.unlock_skin(2):
+		errs.append("coin skin not bought")
+	Profile.equip_skin(screens.sel, 2)
+	Profile.set_tail(42)
+	_open_lobby(Match.DOGFIGHT)
+	start_match()
+	var want: float = float(Save.settings["speed"]) * Planes.stats(screens.sel, Profile.levels(screens.sel))["speed_mult"]
+	if jet.plane != screens.sel or jet.skin != 2 or absf(jet.base_speed() - want) > 0.01 or Profile.tail() != 42:
+		errs.append("hangar plane / skin / upgrades not used in battle (plane %d skin %d)" % [jet.plane, jet.skin])
+	var red_skin := fleet.planes.filter(func(pl: Jet) -> bool: return pl.team == 1 and pl.skin == Planes.RED_SKIN).size()
+	if red_skin < 4:
+		errs.append("red team should fly the aggressor scheme (%d)" % red_skin)
+	if Profile.rank_of(0)[0] != 0 or Profile.rank_of(999999)[0] != Profile.RANKS.size() - 1:
+		errs.append("rank table wrong")
+	Profile.data = backup
+	Profile.save()
+	_to_title()
 	print("    enemies=%d cars=%d fx=%d score=%d relief=%d peak=%.0f" % [enemies.count_active(), traffic.active_cars, fx.n, score, relief, peak])
 	return errs

@@ -264,3 +264,56 @@ Hold GUN to fire the cannon,Hold GUN to fire the cannon,"Тримайте ГАР
 "Keep the drone ahead until the box turns RED, then MISSILE","Keep the drone ahead until the box turns RED, then MISSILE","Тримайте дрон попереду, доки рамка не стане ЧЕРВОНОЮ, тоді РАКЕТА"
 Incoming missile! ROLL as the two rings meet,Incoming missile! ROLL as the two rings meet,"Ракета! Зробіть БОЧКУ, коли кільця зійдуться"
 Tutorial complete - defend the city!,Tutorial complete - defend the city!,Навчання завершено — захищайте місто!
+SKINS,SKINS,ФАРБУВАННЯ
+SELECT,SELECT,ОБРАТИ
+SELECTED,SELECTED,ОБРАНО
+OWNED,OWNED,ПРИДБАНО
+BUY,BUY,КУПИТИ
+EQUIP,EQUIP,ВСТАНОВИТИ
+EQUIPPED,EQUIPPED,ВСТАНОВЛЕНО
+UNLOCK,UNLOCK,ВІДКРИТИ
+UNLOCKED,UNLOCKED,ВІДКРИТО
+BUY THE PLANE FIRST,BUY THE PLANE FIRST,СПОЧАТКУ КУПІТЬ ЛІТАК
+TAIL NUMBER,TAIL NUMBER,БОРТОВИЙ НОМЕР
+SPEED,SPEED,ШВИДКІСТЬ
+ARMOR,ARMOR,БРОНЯ
+FIREPOWER,FIREPOWER,ВОГНЕВА МІЦЬ
+UPGRADES,UPGRADES,ПОКРАЩЕННЯ
+ENGINE,ENGINE,ДВИГУН
+GUNS,GUNS,ГАРМАТИ
+MISSILES,MISSILES,РАКЕТИ
+FLARES,FLARES,ПАСТКИ
+MAX,MAX,МАКС
+LIGHT FIGHTERS,LIGHT FIGHTERS,ЛЕГКІ ВИНИЩУВАЧІ
+HEAVY FIGHTERS,HEAVY FIGHTERS,ВАЖКІ ВИНИЩУВАЧІ
+ATTACKERS,ATTACKERS,ШТУРМОВИКИ
+COINS %d,COINS %d,МОНЕТИ %d
+RANK %s,RANK %s,РАНГ %s
+NEEDS %s,NEEDS %s,ПОТРІБЕН %s
+%d KILLS,%d KILLS,%d ЗБИТИХ
+RANK UP!,RANK UP!,НОВИЙ РАНГ!
+%s   %d / %d XP,%s   %d / %d XP,%s   %d / %d ДОСВІДУ
+%s     COINS %d     HIGH SCORE %d,%s     COINS %d     HIGH SCORE %d,%s     МОНЕТИ %d     РЕКОРД %d
+BRONZE III,BRONZE III,БРОНЗА III
+BRONZE II,BRONZE II,БРОНЗА II
+BRONZE I,BRONZE I,БРОНЗА I
+SILVER III,SILVER III,СРІБЛО III
+SILVER II,SILVER II,СРІБЛО II
+SILVER I,SILVER I,СРІБЛО I
+GOLD III,GOLD III,ЗОЛОТО III
+GOLD II,GOLD II,ЗОЛОТО II
+GOLD I,GOLD I,ЗОЛОТО I
+PLATINUM III,PLATINUM III,ПЛАТИНА III
+PLATINUM II,PLATINUM II,ПЛАТИНА II
+PLATINUM I,PLATINUM I,ПЛАТИНА I
+DIAMOND III,DIAMOND III,ДІАМАНТ III
+DIAMOND II,DIAMOND II,ДІАМАНТ II
+DIAMOND I,DIAMOND I,ДІАМАНТ I
+FACTORY,FACTORY,ЗАВОДСЬКЕ
+ARCTIC,ARCTIC,АРКТИКА
+DESERT CAMO,DESERT CAMO,ПУСТЕЛЬНИЙ КАМУФЛЯЖ
+JUNGLE CAMO,JUNGLE CAMO,ЛІСОВИЙ КАМУФЛЯЖ
+MIDNIGHT,MIDNIGHT,ОПІВНІЧ
+TIGER,TIGER,ТИГР
+ACE GOLD,ACE GOLD,ЗОЛОТО АСА
+AGGRESSOR,AGGRESSOR,АГРЕСОР

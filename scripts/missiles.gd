@@ -5,6 +5,8 @@ extends Node3D
 
 const MAX := 40
 const LOCK_TIME := 0.8
+## Player lock-on time (missile upgrades shorten it).
+var lock_time := LOCK_TIME
 const LOCK_CONE := 0.25
 const LOCK_RANGE := 900.0
 
@@ -159,7 +161,7 @@ func _update_lock(delta: float) -> void:
 	else:
 		lock_target = best
 		lock_t = 0.0
-	locked = lock_target != null and lock_t >= LOCK_TIME
+	locked = lock_target != null and lock_t >= lock_time
 
 
 ## Seconds until the nearest missile aimed at `plane` hits (99 = none).
@@ -193,7 +195,7 @@ func _process(delta: float) -> void:
 	# lock-on audio: beeps speed up and rise while locking, steady tone when locked
 	_beep_t -= delta
 	if lock_target != null and jet.alive and _beep_t <= 0.0:
-		var k := clampf(lock_t / LOCK_TIME, 0.0, 1.0)
+		var k := clampf(lock_t / lock_time, 0.0, 1.0)
 		if locked:
 			Sfx.play("tone", -12.0, 1.0)
 			_beep_t = 0.18

@@ -28,6 +28,22 @@ func _enter_tree() -> void:
 	_slot = _batch.alloc()
 
 
+## Switch to another sheet / variant at runtime (hangar: new plane or skin).
+func set_sheet(p_sheet: String, p_variant: int = 0) -> void:
+	variant = p_variant
+	if p_sheet == sheet:
+		return
+	if _batch != null and is_instance_valid(_batch):
+		_batch.release(_slot)
+	sheet = p_sheet
+	if is_inside_tree():
+		var host: Node = get_tree().get_first_node_in_group("stack_world")
+		if host == null:
+			host = get_parent()
+		_batch = StackBatch.shared(sheet, host)
+		_slot = _batch.alloc()
+
+
 func _exit_tree() -> void:
 	if _batch != null and is_instance_valid(_batch):
 		_batch.release(_slot)

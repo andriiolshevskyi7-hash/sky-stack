@@ -345,7 +345,7 @@ func _draw_lock(_vs: Vector2) -> void:
 	if lpos == Vector3.INF or game.cam.is_position_behind(lpos):
 		return
 	var p := _screen(lpos)
-	var k := clampf(m.lock_t / Missiles.LOCK_TIME, 0.0, 1.0)
+	var k := clampf(m.lock_t / m.lock_time, 0.0, 1.0)
 	var half := lerpf(60.0, 28.0, k) * s
 	var col := Color(1, 0.25, 0.2) if m.locked else Color(1, 1, 1, 0.8)
 	var l := half * 0.45

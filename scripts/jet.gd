@@ -77,6 +77,12 @@ var is_player := true
 var brain: Object = null # BotBrain for bots
 var sheet_name := "jet"
 var tint := Color.WHITE
+## Aircraft tree: which plane / skin this is and its multipliers.
+var plane := -1
+var skin := 0
+var speed_mult := 1.0
+var turn_mult := 1.0
+var max_flares := 0
 ## virtual inputs (bots write these; the player's come from Controls)
 var in_stick := Vector2.ZERO
 var in_boost := false
@@ -108,17 +114,37 @@ var trails: Trails
 func _ready() -> void:
 	stack = SpriteStack.new()
 	stack.sheet = sheet_name
+	stack.variant = skin
 	stack.tint = tint
 	add_child(stack)
 	position.y = ALT
 
 
 func base_speed() -> float:
-	return float(cfg["speed"])
+	return float(cfg["speed"]) * speed_mult
 
 
 func boost_speed() -> float:
-	return float(cfg["speed"]) * float(cfg["boost"])
+	return float(cfg["speed"]) * speed_mult * float(cfg["boost"])
+
+
+## Fly plane `p` of the aircraft tree with upgrade levels `lv` and a skin.
+func apply_plane(p: int, lv: Dictionary, p_skin: int) -> void:
+	plane = p
+	skin = p_skin
+	var st := Planes.stats(p, lv)
+	speed_mult = st["speed_mult"]
+	turn_mult = st["turn_mult"]
+	max_health = st["hp"]
+	health = minf(health, max_health) if health > 0.0 else max_health
+	cfg["gun_dmg"] = st["gun"]
+	max_flares = st["flares"]
+	flares = max_flares
+	sheet_name = Planes.sheet_of(p)
+	tint = Color.WHITE
+	if stack != null:
+		stack.set_sheet(sheet_name, p_skin)
+		stack.tint = tint
 
 
 func forward() -> Vector3:
@@ -153,6 +179,7 @@ func reset(pos: Vector3, p_yaw: float) -> void:
 	reloading = 0.0
 	speed = base_speed()
 	health = max_health
+	flares = max_flares
 	boost_energy = 100.0
 	alive = true
 	visible = true
@@ -218,7 +245,7 @@ func step(delta: float) -> void:
 	dodge_window = maxf(0.0, dodge_window - delta)
 	flares_active = maxf(0.0, flares_active - delta)
 	var stick := _stick()
-	var turn_max := float(cfg["turn"]) * (0.8 if boosting else 1.0)
+	var turn_max := float(cfg["turn"]) * turn_mult * (0.8 if boosting else 1.0)
 	# ---- boost
 	var want_boost := (in_boost if brain != null else (controls != null and controls.boost)) and not autopilot
 	if want_boost and (boosting or boost_energy > 12.0) and boost_energy > 0.0:
@@ -285,7 +312,7 @@ func step(delta: float) -> void:
 	yaw = wrapf(yaw + turn_rate * delta, -PI, PI)
 	var bank := deg_to_rad(float(cfg["bank"]))
 	# smooth banking: roll leads into the turn and eases back out
-	var want_roll := clampf(turn_rate / maxf(0.1, float(cfg["turn"])), -1.0, 1.0) * bank
+	var want_roll := clampf(turn_rate / maxf(0.1, float(cfg["turn"]) * turn_mult), -1.0, 1.0) * bank
 	roll = lerpf(roll, want_roll, 1.0 - exp(-delta * 3.4))
 	position += forward3() * speed * delta
 	var ceiling := float(cfg["ceiling"])

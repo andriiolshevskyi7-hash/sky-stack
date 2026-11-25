@@ -34,6 +34,31 @@ outside the plane turns back on its own. Bots respect the edge too. Landmarks
 (Sky Tower, Lighthouse, The Needle, Stone Arch, Beacon) show as yellow diamonds
 on the minimap.
 
+## Hangar and progression
+
+**HANGAR** (title menu) holds the aircraft tree, made of original planes with
+invented names. There are 3 branches with 4 tiers each, and every plane has
+its own outline, painted in code:
+
+| Tier | Light fighters | Heavy fighters | Attackers |
+|---|---|---|---|
+| 1 | WREN LF-1 (straight wing) | BASTION HF-1 (twin tail) | MATTOCK AT-1 (straight wing, pods) |
+| 2 | VIREO LF-2 (swept) | RAMPART HF-2 (sharp sweep) | HALBERD AT-2 |
+| 3 | SKYLARK LF-3 (delta + canards) | WARDEN HF-3 (big delta) | ANVIL AT-3 (twin boom) |
+| 4 | ZEPHYR LF-4 (forward swept) | MONOLITH HF-4 (V-tail) | MAUL AT-4 (delta + canards) |
+
+* Buy a plane with coins once your rank allows it and you own the tier
+  before it.
+* Each plane has 5 upgrades with 5 levels each: engine, armor, guns,
+  missiles (more missiles, faster lock-on) and flares. Flares fire
+  automatically just before an enemy missile hits.
+* Skins: Factory, Arctic, Desert camo, Jungle camo, Midnight, Tiger and Ace
+  gold. They unlock by rank, by kills or with coins, and you see them in
+  battle. You can also set a tail number.
+* The red team always flies the AGGRESSOR scheme.
+* Ranks: Bronze III → Silver → Gold → Platinum → Diamond I → Ace. Bots in a
+  match are matched to your rank, and their plane tier follows their skill.
+
 ## Download & install the APK (from GitHub Actions)
 
 Every push to any branch builds a debug APK.

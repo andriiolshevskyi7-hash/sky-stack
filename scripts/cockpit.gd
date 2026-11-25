@@ -238,7 +238,7 @@ func _targets(jet: Jet, c: Vector2, w: float, dash_top: float, glass_h: float) -
 	var lpos: Vector3 = Missiles.tpos(m.lock_target)
 	if lpos != Vector3.INF and not game.cam.is_position_behind(lpos):
 		var lp2: Vector2 = game.cam.unproject_position(lpos).round()
-		var k := clampf(m.lock_t / Missiles.LOCK_TIME, 0.0, 1.0)
+		var k := clampf(m.lock_t / m.lock_time, 0.0, 1.0)
 		var rr := lerpf(30.0, 11.0, k)
 		draw_arc(lp2, rr, 0, TAU, 28, RED if m.locked else YEL, 1.0)
 		# lead marker: where to point the nose for the cannon

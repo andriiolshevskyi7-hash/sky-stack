@@ -45,10 +45,17 @@ func spawn_bot(team: int, skill: float, role: int, pos: Vector3, yaw: float, mod
 	j.is_player = false
 	j.team = team
 	j.pilot = BotNames.make(rng)
-	j.sheet_name = model if model != "" else ("jet" if team == 0 else "enemy_jet")
-	j.tint = Color(0.85, 0.95, 1.15) if team == 0 else Color.WHITE
 	for k in plane_cfg:
 		j.cfg[k] = plane_cfg[k]
+	# a plane of the aircraft tree matching role and skill; red team flies
+	# the aggressor scheme, blue the factory scheme
+	var pi := pick_plane(role, skill)
+	var lv := {}
+	for k in Planes.UPGRADES:
+		lv[k] = clampi(int(skill * 5.0 + rng.randf_range(-1.0, 1.0)), 0, Planes.MAX_LEVEL)
+	j.apply_plane(pi, lv, Planes.RED_SKIN if team == 1 else 0)
+	if model != "":
+		j.sheet_name = model
 	j.chunks = chunks
 	j.combat = combat
 	j.fx = fx
@@ -63,6 +70,25 @@ func spawn_bot(team: int, skill: float, role: int, pos: Vector3, yaw: float, mod
 	planes.append(j)
 	j.died.connect(_on_died.bind(j))
 	return j
+
+
+## Plane for a bot: branch from its role, tier from its skill.
+func pick_plane(role: int, skill: float) -> int:
+	var branch := Planes.LIGHT
+	match role:
+		BotBrain.ATTACKER:
+			branch = Planes.ATTACK
+		BotBrain.INTERCEPTOR:
+			branch = Planes.HEAVY
+		BotBrain.ESCORT:
+			branch = Planes.HEAVY if rng.randf() < 0.6 else Planes.LIGHT
+		_:
+			branch = Planes.LIGHT if rng.randf() < 0.6 else Planes.HEAVY
+	var tier := clampi(1 + int(skill * 4.0 + rng.randf_range(-0.6, 0.6)), 1, 4)
+	for i in Planes.LIST.size():
+		if Planes.LIST[i]["branch"] == branch and int(Planes.LIST[i]["tier"]) == tier:
+			return i
+	return 0
 
 
 ## Spawn a pair (leader + wingman) that fight together.

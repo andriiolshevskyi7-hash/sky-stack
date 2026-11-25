@@ -98,21 +98,26 @@ func test_stacks() -> void:
 	var mb := MeshBuf.new()
 	mb.add_stack(Stacks.get_sheet("tree"), 1, Vector3(5, 0, 5), 0.3, 1.0, Color.WHITE)
 	check(mb.quad_count() == Stacks.get_sheet("tree").n, "one quad per slice")
-	# atlas rects must not overlap
-	var rects: Array[Rect2i] = []
-	for k in Stacks.sheets:
-		var sh = Stacks.sheets[k]
-		for vi in sh.v:
-			for s in sh.n:
-				rects.append(Rect2i(sh.cell(s, vi), Vector2i(sh.w, sh.h)))
-	var overlap := false
-	for i in rects.size():
-		if not Rect2i(Vector2i.ZERO, Stacks.atlas_size).encloses(rects[i]):
-			overlap = true
-		for j in range(i + 1, rects.size()):
-			if rects[i].intersects(rects[j]):
+	# atlas rects must not overlap (main atlas and plane atlas separately)
+	for atl in 2:
+		var size: Vector2i = Stacks.atlas_size if atl == 0 else Stacks.PLANE_ATLAS
+		var rects: Array[Rect2i] = []
+		for k in Stacks.sheets:
+			var sh = Stacks.sheets[k]
+			if sh.atlas != atl:
+				continue
+			for vi in sh.v:
+				for s in sh.n:
+					rects.append(Rect2i(sh.cell(s, vi), Vector2i(sh.w, sh.h)))
+		var overlap := false
+		for i in rects.size():
+			if not Rect2i(Vector2i.ZERO, size).encloses(rects[i]):
 				overlap = true
-	check(not overlap, "atlas cells inside atlas and non-overlapping (%d cells)" % rects.size())
+			for j in range(i + 1, rects.size()):
+				if rects[i].intersects(rects[j]):
+					overlap = true
+		check(not overlap and not rects.is_empty(), "%s atlas cells inside and non-overlapping (%d cells)" % [["main", "plane"][atl], rects.size()])
+	check(Stacks.sheets.has("plane_wren") and Stacks.get_sheet("plane_maul").v == Planes.SKINS.size(), "12 plane sheets with a variant per skin")
 	check(Stacks.jet_shadow_tex != null and Stacks.cloud_tex != null, "shadow/cloud textures")
 
 
