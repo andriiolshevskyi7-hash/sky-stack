@@ -19,6 +19,11 @@ global uniform sampler2D island_tex;
 global uniform vec3 cam_pos;
 global uniform float fog_far;
 global uniform vec3 fog_color;
+global uniform vec3 fog_low;
+global uniform vec3 fog_sun;
+global uniform vec3 sun_dir;
+global uniform vec3 sun_col;
+global uniform float haze_k;
 
 const vec3 SHADOW_TINT = vec3(0.42, 0.55, 0.88);
 
@@ -71,11 +76,33 @@ vec3 lit(vec3 col, vec3 w) {
 	return mix(col, col * SHADOW_TINT, shadow_amount(w)) * ambient;
 }
 
-// Distance fog towards the horizon colour (perspective views).
+// Aerial perspective: exponential height haze (dense near the ground, thin
+// up high, so the far islands turn blue and the view from altitude is
+// clearer), coloured like the sky in that direction (horizon, looking down,
+// towards the sun). The world's edge always fades out.
 vec3 fogged(vec3 col, vec3 w) {
 	if (fog_far <= 0.0) return col;
-	float d = distance(w, cam_pos);
-	return mix(col, fog_color, 0.9 * smoothstep(fog_far * 0.3, fog_far, d));
+	vec3 dv = w - cam_pos;
+	float d = length(dv);
+	vec3 v = dv / max(d, 0.001);
+	const float H = 1400.0;
+	float b0 = 2.6 / fog_far * haze_k;
+	float hc = max(cam_pos.y, 0.0);
+	float hp = max(w.y, 0.0);
+	float dh = hp - hc;
+	float od = abs(dh) < 1.0 ? b0 * exp(-hc / H) * d : b0 * H * d / dh * (exp(-hc / H) - exp(-hp / H));
+	float a = 1.0 - exp(-od);
+	a = max(a, smoothstep(fog_far * 0.8, fog_far, d));
+	// looking down, the haze turns into the colour of the far surface seen
+	// at the world's edge angle (so the edge melts into the sky below the
+	// dipped horizon at altitude)
+	float edge = max(cam_pos.y, 1.0) / length(vec2(fog_far, max(cam_pos.y, 1.0)));
+	vec3 fc = mix(fog_color, fog_low, clamp(-v.y / max(edge, 0.06), 0.0, 1.0));
+	vec2 sf = normalize(sun_dir.xz + vec2(1e-5));
+	vec2 vf = normalize(v.xz + vec2(1e-5));
+	float sunw = pow(max(dot(vf, sf), 0.0), 6.0) * (1.0 - clamp(-v.y * 2.0, 0.0, 1.0));
+	fc = mix(fc, fog_sun, sunw * 0.8);
+	return mix(col, fc, clamp(a, 0.0, 0.97));
 }
 
 // Island height (manual bilinear, matches CityGen.island_h on the CPU).

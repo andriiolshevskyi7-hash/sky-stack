@@ -549,6 +549,14 @@ func _process(delta: float) -> void:
 	clouds.mat.set_shader_parameter("near_fade", 260.0)
 	fx.clear_columns_far(cam.focus, 900.0)
 	daynight.focus = gf
+	daynight.cam_alt = cam.global_position.y
+	match str(world_map.current()["id"]):
+		"desert":
+			daynight.ground_albedo = Vector3(0.36, 0.24, 0.14)
+		"snow":
+			daynight.ground_albedo = Vector3(0.5, 0.55, 0.62)
+		_:
+			daynight.ground_albedo = Vector3(0.05, 0.16, 0.3)
 	clouds.focus = gf
 	_chim_t -= delta
 	if _chim_t <= 0.0:

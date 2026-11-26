@@ -248,7 +248,9 @@ All values persist in `user://save.cfg`. Defaults:
 | Islands heightmap shared by CPU and GPU, infinite terrain shader (ocean, surf, beaches, forest) | `scripts/stack_lib.gd`, `shaders/terrain.gdshader` |
 | City on the islands (districts, parks, port, stadiums, forests) | `scripts/city_gen.gd` |
 | Threaded chunk streaming, ~4 draw calls per chunk | `scripts/chunk_manager.gd` |
-| Perspective camera blending overhead / chase / cockpit, horizon fog, shake, dither fade | `scripts/game_camera.gd`, `shaders/common.gdshaderinc` |
+| Perspective camera blending chase / cockpit, shake, dither fade | `scripts/game_camera.gd` |
+| Physical sky: single-scattering atmosphere (Rayleigh, Mie, ozone) on a small game planet — blue day, orange / pink / violet dawn and dusk, horizon dips and curves at altitude, far sea below it; moon, twinkling stars, Milky Way; CPU twin for the haze colours and sunlight tint | `shaders/sky.gdshader`, `scripts/atmo.gd`, `scripts/daynight.gd` |
+| Aerial perspective: exponential height haze coloured like the sky in that direction (horizon / far surface / towards the sun); thin air up high | `shaders/common.gdshaderinc` (`fogged`) |
 | 3D cockpit: low-poly tub (angled consoles, sloped panel under an overhanging glareshield, canopy bows, HUD posts + combiner, keypad, stick between the knees, throttle lever, seat) in its own low-res viewport composited by the post shader; pixel-art textures drawn live into a canvas atlas (radar, colour attitude, moving map, engine page, panoramic page, lit keys, warning lights); sun + ambient + night instrument glow; head look and head motion with G / turbulence | `scripts/cockpit3d.gd`, `scripts/cockpit_art.gd`, `shaders/cockpit.gdshader` |
 | HUD symbology clipped to the projected combiner, helmet target markers | `scripts/cockpit.gd` |
 

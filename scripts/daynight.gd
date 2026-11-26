@@ -1,8 +1,10 @@
 class_name DayNight
 extends Node3D
 ## Day/night cycle: drives the global lighting uniforms (ambient tint, night
-## factor for windows/street lights/neon, shadow length, cloud drift) and the
-## sweeping searchlights at night.
+## factor for windows/street lights/neon, shadow length, cloud drift), the
+## physical sky (sun / moon, haze) and the world's haze colours (computed with
+## the same atmosphere model as the sky, Atmo), and the sweeping searchlights
+## at night.
 
 const CYCLE := 360.0 # seconds per full day
 const DAY := Color(1.0, 1.0, 1.0)
@@ -27,6 +29,19 @@ const TOP_DAY := Color("2f74d6")
 const TOP_NIGHT := Color("0a0a14")
 var cloud_offset := Vector2.ZERO
 const WIND := Vector2(18.0, 8.0)
+
+## Camera altitude (the sky and haze change with height).
+var cam_alt := 200.0
+## Weather: Mie haze amount and overcast grey (G7 sets these).
+var haze := 1.0
+var overcast := 0.0
+## Far sea / land seen below the horizon (per map).
+var ground_albedo := Vector3(0.05, 0.16, 0.3)
+const EXPOSURE := 3.0
+var sun_col := Color.WHITE
+var _atmo_t := 0.0
+var _sun_ground := Vector3.ONE
+var _fog := [Color(0.62, 0.8, 0.95), Color(0.35, 0.5, 0.7), Color(0.9, 0.85, 0.8)]
 
 var beams: Array[MeshInstance3D] = []
 var _bt := 0.0
@@ -64,11 +79,36 @@ var amb_color := Color.WHITE
 
 ## World direction towards the sun.
 func sun_dir() -> Vector3:
-	return Vector3(-0.55, maxf(sun_elevation(), -0.2) * 0.9 + 0.05, -0.8).normalized()
+	return Vector3(-0.55, maxf(sun_elevation(), -0.25) * 0.95 + 0.01, -0.8).normalized()
 
 
 func sun_elevation() -> float:
 	return sin((t - 0.25) * TAU)
+
+
+## Haze colours from the atmosphere model: [horizon (away from the sun),
+## looking down, towards the sun], plus the sunlight colour.
+func _update_atmo() -> void:
+	var sd := sun_dir()
+	var sa := clampf(1.0 - night * 1.5, 0.0, 1.0)
+	var flat := Vector2(sd.x, sd.z).normalized()
+	var away := Vector3(-flat.x, 0.0, -flat.y)
+	var side := Vector3(-flat.y, 0.0, flat.x)
+	var el := 0.04
+	var hz := Color(0, 0, 0)
+	for dv: Vector3 in [away, side, -side]:
+		hz += Atmo.sky((dv + Vector3(0, el, 0)).normalized(), cam_alt, sd, sa, haze, EXPOSURE, ground_albedo)
+	hz /= 3.0
+	# the far surface at the world's edge angle (fog distance ~7 km)
+	var edge := maxf(cam_alt, 1.0) / Vector2(7000.0, maxf(cam_alt, 1.0)).length()
+	var dn := (away * sqrt(1.0 - edge * edge) - Vector3(0, maxf(edge, 0.06), 0)).normalized()
+	var low := Atmo.sky(dn, cam_alt, sd, sa, haze, EXPOSURE, ground_albedo)
+	var tow := Atmo.sky((Vector3(flat.x, el, flat.y)).normalized(), cam_alt, sd, sa, haze, EXPOSURE, ground_albedo)
+	_fog = [hz, low, tow]
+	_sun_ground = Atmo.sun_transmittance(sd, 10.0, haze)
+	var tr := Atmo.sun_transmittance(sd, cam_alt, haze)
+	var m := maxf(0.001, maxf(tr.x, maxf(tr.y, tr.z)))
+	sun_col = Color(tr.x / m, tr.y / m, tr.z / m)
 
 
 func _process(delta: float) -> void:
@@ -77,7 +117,14 @@ func _process(delta: float) -> void:
 	var e := sun_elevation()
 	night = 1.0 - smoothstep(-0.15, 0.1, e)
 	var dusk := clampf(1.0 - absf(e) / 0.35, 0.0, 1.0) * (1.0 - night)
-	var amb := DAY.lerp(DUSK, dusk).lerp(NIGHT, night)
+	_atmo_t -= delta
+	if _atmo_t <= 0.0:
+		_atmo_t = 0.1
+		_update_atmo()
+	# daylight follows the real colour of the sun (warm and low at dusk)
+	var day := DAY.lerp(DAY * 0.55 + sun_col * 0.45, 0.6 + 0.4 * dusk)
+	day.a = 1.0
+	var amb := day.lerp(DUSK, dusk * 0.35).lerp(NIGHT, night)
 	amb_color = amb
 	RenderingServer.global_shader_parameter_set("night", night)
 	RenderingServer.global_shader_parameter_set("ambient", Vector3(amb.r, amb.g, amb.b))
@@ -87,17 +134,31 @@ func _process(delta: float) -> void:
 	cloud_offset += WIND * delta
 	RenderingServer.global_shader_parameter_set("cloud_offset", cloud_offset)
 	RenderingServer.global_shader_parameter_set("cloud_shadow", 0.32 * (1.0 - night))
-	var hz := HORIZON_DAY.lerp(HORIZON_SUNSET, dusk).lerp(HORIZON_NIGHT, night)
-	var top := TOP_DAY.lerp(TOP_SUNSET, dusk).lerp(TOP_NIGHT, night)
+	var sd := sun_dir()
 	if sky_mat != null:
-		sky_mat.set_shader_parameter("horizon_color", Vector3(hz.r, hz.g, hz.b))
-		sky_mat.set_shader_parameter("top_color", Vector3(top.r, top.g, top.b))
-		var gc := Color("1f5fbf").lerp(Color("0d1430"), night)
-		sky_mat.set_shader_parameter("ground_color", Vector3(gc.r, gc.g, gc.b))
 		sky_mat.set_shader_parameter("night", night)
 		sky_mat.set_shader_parameter("sun_amount", clampf(1.0 - night * 1.5, 0.0, 1.0))
-		sky_mat.set_shader_parameter("sun_dir", Vector3(-0.55, maxf(e, -0.2) * 0.9 + 0.05, -0.8))
+		sky_mat.set_shader_parameter("sun_dir", sd)
+		sky_mat.set_shader_parameter("haze", haze)
+		sky_mat.set_shader_parameter("overcast", overcast)
+		sky_mat.set_shader_parameter("exposure", EXPOSURE)
+		sky_mat.set_shader_parameter("ground_albedo", ground_albedo)
+		sky_mat.set_shader_parameter("sun_ground", _sun_ground)
+	# haze colours: the atmosphere's, deepened into the night palette
+	var nt := HORIZON_NIGHT
+	var hz: Color = (_fog[0] as Color).lerp(nt, night)
+	var low: Color = (_fog[1] as Color).lerp(nt.darkened(0.3), night)
+	var tow: Color = (_fog[2] as Color).lerp(nt, night)
+	var grey := Color(0.62, 0.65, 0.7) * (1.0 - night * 0.8)
+	hz = hz.lerp(grey, overcast)
+	low = low.lerp(grey.darkened(0.15), overcast)
+	tow = tow.lerp(grey, overcast)
 	RenderingServer.global_shader_parameter_set("fog_color", Vector3(hz.r, hz.g, hz.b))
+	RenderingServer.global_shader_parameter_set("fog_low", Vector3(low.r, low.g, low.b))
+	RenderingServer.global_shader_parameter_set("fog_sun", Vector3(tow.r, tow.g, tow.b))
+	RenderingServer.global_shader_parameter_set("sun_dir", sd)
+	RenderingServer.global_shader_parameter_set("sun_col", Vector3(sun_col.r, sun_col.g, sun_col.b) * (1.0 - night))
+	RenderingServer.global_shader_parameter_set("haze_k", haze * (1.0 + overcast * 0.6))
 	if env != null:
 		env.background_color = SKY_DAY.lerp(SKY_NIGHT, night)
 	_update_beams(delta)

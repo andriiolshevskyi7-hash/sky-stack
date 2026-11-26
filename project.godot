@@ -126,6 +126,26 @@ fog_far={
 "type": "float",
 "value": 0.0
 }
+sun_dir={
+"type": "vec3",
+"value": Vector3(-0.5, 0.6, -0.6)
+}
+sun_col={
+"type": "vec3",
+"value": Vector3(1, 1, 1)
+}
+fog_low={
+"type": "vec3",
+"value": Vector3(0.35, 0.5, 0.7)
+}
+fog_sun={
+"type": "vec3",
+"value": Vector3(0.9, 0.85, 0.8)
+}
+haze_k={
+"type": "float",
+"value": 1.0
+}
 fog_color={
 "type": "vec3",
 "value": Vector3(0.7, 0.85, 1)

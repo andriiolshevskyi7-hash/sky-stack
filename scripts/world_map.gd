@@ -74,7 +74,7 @@ func _apply_palette() -> void:
 ## Time of day for this map (tropical follows the settings).
 func time_of_day() -> float:
 	if index <= 0:
-		return [0.42, 0.74, 0.0][int(Save.settings.get("time", 0))]
+		return [0.42, 0.745, 0.0][int(Save.settings.get("time", 0))]
 	return float(def["time"])
 
 
