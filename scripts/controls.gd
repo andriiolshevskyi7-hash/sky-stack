@@ -41,6 +41,10 @@ var aim_speed := 1.0 # joystick: aim speed multiplier
 var nose_dir := Vector3.INF
 ## Where the player wants to fly (world direction, unit length).
 var aim_dir := Vector3.FORWARD
+## The aim frame's up (the camera's up in the aim scheme): turning the aim
+## up / down rotates around aim_dir x aim_up, so it can loop over the top.
+var aim_up := Vector3.UP
+var _pitch_hold := 0.0
 
 var stick := Vector2.ZERO # x: + = bank right, y: + = pull (already inverted)
 var look := Vector2.ZERO # free look (rad, x + = left, y + = up)
@@ -82,6 +86,7 @@ const LOOK_PER_SCREEN := 2.4
 const AIM_JOY_RATE := 1.5
 const AIM_JOY_CURVE := 2.0
 const AIM_LEAD_MAX := 0.9
+const AIM_RELEVEL := 1.4 # rad/s the aim frame rolls back towards upright
 var pressed := {} # name -> bool (for drawing)
 
 var _touch_role := {} # index -> role
@@ -164,19 +169,46 @@ func reset() -> void:
 func set_aim(dir: Vector3) -> void:
 	if dir.length_squared() > 1e-6:
 		aim_dir = dir.normalized()
+		var u := Vector3.UP - aim_dir * aim_dir.y
+		if u.length_squared() < 1e-4:
+			u = aim_up - aim_dir * aim_dir.dot(aim_up)
+		if u.length_squared() > 1e-6:
+			aim_up = u.normalized()
 
 
-## Turn the aim by a yaw (rad, + = left) and pitch (rad, + = up); pitch is
-## kept within +-80 degrees.
+## Turn the aim by a yaw (rad, + = left) and pitch (rad, + = up) in its own
+## frame (the camera's view): no limits, it can go over the top, straight
+## down or behind; aim_up comes along (it re-levels later, _relevel).
 func turn_aim(yaw: float, pitch: float) -> void:
-	var d := Basis(Vector3.UP, yaw) * aim_dir
-	var p := asin(clampf(d.y, -1.0, 1.0))
-	var np := clampf(p + pitch, -1.4, 1.4)
-	var flat := Vector2(d.x, d.z)
-	if flat.length() < 1e-4:
-		flat = Vector2(0, -1)
-	flat = flat.normalized() * cos(np)
-	aim_dir = Vector3(flat.x, sin(np), flat.y).normalized()
+	aim_dir = aim_dir.rotated(aim_up, yaw)
+	var right := aim_dir.cross(aim_up)
+	if right.length_squared() > 1e-8:
+		right = right.normalized()
+		aim_dir = aim_dir.rotated(right, pitch)
+		aim_up = aim_up.rotated(right, pitch)
+	if absf(pitch) > 1e-5:
+		_pitch_hold = 0.35
+	_ortho()
+
+
+func _ortho() -> void:
+	aim_dir = aim_dir.normalized()
+	var u := aim_up - aim_dir * aim_dir.dot(aim_up)
+	if u.length_squared() > 1e-8:
+		aim_up = u.normalized()
+
+
+## Roll the aim frame back towards the horizon (not while the player is
+## moving the aim up / down, so holding it loops right over the top).
+func _relevel(delta: float) -> void:
+	_pitch_hold -= delta
+	if _pitch_hold > 0.0 or absf(aim_dir.y) > 0.9:
+		return
+	var target := (Vector3.UP - aim_dir * aim_dir.y).normalized()
+	var a := aim_up.signed_angle_to(target, aim_dir)
+	var step := minf(absf(a), AIM_RELEVEL * delta)
+	aim_up = aim_up.rotated(aim_dir, signf(a) * step)
+	_ortho()
 
 
 ## Joystick deflection after the dead zone and the response curve
@@ -201,6 +233,7 @@ func _limit_lead() -> void:
 	if ax.length_squared() < 1e-8:
 		return
 	aim_dir = nose_dir.rotated(ax.normalized(), AIM_LEAD_MAX).normalized()
+	_ortho()
 
 
 func _aim_drag(d: Vector2) -> void:
@@ -405,6 +438,7 @@ func _process(delta: float) -> void:
 				var rate := AIM_JOY_RATE * aim_speed * delta
 				turn_aim(-v.x * rate, (v.y if invert else -v.y) * rate)
 				_limit_lead()
+		_relevel(delta)
 		stick = Vector2.ZERO
 	else:
 		var t := Vector2.ZERO

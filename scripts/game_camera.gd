@@ -50,6 +50,7 @@ const LOOK_MIN_PITCH := -0.45
 ## Aim scheme: the chase camera looks along the player's aim (INF = off,
 ## follow the jet's nose as before).
 var aim_dir := Vector3.INF
+var aim_up := Vector3.UP
 
 
 func _ready() -> void:
@@ -96,28 +97,29 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 			var p := jp - f * dist * cos(el) + Vector3.UP * (dist * sin(el) - sin(jet.pitch) * dist * 0.5)
 			var t := jp + f3 * dist * 0.6
 			var roll_k := 0.22
+			var cam_up := Vector3.UP
 			if aim_dir != Vector3.INF:
-				# War Thunder style: the camera looks where the pilot aims,
-				# the plane swings into view as it turns after the aim
-				var c := (f3 * 0.3 + aim_dir * 0.7).normalized()
-				var cf := Vector2(c.x, c.z)
-				var cflat := Vector3(cf.x, 0.0, cf.y).normalized() if cf.length() > 0.05 else f
-				var cp := clampf(asin(clampf(c.y, -1.0, 1.0)), -1.2, 1.2)
-				p = jp - cflat * dist * cos(el + cp * 0.5) * cos(cp * 0.5) + Vector3.UP * dist * sin(el - cp * 0.6)
+				# War Thunder style: the camera looks where the pilot aims, on
+				# the full sphere (straight down, over the top, behind), with
+				# the aim frame's up; the plane swings into view as it follows
+				var c: Vector3 = aim_dir if f3.dot(aim_dir) < -0.9 else f3.slerp(aim_dir, 0.7).normalized()
+				var u := aim_up - c * c.dot(aim_up)
+				cam_up = u.normalized() if u.length_squared() > 1e-6 else Vector3.UP
+				p = jp - c * dist * cos(el) + cam_up * dist * sin(el)
 				t = jp + c * dist * 0.7
-				roll_k = 0.1
+				roll_k = 0.0
 			if look != Vector2.ZERO:
 				# free look: orbit around the plane
 				var off := p - jp
-				off = Basis(Vector3.UP, look.x) * off
-				var right := off.cross(Vector3.UP).normalized()
+				off = Basis(cam_up, look.x) * off
+				var right := off.cross(cam_up).normalized()
 				if right.length_squared() > 0.5:
 					off = Basis(right, clampf(-look.y, -0.9, 1.1)) * off
 				var k := clampf(look.length() * 2.0, 0.0, 1.0)
 				p = jp + off
 				t = t.lerp(jp, k)
 				roll_k *= 1.0 - k
-			var tr := Transform3D(Basis.IDENTITY, p).looking_at(t, Vector3.UP)
+			var tr := Transform3D(Basis.IDENTITY, p).looking_at(t, cam_up)
 			tr.basis = tr.basis * Basis(Vector3.BACK, -jet.roll * roll_k)
 			return tr
 		_:

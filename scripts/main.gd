@@ -330,6 +330,8 @@ func _parse_args() -> void:
 			apply_settings("")
 		elif a == "--aimdemo":
 			_aim_demo = true
+		elif a == "--splitdemo":
+			_split_demo = true
 		elif a.begins_with("--team="):
 			Save.settings["team_size"] = int(a.substr(7))
 		elif a == "--hangar":
@@ -429,6 +431,7 @@ var _stick_demo := false
 var _stall_warn := 0.0
 var _was_locked := false
 var _aim_demo := false
+var _split_demo := false
 
 
 ## --fight (screenshots only): sit behind an enemy and shoot, so combat
@@ -456,6 +459,11 @@ func _shot_tick() -> void:
 		controls.drag_start = Vector2(vs.x * 0.2, vs.y * 0.62)
 		controls.drag_pos = controls.drag_start + Vector2(0.55, 0.35) * controls.drag_radius
 		controls.pressed["fire"] = true
+	if _split_demo and _frame == _shot_frames - 150 and state == State.PLAY:
+		# mid split-S at the shot: aim straight down and back
+		jet.position.y = 1500.0
+		jet.invuln = 999.0
+		controls.set_aim((Vector3.DOWN - jet.forward3() * 0.25).normalized())
 	if _aim_demo and _frame == _shot_frames - 25 and state == State.PLAY:
 		controls.turn_aim(-0.8, 0.2) # aim off to the right: both reticles show
 	if _crash_test and _frame == 30 and state == State.PLAY:
@@ -512,6 +520,7 @@ func _process(delta: float) -> void:
 			if _player_respawn <= 0.0:
 				_respawn_player()
 	cam.aim_dir = controls.aim_dir if (jet.alive and jet.aim_mode() and state == State.PLAY) else Vector3.INF
+	cam.aim_up = controls.aim_up
 	cam.update_cam(delta, jet, jet.speed_ratio())
 	# in the cockpit the own plane stays hidden (the 3D cockpit replaces it)
 	cam.look_target = controls.look
@@ -1829,10 +1838,54 @@ func test_hook(t: Node) -> Array:
 	print("    instructor: nose error %.2f rad, alt %.0f -> %.0f" % [nerr, y_before, jet.position.y])
 	if nerr > 0.25:
 		errs.append("instructor did not bring the nose onto the aim (error %.2f rad)" % nerr)
-	if absf(jet.position.y - y_before) > 250.0:
-		errs.append("instructor lost / gained too much altitude in a level turn")
+	# --- 3D maneuvers: aim below and behind -> split-S (rolls inverted,
+	# pulls through, ends lower flying the other way); aim up and back ->
+	# Immelmann (half loop, rolls upright on top, ends higher)
+	jet.position.y = 1500.0
+	jet.set_attitude(jet.yaw)
+	jet.speed = jet.base_speed()
+	var h0: Vector3 = jet.forward3()
+	controls.set_aim((Vector3.DOWN - h0 * 0.25).normalized())
+	var inverted := false
+	var stage := 0
+	for i in 900:
+		await t.get_tree().process_frame
+		inverted = inverted or jet.orient.y.y < -0.7
+		if stage == 0 and jet.forward3().y < -0.8:
+			stage = 1
+			controls.set_aim(-Vector3(h0.x, 0.0, h0.z).normalized())
+		if stage == 1 and jet.forward3().dot(-h0) > 0.97:
+			break
+	print("    split-S: inverted %s, heading %.2f, alt 1500 -> %.0f" % [inverted, jet.forward3().dot(h0), jet.position.y])
+	if not inverted or jet.forward3().dot(h0) > -0.9 or jet.position.y > 1450.0:
+		errs.append("split-S not flown (inverted %s, heading %.2f, alt %.0f)" % [inverted, jet.forward3().dot(h0), jet.position.y])
+	var h1: Vector3 = jet.forward3()
+	var y1 := jet.position.y
+	controls.set_aim((Vector3.UP - h1 * 0.25).normalized())
+	stage = 0
+	var over_top := false
+	for i in 1200:
+		await t.get_tree().process_frame
+		over_top = over_top or (jet.orient.y.y < -0.7 and jet.forward3().dot(h1) < 0.0)
+		if stage == 0 and jet.forward3().y > 0.8:
+			stage = 1
+			controls.set_aim(-Vector3(h1.x, 0.0, h1.z).normalized())
+		if stage == 1 and jet.orient.y.y > 0.9 and jet.forward3().dot(-h1) > 0.95:
+			break
+	print("    Immelmann: over the top %s, upright %.2f, heading %.2f, alt %.0f -> %.0f" % [over_top, jet.orient.y.y, jet.forward3().dot(h1), y1, jet.position.y])
+	if not over_top or jet.orient.y.y < 0.8 or jet.forward3().dot(h1) > -0.9 or jet.position.y < y1 + 100.0:
+		errs.append("Immelmann not flown (over top %s, upright %.2f, heading %.2f, alt %.0f -> %.0f)" % [over_top, jet.orient.y.y, jet.forward3().dot(h1), y1, jet.position.y])
+	# the aim lives on the full sphere: straight down and over the top
+	controls.set_aim(jet.forward3())
+	controls.turn_aim(0.0, PI * 0.5)
+	var straight_up := controls.aim_dir.y > 0.99
+	controls.turn_aim(0.0, PI * 0.5)
+	if not straight_up or controls.aim_dir.dot(jet.forward3()) > -0.95:
+		errs.append("the aim does not go straight up and over the top (%s)" % controls.aim_dir)
+	controls.set_aim(jet.forward3())
 	# --- instructor ground protection: aim straight down low over the ground
 	jet.position.y = 140.0
+	jet.speed = jet.base_speed()
 	jet.set_attitude(jet.yaw, -0.5) # diving at the ground, aim along the dive
 	controls.set_aim(jet.forward3())
 	var min_y := 999.0

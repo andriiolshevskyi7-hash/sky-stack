@@ -131,11 +131,18 @@ Three control options (Settings → Controls): **Aim + joystick** (default),
 chase and cockpit views: the small winged **nose** cross (where the plane
 points, with a gun-lead diamond on the nearest enemy ahead) and the **aim**
 circle (where you want to fly; an arrow on the screen edge when it is off
-screen). An instructor flies the plane so the nose chases the aim with the
-real flight model: it banks the lift vector onto the aim and pulls, eases
-the pull when slow (no stall, but hard turns still cost energy) and pulls up
-with a PULL UP warning when the flight path would hit the ground, a building
-or a mountain. The chase camera looks along the aim.
+screen). The aim lives on the full sphere around the plane (up, down,
+behind, straight below or above, over the top) and the chase camera follows
+it freely. An instructor flies true 3D maneuvers so the nose chases the aim
+with the real flight model, the way a pilot would: roll the lift vector onto
+the aim, then pull (roll and G build up with inertia, energy is lost and
+gained for real). Aim right: bank and turn; aim down: roll inverted and pull
+through (split-S, ending lower the other way); aim up and back: half loop
+and roll upright (Immelmann); aim behind: keeps turning. Only safety limits:
+it eases the pull when slow, keeps a dive within the altitude left, and
+pulls up with a PULL UP warning when the flight path would hit the ground, a
+building or a mountain. Skilled bots fly the same maneuvers (split-S,
+Immelmann, high yo-yo).
 
 With **Aim + joystick** a floating joystick appears under the left thumb and
 keeps moving the aim circle while held: a small deflection moves it slowly

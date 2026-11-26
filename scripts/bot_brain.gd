@@ -141,6 +141,7 @@ func _pick_target() -> void:
 
 func think(delta: float) -> void:
 	state_t += delta
+	plane.in_direct = false
 	_react -= delta
 	missile_cd -= delta
 	if missile_reload > 0.0:
@@ -234,6 +235,19 @@ func _steer_to(p: Vector3, urgency: float = 1.0) -> float:
 	var ang := acos(clampf(-local.z / d, -1.0, 1.0))
 	var sx := 0.0
 	var sy := 0.0
+	# skilled pilots with room below fly true 3D maneuvers with the same
+	# instructor as the player: split-S when the target is below / behind,
+	# Immelmann / loop when it is above, reversals without stopping
+	if skill >= 0.35 and plane.position.y > 450.0 and not (_mistake > 0.0 and _mistake_kind == 2):
+		var cmd := Instructor.stick_for(plane, to / d)
+		cmd.y *= lerpf(0.75, 1.0, skill) * clampf(urgency, 0.5, 1.0)
+		if plane.gloc > lerpf(0.9, 0.25, skill):
+			cmd.y = minf(cmd.y, lerpf(1.0, 0.6, skill))
+		if plane.speed < float(plane.phys.get("vs", 55.0)) * lerpf(1.1, 1.6, skill):
+			plane.in_boost = true
+		plane.in_stick = cmd
+		plane.in_direct = true
+		return diff
 	if ang > 0.12:
 		var lift_err := atan2(local.x, local.y)
 		var target_bank := clampf(plane.roll - lift_err, -1.52, 1.52)
@@ -262,6 +276,7 @@ func _steer_to(p: Vector3, urgency: float = 1.0) -> float:
 		sx *= 0.4 # overshoot: lazy turn
 	_wobble = _wobble.lerp(Vector2(rng.randf_range(-1, 1), rng.randf_range(-1, 1)) * (1.0 - skill) * 0.25, 0.05)
 	plane.in_stick = Vector2(sx, sy) + _wobble
+	plane.in_direct = false
 	return diff
 
 
@@ -279,6 +294,12 @@ func _fly_engage(delta: float) -> void:
 	# wingman flanks while closing in
 	if not leader and d > 500.0:
 		aim += plane.right() * flank * minf(400.0, d * 0.4)
+	# high yo-yo: closing fast on a target turning hard across the nose ->
+	# pull up out of its turn plane instead of overshooting, then come down
+	var off_nose := plane.forward3().angle_to(tp - plane.position)
+	var closing0 := (plane.forward3() * plane.speed - tv).dot((tp - plane.position) / maxf(d, 1.0))
+	if skill > 0.5 and d < 800.0 and closing0 > 35.0 and off_nose > 0.45 and off_nose < 1.5 and plane.position.y > 450.0:
+		aim += Vector3.UP * minf(260.0, d * 0.45)
 	var diff := _steer_to(aim, 1.0)
 	# energy management: boost to close/extend, don't bleed speed in the turn
 	var is_ground: bool = not (target is Jet) and "kind" in target
@@ -318,6 +339,7 @@ func _fly_evade() -> void:
 	# hard break turn + altitude change
 	var dir := 1.0 if flank > 0.0 else -1.0
 	plane.in_stick = Vector2(dir, -0.6 if plane.position.y > 300.0 else 0.8)
+	plane.in_direct = false
 	plane.in_boost = true
 	plane.in_fire = false
 	if state_t > 1.4:
@@ -408,6 +430,7 @@ func _avoid_planes() -> void:
 			# roll away from it and push / pull out of its plane
 			var side := -signf(rel.dot(plane.right())) if absf(rel.dot(plane.right())) > 1.0 else 1.0
 			plane.in_stick = Vector2(side, -0.6 if rel.y > 0.0 else 0.9)
+			plane.in_direct = false
 			return
 
 
@@ -433,4 +456,5 @@ func _avoid_ground() -> void:
 				break
 	if danger:
 		plane.in_stick = Vector2(0.0, 1.0)
+		plane.in_direct = false
 		plane.in_boost = true

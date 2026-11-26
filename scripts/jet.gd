@@ -118,6 +118,10 @@ var max_flares := 0
 var last_hit_missile := false
 ## virtual inputs (bots write these; the player's come from Controls)
 var in_stick := Vector2.ZERO
+## Bots: in_stick is a DIRECT command (roll rate, G) from the Instructor.
+var in_direct := false
+var _direct := false # this frame's stick is a direct command
+var _ins_side := 1.0 # instructor: side it rolls to for an aim below / behind
 var in_boost := false
 var in_fire := false
 ## per-plane combat stats (match results)
@@ -320,16 +324,27 @@ var stick_override := Vector2.INF
 
 
 func _stick() -> Vector2:
+	_direct = false
 	if stick_override != Vector2.INF:
 		return stick_override
 	if brain != null:
+		_direct = in_direct
 		return in_stick
 	if aim_mode():
+		_direct = true
 		controls.nose_dir = forward3()
 		if steer_home:
 			# border: the aim swings back towards the battle area
 			var home := Vector3(-position.x, 0.0, -position.z).normalized()
-			controls.set_aim(controls.aim_dir.slerp(home, 0.04))
+			var af := Vector3(controls.aim_dir.x, 0.0, controls.aim_dir.z)
+			if af.length_squared() < 0.01:
+				af = Vector3(forward3().x, 0.0, forward3().z)
+			var turn := af.normalized().signed_angle_to(home, Vector3.UP)
+			if absf(turn) > PI - 0.05:
+				turn = -PI * _ins_side # dead behind: the side the instructor turns to
+			var aim_h := Basis(Vector3.UP, clampf(turn, -0.03, 0.03)) * controls.aim_dir
+			aim_h.y = lerpf(aim_h.y, 0.0, 0.03) # and back towards level
+			controls.set_aim(aim_h)
 		return Instructor.stick_for(self, controls.aim_dir)
 	return controls.stick if controls != null else Vector2.ZERO
 
@@ -423,22 +438,28 @@ func step(delta: float) -> void:
 			if _loop_turned >= TAU * 0.97 or man_t > man_dur:
 				man = M_NONE
 		_:
-			# bank-to-turn: the stick commands a bank angle, the pilot pulls
-			# enough G for a level turn, and stick Y adds / removes G
-			if absf(f.y) < 0.96:
-				# the harder you pull, the more bank a level turn needs
-				# (acos 1/n): full stick + full pull = hard, slightly
-				# descending turn instead of a climbing spiral
-				var bank_lim := maxf(MAX_BANK, acos(1.0 / maxf(_n, 1.0)) + 0.06)
-				var target_bank := -stick.x * bank_lim
-				roll_cmd = clampf(wrapf(target_bank - bank, -PI, PI) * 4.0, -1.0, 1.0)
+			if _direct:
+				# instructor (aim scheme, skilled bots): roll rate and G directly,
+				# so any attitude is possible (inverted, vertical, over the top)
+				roll_cmd = -stick.x
+				n_cmd = stick.y * max_g if stick.y >= 0.0 else stick.y * 2.5
 			else:
-				roll_cmd = -stick.x # near vertical: plain roll
-			var n_level := cos_g / (maxf(cos(bank), 0.35) * turn_k) if absf(bank) < PI * 0.5 else 0.0
-			if stick.y >= 0.0:
-				n_cmd = n_level + stick.y * (max_g - n_level)
-			else:
-				n_cmd = n_level + stick.y * (n_level + 2.5)
+				# bank-to-turn: the stick commands a bank angle, the pilot pulls
+				# enough G for a level turn, and stick Y adds / removes G
+				if absf(f.y) < 0.96:
+					# the harder you pull, the more bank a level turn needs
+					# (acos 1/n): full stick + full pull = hard, slightly
+					# descending turn instead of a climbing spiral
+					var bank_lim := maxf(MAX_BANK, acos(1.0 / maxf(_n, 1.0)) + 0.06)
+					var target_bank := -stick.x * bank_lim
+					roll_cmd = clampf(wrapf(target_bank - bank, -PI, PI) * 4.0, -1.0, 1.0)
+				else:
+					roll_cmd = -stick.x # near vertical: plain roll
+				var n_level := cos_g / (maxf(cos(bank), 0.35) * turn_k) if absf(bank) < PI * 0.5 else 0.0
+				if stick.y >= 0.0:
+					n_cmd = n_level + stick.y * (max_g - n_level)
+				else:
+					n_cmd = n_level + stick.y * (n_level + 2.5)
 	# roll with inertia
 	var roll_max: float = float(phys.get("roll", 3.0)) * soft * (1.0 + 0.5 * assist)
 	_roll_rate = lerpf(_roll_rate, roll_cmd * roll_max, 1.0 - exp(-delta * agile * 1.6))
