@@ -564,6 +564,16 @@ func _process(delta: float) -> void:
 		chunks.chimney_tops(cam.focus, 450.0, fx.chimneys)
 	# post effects: cloud fog, hit flash, speed lines
 	pv.set_post("fog", clouds.fog_at(jet.position, delta) if jet.alive else 0.0)
+	# god rays towards the sun (high quality, by day, strongest low sun)
+	var sp: Vector3 = cam.global_position + daynight.sun_dir() * 10000.0
+	var ray_k := 0.0
+	if quality >= 2 and not cam.is_position_behind(sp) and daynight.night < 0.9:
+		var suv: Vector2 = cam.unproject_position(sp) / Vector2(pv.low)
+		pv.set_post("sun_uv", suv)
+		var low_sun := 1.0 - clampf(daynight.sun_dir().y / 0.6, 0.0, 1.0)
+		ray_k = (1.0 - daynight.night) * (0.18 + 0.42 * low_sun)
+		pv.set_post("ray_col", Vector3(daynight.sun_col.r, daynight.sun_col.g, daynight.sun_col.b))
+	pv.set_post("rays", ray_k)
 	flash = maxf(0.0, flash - delta * 2.0)
 	pv.set_post("flash", flash)
 	pv.set_post("gblack", jet.gloc if jet.alive and state == State.PLAY else 0.0)
@@ -1549,12 +1559,15 @@ func apply_settings(key: String) -> void:
 	var camt := world_map.cloud_amount()
 	var cover := lerpf(0.82, 0.5, camt) if camt > 0.0 else 1.1
 	clouds.cover = cover
-	RenderingServer.global_shader_parameter_set("cloud_cover", cover)
+	clouds.set_layer(float(world_map.current().get("cloud_base", 650.0)), 500.0)
+	# the GPU clouds and their shadows use the volumetric threshold
+	RenderingServer.global_shader_parameter_set("cloud_cover", cover - Clouds.VOL_OFFSET if int(st.get("quality", 2)) >= 1 else cover)
 	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(Stacks.get_sheet("jet").w) if st["jet_shadow"] else 0.0001)
 	# graphics quality: low = no sun shadows / bloom / soft effects,
 	# medium = shadows + bloom, high = soft shadows, richer smoke and water
 	quality = int(st.get("quality", 2))
 	pv.set_quality(quality)
+	clouds.set_quality(quality)
 	chunks.set_shadows(quality >= 1)
 	plane_shadows.enabled = quality >= 1
 	Stacks.shadow_mat.set_shader_parameter("soft", 1.0 if quality >= 2 else 0.0)
@@ -2022,6 +2035,34 @@ func test_hook(t: Node) -> Array:
 	if chunks.shadows or quality != 0:
 		errs.append("low quality did not switch shadows off")
 	settings_ui.set_value("quality", 2)
+	# volumetric clouds: dense spots in the layer, nothing above it; a plane
+	# inside one is hidden from missiles; flying in turns the view white
+	if not clouds.volumetric:
+		errs.append("high quality should use the volumetric clouds")
+	var dense := Vector3.INF
+	var cy: float = clouds.base + clouds.thick * 0.25
+	for gz in range(-20, 21):
+		for gx in range(-20, 21):
+			var cp := Vector3(jet.position.x + gx * 120.0, cy, jet.position.z + gz * 120.0)
+			if clouds.density(cp) > 0.5:
+				dense = cp
+				break
+		if dense != Vector3.INF:
+			break
+	if dense == Vector3.INF:
+		errs.append("no dense cloud within 2.4 km of the cloud layer")
+	else:
+		if not missiles.target_hidden(dense):
+			errs.append("a plane inside a cloud is not hidden from missiles")
+		if clouds.density(dense + Vector3(0, clouds.thick + 50.0, 0)) > 0.0:
+			errs.append("cloud density above the layer")
+		clouds.fog = 0.0
+		var wf := 0.0
+		for k in 6:
+			wf = clouds.fog_at(dense, 0.2)
+		if wf < 0.3:
+			errs.append("no white-out inside a cloud (%.2f)" % wf)
+		clouds.fog = 0.0
 	# 3D cockpit: rendered, small HUD combiner in the upper middle, panel
 	# below the centre, the stick follows the input
 	var hs: Array = cockpit3d.hud_screen()

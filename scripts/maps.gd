@@ -6,7 +6,7 @@ enum { FEAT_NONE, FEAT_MESA, FEAT_PEAK }
 
 const LIST := [
 	{
-		"id": "tropical", "name": "TROPICAL ISLANDS", "seed": 7, "land": 0.33, "feature": FEAT_NONE,
+		"id": "tropical", "cloud_base": 650.0, "name": "TROPICAL ISLANDS", "seed": 7, "land": 0.33, "feature": FEAT_NONE,
 		"city": 1.0, "towns": 1.0, "time": -1.0, "clouds": 0.45, "half": 5600.0, "alt": 360.0,
 		"carriers": false, "info": "Islands, a city and bright seas.",
 		"pal": {"deepest": Color(0.07, 0.30, 0.66), "deep": Color(0.12, 0.45, 0.85), "shallow": Color(0.25, 0.78, 0.92),
@@ -15,7 +15,7 @@ const LIST := [
 		"landmarks": [["lighthouse", Vector3(1800, 0, -900)], ["tower", Vector3(0, 0, 0)]],
 	},
 	{
-		"id": "desert", "name": "DESERT CANYON", "seed": 21, "land": 0.86, "feature": FEAT_MESA,
+		"id": "desert", "cloud_base": 1000.0, "name": "DESERT CANYON", "seed": 21, "land": 0.86, "feature": FEAT_MESA,
 		"city": 0.0, "towns": 0.0, "time": 0.66, "clouds": 0.15, "half": 5600.0, "alt": 420.0,
 		"carriers": false, "military": true, "info": "Mesas, canyons and desert outposts.",
 		"pal": {"deepest": Color(0.10, 0.35, 0.55), "deep": Color(0.16, 0.48, 0.66), "shallow": Color(0.32, 0.66, 0.70),
@@ -24,7 +24,7 @@ const LIST := [
 		"landmarks": [["needle", Vector3(0, 0, 0)], ["arch", Vector3(-2200, 0, 1400)]],
 	},
 	{
-		"id": "snow", "name": "SNOW MOUNTAINS", "seed": 33, "land": 0.8, "feature": FEAT_PEAK,
+		"id": "snow", "cloud_base": 900.0, "name": "SNOW MOUNTAINS", "seed": 33, "land": 0.8, "feature": FEAT_PEAK,
 		"city": 0.0, "towns": 0.0, "time": 0.31, "clouds": 0.55, "half": 5600.0, "alt": 700.0,
 		"carriers": false, "military": true, "info": "Peaks, valleys, a frozen lake, mountain bases.",
 		"pal": {"deepest": Color(0.55, 0.70, 0.82), "deep": Color(0.66, 0.80, 0.90), "shallow": Color(0.78, 0.88, 0.95),
@@ -33,7 +33,7 @@ const LIST := [
 		"landmarks": [["beacon", Vector3(0, 0, 0)]],
 	},
 	{
-		"id": "night", "name": "NIGHT CITY", "seed": 7, "land": 0.38, "feature": FEAT_NONE,
+		"id": "night", "cloud_base": 700.0, "name": "NIGHT CITY", "seed": 7, "land": 0.38, "feature": FEAT_NONE,
 		"city": 1.7, "towns": 1.4, "time": 0.0, "clouds": 0.35, "half": 5600.0, "alt": 380.0,
 		"carriers": false, "info": "Neon skyline and searchlights.",
 		"pal": {"deepest": Color(0.07, 0.30, 0.66), "deep": Color(0.12, 0.45, 0.85), "shallow": Color(0.25, 0.78, 0.92),
@@ -42,7 +42,7 @@ const LIST := [
 		"landmarks": [["tower", Vector3(0, 0, 0)], ["tower", Vector3(1600, 0, 1200)]],
 	},
 	{
-		"id": "ocean", "name": "OCEAN CARRIER", "seed": 55, "land": 0.05, "feature": FEAT_NONE,
+		"id": "ocean", "cloud_base": 600.0, "name": "OCEAN CARRIER", "seed": 55, "land": 0.05, "feature": FEAT_NONE,
 		"city": 0.0, "towns": 0.0, "time": 0.5, "clouds": 0.6, "half": 5600.0, "alt": 380.0,
 		"carriers": true, "info": "Two carrier fleets on the open ocean.",
 		"pal": {"deepest": Color(0.05, 0.24, 0.55), "deep": Color(0.09, 0.36, 0.72), "shallow": Color(0.22, 0.66, 0.86),

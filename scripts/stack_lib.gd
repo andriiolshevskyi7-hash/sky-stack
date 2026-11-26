@@ -57,6 +57,12 @@ var facade_emit_tex: ImageTexture
 var ground_tex: ImageTexture
 var jet_shadow_tex: ImageTexture
 var cloud_tex: ImageTexture
+var cloud_detail_img: Image
+var cloud_detail_tex: ImageTexture
+var cloud_noise3d: ImageTexture3D
+## Smooth coverage field of the volumetric clouds (and their shadows).
+var cloud_cov_img: Image
+var cloud_cov_tex: ImageTexture
 var cloud_img: Image
 var island_img: Image
 var island_tex: ImageTexture
@@ -867,6 +873,85 @@ func _build_ground() -> void:
 
 # ------------------------------------------------------------------ globals & materials
 
+## The 3D cloud noise, from user://cache when present (saves ~0.6 s / start).
+func _noise3d_cached(n: int) -> ImageTexture3D:
+	var path := "user://cache/noise3d_%d_v1.raw" % n
+	var bytes := PackedByteArray()
+	if FileAccess.file_exists(path):
+		var f := FileAccess.open(path, FileAccess.READ)
+		if f != null:
+			bytes = f.get_buffer(f.get_length())
+	if bytes.size() == n * n * n:
+		var layers: Array[Image] = []
+		for z in n:
+			layers.append(Image.create_from_data(n, n, false, Image.FORMAT_R8, bytes.slice(z * n * n, (z + 1) * n * n)))
+		var t := ImageTexture3D.new()
+		t.create(Image.FORMAT_R8, n, n, n, false, layers)
+		return t
+	var tex := _make_noise3d(n)
+	var out := PackedByteArray()
+	for img: Image in tex.get_data():
+		out.append_array(img.get_data())
+	DirAccess.make_dir_recursive_absolute("user://cache")
+	var w := FileAccess.open(path, FileAccess.WRITE)
+	if w != null:
+		w.store_buffer(out)
+	return tex
+
+
+## Tileable 3D billow noise (n^3, R8) for the volumetric clouds' erosion:
+## inverted Worley (one feature point per 8^3 cell, wrapped) mixed with a
+## finer value noise. ~30 ms at start-up.
+func _make_noise3d(n: int) -> ImageTexture3D:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5150
+	var cells := 4
+	var cs := float(n) / cells
+	var pts := {}
+	for cz in cells:
+		for cy in cells:
+			for cx in cells:
+				pts[Vector3i(cx, cy, cz)] = (Vector3(cx, cy, cz) + Vector3(rng.randf(), rng.randf(), rng.randf())) * cs
+	var vals := PackedFloat32Array()
+	vals.resize(8 * 8 * 8)
+	for i in vals.size():
+		vals[i] = rng.randf()
+	var layers: Array[Image] = []
+	for z in n:
+		var data := PackedByteArray()
+		data.resize(n * n)
+		for y in n:
+			for x in n:
+				var p := Vector3(x + 0.5, y + 0.5, z + 0.5)
+				var c := Vector3i(int(p.x / cs), int(p.y / cs), int(p.z / cs))
+				var best := 1e9
+				for dz in range(-1, 2):
+					for dy in range(-1, 2):
+						for dx in range(-1, 2):
+							var k := Vector3i(posmod(c.x + dx, cells), posmod(c.y + dy, cells), posmod(c.z + dz, cells))
+							var q: Vector3 = pts[k] + Vector3(c.x + dx - k.x, c.y + dy - k.y, c.z + dz - k.z) * cs
+							best = minf(best, p.distance_squared_to(q))
+				var w := clampf(sqrt(best) / (cs * 0.9), 0.0, 1.0)
+				# value noise on an 8^3 lattice (trilinear, wrapped)
+				var g := Vector3(x, y, z) / n * 8.0
+				var i0 := Vector3i(int(g.x), int(g.y), int(g.z))
+				var f := g - Vector3(i0)
+				var v := 0.0
+				for cz2 in 2:
+					for cy2 in 2:
+						for cx2 in 2:
+							var wgt := (f.x if cx2 else 1.0 - f.x) * (f.y if cy2 else 1.0 - f.y) * (f.z if cz2 else 1.0 - f.z)
+							var ix := (i0.x + cx2) % 8
+							var iy := (i0.y + cy2) % 8
+							var iz := (i0.z + cz2) % 8
+							v += vals[(iz * 8 + iy) * 8 + ix] * wgt
+				data[y * n + x] = clampi(int((w * 0.7 + v * 0.3) * 255.0), 0, 255)
+		layers.append(Image.create_from_data(n, n, false, Image.FORMAT_R8, data))
+	var t := ImageTexture3D.new()
+	t.create(Image.FORMAT_R8, n, n, n, false, layers)
+	return t
+
+
 func _build_globals() -> void:
 	var noise := FastNoiseLite.new()
 	noise.seed = 9
@@ -876,9 +961,29 @@ func _build_globals() -> void:
 	cloud_img = noise.get_seamless_image(128, 128)
 	var nimg := cloud_img
 	cloud_tex = ImageTexture.create_from_image(nimg)
+	# billowy erosion detail for the volumetric clouds (inverted cellular)
+	var cell := FastNoiseLite.new()
+	cell.seed = 31
+	cell.noise_type = FastNoiseLite.TYPE_CELLULAR
+	cell.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
+	cell.frequency = 0.06
+	cell.fractal_type = FastNoiseLite.FRACTAL_FBM
+	cell.fractal_octaves = 2
+	cloud_detail_img = cell.get_seamless_image(128, 128)
+	cloud_detail_tex = ImageTexture.create_from_image(cloud_detail_img)
+	cloud_noise3d = _noise3d_cached(32)
+	var cn := FastNoiseLite.new()
+	cn.seed = 9
+	cn.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	cn.frequency = 0.03
+	cn.fractal_octaves = 2
+	cn.fractal_gain = 0.3
+	cloud_cov_img = cn.get_seamless_image(128, 128)
+	cloud_cov_tex = ImageTexture.create_from_image(cloud_cov_img)
 	RenderingServer.global_shader_parameter_set("jet_shadow_tex", jet_shadow_tex)
 	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(get_sheet("jet").w))
 	RenderingServer.global_shader_parameter_set("cloud_tex", cloud_tex)
+	RenderingServer.global_shader_parameter_set("cloud_cov_tex", cloud_cov_tex)
 	rebuild_islands(int(Save.settings.get("seed", 7)), float(Save.settings.get("islands", 0.33)))
 
 

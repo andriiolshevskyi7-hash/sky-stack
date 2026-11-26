@@ -10,9 +10,11 @@ global uniform float jet_yaw;
 global uniform float jet_shadow_size;
 global uniform sampler2D jet_shadow_tex;
 global uniform sampler2D cloud_tex;
+global uniform sampler2D cloud_cov_tex : filter_linear, repeat_enable;
 global uniform vec2 cloud_offset;
 global uniform float cloud_shadow;
 global uniform float cloud_cover;
+global uniform float cloud_base;
 global uniform float sprite_snap;
 global uniform float fade_radius;
 global uniform sampler2D island_tex;
@@ -27,7 +29,6 @@ global uniform float haze_k;
 
 const vec3 SHADOW_TINT = vec3(0.42, 0.55, 0.88);
 
-const float CLOUD_SHADOW_H = 600.0;
 
 float bayer2(vec2 a) {
 	a = floor(a);
@@ -59,10 +60,13 @@ float shadow_amount(vec3 w) {
 			s = 0.8 * texture(jet_shadow_tex, uv).a;
 		}
 	}
-	if (w.y < CLOUD_SHADOW_H - 10.0) {
-		vec2 cp = (w.xz - sun_shift * (CLOUD_SHADOW_H - w.y) + cloud_offset) / 2800.0;
-		float n = texture(cloud_tex, fract(cp)).r;
-		s = max(s, cloud_shadow * step(cloud_cover, n));
+	// cloud shadows: the same coverage field as the clouds, projected from
+	// the middle of the cloud layer along the sun, soft-edged
+	float csh = cloud_base + 180.0;
+	if (w.y < csh - 10.0) {
+		vec2 cp = (w.xz - sun_shift * (csh - w.y) + cloud_offset) / 4200.0;
+		float n = texture(cloud_cov_tex, cp).r;
+		s = max(s, cloud_shadow * smoothstep(cloud_cover + 0.04, cloud_cover + 0.16, n));
 	}
 	return s;
 }

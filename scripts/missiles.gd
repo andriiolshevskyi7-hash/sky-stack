@@ -294,6 +294,13 @@ func _process(delta: float) -> void:
 				if m.target == jet:
 					dodges += 1
 					game.show_banner("EVADED", "", 0.9)
+			# a target deep in a cloud: the seeker loses it (~70 % a second)
+			elif m.target is Jet and d0 > FUSE * 3.0 and target_hidden(tp) and randf() < 1.2 * delta:
+				m.dodged = true
+				aim = Vector3.INF
+				if m.target == jet:
+					dodges += 1
+					game.show_banner("LOST IN CLOUD", "", 0.9)
 		if aim != Vector3.INF:
 			var want := (aim - m.pos).normalized()
 			var ang := dir.angle_to(want)

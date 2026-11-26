@@ -146,6 +146,14 @@ haze_k={
 "type": "float",
 "value": 1.0
 }
+cloud_cov_tex={
+"type": "sampler2D",
+"value": ""
+}
+cloud_base={
+"type": "float",
+"value": 650.0
+}
 fog_color={
 "type": "vec3",
 "value": Vector3(0.7, 0.85, 1)

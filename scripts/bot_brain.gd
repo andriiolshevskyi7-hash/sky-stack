@@ -360,7 +360,7 @@ func _fly_retreat() -> void:
 		away = _home
 	var goal := away
 	if skill > 0.65 and fleet.clouds != null:
-		goal.y = fleet.clouds.BASE_Y + 40.0 # hide in the clouds
+		goal = fleet.clouds.hide_spot(away) # hide in a cloud on the way out
 	elif skill > 0.35:
 		goal.y = 110.0 # duck low over the rooftops
 	else:

@@ -11,6 +11,11 @@ uniform int palette_size = 32;
 uniform float palette_mix = 1.0;
 uniform float bloom = 0.9;
 uniform float res_k = 1.0; // render height / 336: effects keep their screen size
+// god rays: screen position of the sun (UV, may be off screen), strength,
+// colour (the sun's, reddish at dusk)
+uniform vec2 sun_uv = vec2(0.5, -1.0);
+uniform float rays = 0.0;
+uniform vec3 ray_col = vec3(1.0, 0.95, 0.85);
 uniform float threshold = 0.8;
 uniform float fog = 0.0;
 uniform float flash = 0.0;
@@ -45,6 +50,25 @@ void fragment() {
 		b += bright(UV + d * 6.0 * res_k * px) * 0.035;
 	}
 	c += b * bloom;
+	if (rays > 0.001) {
+		// light shafts: bright sky seen along the way to the sun, cut by
+		// clouds, terrain and planes, smeared radially
+		vec2 dv = (sun_uv - UV) / 14.0;
+		vec2 uv = UV;
+		float illum = 0.0;
+		float wt = 1.0;
+		float j = bayer4(FRAGCOORD.xy);
+		uv += dv * j;
+		for (int i = 0; i < 14; i++) {
+			uv += dv;
+			vec3 s = texture(src_lin, clamp(uv, vec2(0.001), vec2(0.999))).rgb;
+			float l = max(s.r, max(s.g, s.b));
+			illum += smoothstep(0.82, 0.98, l) * wt;
+			wt *= 0.93;
+		}
+		float fall = 1.0 - smoothstep(0.0, 0.9, distance(UV * vec2(1.6, 1.0), sun_uv * vec2(1.6, 1.0)));
+		c += ray_col * illum / 14.0 * rays * fall;
+	}
 	float bay = bayer4(FRAGCOORD.xy);
 	if (fog > 0.0) {
 		c = mix(c, vec3(0.95, 0.97, 1.0) * max(ambient, vec3(0.35)), clamp(fog, 0.0, 1.0));
