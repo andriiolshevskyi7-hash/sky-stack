@@ -1,0 +1,182 @@
+diff --git a/scripts/pixel_view.gd b/scripts/pixel_view.gd
+index 7a34d9e..3891805 100644
+--- a/scripts/pixel_view.gd
++++ b/scripts/pixel_view.gd
+@@ -6,7 +6,7 @@ extends Node
+ ## every world pixel is the same size. HUD/menus are drawn on top at full
+ ## resolution (project stretch mode stays "disabled").
+ 
+-const MAX_H := 400
++const MAX_H := 2000 # HD prototype: full resolution (was 400)
+ const MIN_H := 280
+ 
+ var world_vp: SubViewport
+diff --git a/scripts/plane_art.gd b/scripts/plane_art.gd
+index 2f32f7f..8d440f8 100644
+--- a/scripts/plane_art.gd
++++ b/scripts/plane_art.gd
+@@ -18,12 +18,13 @@ extends RefCounted
+ ## palette texture (row = skin * 3 + class), so all skins cost no extra
+ ## texture memory and new skins are one palette row.
+ 
+-const W := 64 # slice size (px)
+-const D := 16 # slices
+-const CX := 32
++const W := 128 # slice size (px)  [HD voxel prototype: was 64]
++const D := 32 # slices [was 16]
++const CX := 64
++const HD_K := 2.0
+ ## World length of a plane (units); slices are scaled from W to this.
+ const WORLD := 40.0
+-const VERSION := 3
++const VERSION := 99
+ 
+ # materials (palette columns)
+ enum {
+@@ -233,7 +234,7 @@ func build(pi: int) -> void:
+ 	_pi = pi
+ 	var d: Dictionary = Planes.LIST[pi]
+ 	_cls = int(d["branch"])
+-	_art = ART[d["id"]]
++	_art = _scale_art(ART[d["id"]])
+ 	var a := _art
+ 	if a.has("booms"):
+ 		var b: Array = a["booms"]
+@@ -277,6 +278,38 @@ func build(pi: int) -> void:
+ 	_soot(int(a["soot"]))
+ 
+ 
++## HD prototype: art parameters are in pixels of the 64 px model; scale them
++## to the finer grid (fin cant is px per slice: unchanged; "sec" is an exponent).
++static func _scale_art(a: Dictionary) -> Dictionary:
++	var o := {}
++	for k in a:
++		if k == "sec":
++			o[k] = a[k]
++		elif k == "fins":
++			var fl: Array = []
++			for f: Array in a[k]:
++				var g: Array = _scale_v(f)
++				g[1] = f[1]
++				fl.append(g)
++			o[k] = fl
++		else:
++			o[k] = _scale_v(a[k])
++	return o
++
++
++static func _scale_v(v: Variant) -> Variant:
++	if v is int:
++		return int(v) * int(HD_K)
++	if v is float:
++		return float(v) * HD_K
++	if v is Array:
++		var out: Array = []
++		for e in v:
++			out.append(_scale_v(e))
++		return out
++	return v
++
++
+ ## Fuselage station interpolation: [hw, hh, cz] at y (0 outside).
+ func _station(st: Array, y: float) -> Vector3:
+ 	if y < float(st[0][0]) or y > float(st[st.size() - 1][0]):
+diff --git a/scripts/stack_lib.gd b/scripts/stack_lib.gd
+index c9188ca..fe29f95 100644
+--- a/scripts/stack_lib.gd
++++ b/scripts/stack_lib.gd
+@@ -42,7 +42,7 @@ var sheets := {}
+ var atlas_size := Vector2i(ATLAS_W, 256)
+ ## Second atlas: one row of 16 slices per plane of the aircraft tree, holding
+ ## MATERIAL indices; skins are rows of the palette texture (see PlaneArt).
+-const PLANE_ATLAS := Vector2i(1024, 1024)
++const PLANE_ATLAS := Vector2i(4096, 2048)
+ var plane_atlas_tex: ImageTexture
+ var plane_palette_tex: ImageTexture
+ var plane_albedo := {} # plane index -> Image (slice strip, for shadows)
+@@ -167,9 +167,63 @@ func _build_sheets() -> void:
+ 				var dst := sh.cell(s, vi)
+ 				atlas.blit_rect(a, src, dst)
+ 				eatlas.blit_rect(e, src, dst)
+-	atlas_tex = ImageTexture.create_from_image(atlas)
+-	emit_tex = ImageTexture.create_from_image(eatlas)
++	# HD voxel prototype: 2x finer texels (Scale2x keeps pixel-art edges and
++	# smooths diagonals) and every slice twice at half the spacing
++	atlas_tex = ImageTexture.create_from_image(scale2x(atlas))
++	emit_tex = ImageTexture.create_from_image(scale2x(eatlas))
+ 	_build_jet_shadow(albedo_imgs["jet"][0], sheets["jet"])
++	for sheet_name in sheets:
++		var sh2: Sheet = sheets[sheet_name]
++		var r2: Array[Rect2] = []
++		for vi in sh2.v:
++			for si in sh2.n:
++				var r: Rect2 = sh2.uv_rects[vi * sh2.n + si]
++				r2.append(r)
++				r2.append(r)
++		sh2.uv_rects = r2
++		sh2.n *= 2
++		sh2.spacing *= 0.5
++
++
++## Scale2x (EPX): doubles a pixel-art image, keeping hard edges and
++## turning staircase diagonals into finer steps.
++static func scale2x(src: Image) -> Image:
++	src.convert(Image.FORMAT_RGBA8)
++	var w := src.get_width()
++	var h := src.get_height()
++	var a := src.get_data().to_int32_array()
++	var o := PackedInt32Array()
++	o.resize(w * h * 4)
++	var w2 := w * 2
++	for y in h:
++		var ym := maxi(y - 1, 0) * w
++		var yp := mini(y + 1, h - 1) * w
++		var yc := y * w
++		for x in w:
++			var p := a[yc + x]
++			var t := a[ym + x]
++			var b := a[yp + x]
++			var l := a[yc + maxi(x - 1, 0)]
++			var r := a[yc + mini(x + 1, w - 1)]
++			var e0 := p
++			var e1 := p
++			var e2 := p
++			var e3 := p
++			if t != b and l != r:
++				if l == t:
++					e0 = l
++				if t == r:
++					e1 = r
++				if l == b:
++					e2 = l
++				if b == r:
++					e3 = r
++			var i0 := (y * 2) * w2 + x * 2
++			o[i0] = e0
++			o[i0 + 1] = e1
++			o[i0 + w2] = e2
++			o[i0 + w2 + 1] = e3
++	return Image.create_from_data(w2, h * 2, false, Image.FORMAT_RGBA8, o.to_byte_array())
+ 
+ 
+ func _pack() -> void:
+@@ -456,8 +510,8 @@ func _build_facades() -> void:
+ 	# windows into a soft glow) instead of shimmering single pixels
+ 	img.generate_mipmaps()
+ 	em.generate_mipmaps()
+-	facade_tex = ImageTexture.create_from_image(img)
+-	facade_emit_tex = ImageTexture.create_from_image(em)
++	facade_tex = ImageTexture.create_from_image(scale2x(img))
++	facade_emit_tex = ImageTexture.create_from_image(scale2x(em))
+ 
+ 
+ ## Map terrain styles. Facades 16..19 live at pixel row 160 (sandstone strata,
+@@ -644,7 +698,7 @@ func _build_ground() -> void:
+ 			G_SLABS:
+ 				img.fill_rect(Rect2i(ox, oy, (16) * F, (1) * F), Pal.c(Pal.DGRAY))
+ 				img.fill_rect(Rect2i(ox, oy, (1) * F, (16) * F), Pal.c(Pal.DGRAY))
+-	ground_tex = ImageTexture.create_from_image(img)
++	ground_tex = ImageTexture.create_from_image(scale2x(img))
+ 
+ 
+ # ------------------------------------------------------------------ globals & materials
