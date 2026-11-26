@@ -8,7 +8,12 @@ var _t := 0.0
 var _ref := 0.0
 var _seen := false
 
-## Aim scheme versions of the first three steps.
+## Aim scheme versions of the first three steps (joystick, then swipe).
+const JOY_STEPS := [
+	"Hold the joystick on the LEFT: the aim circle moves, the plane follows it",
+	"Push the joystick UP to climb",
+	"Push the joystick DOWN to dive",
+]
 const AIM_STEPS := [
 	"Drag on the LEFT to move the aim circle - the plane follows it",
 	"Move the aim UP to climb",
@@ -36,7 +41,7 @@ func text() -> String:
 		return ""
 	var c: Controls = game.controls if game != null and "controls" in game else null
 	if step < AIM_STEPS.size() and c != null and c.scheme == Controls.AIM:
-		return AIM_STEPS[step]
+		return JOY_STEPS[step] if c.aim_joy else AIM_STEPS[step]
 	return STEPS[step]
 
 

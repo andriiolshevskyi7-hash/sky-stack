@@ -63,8 +63,12 @@ func _process(_d: float) -> void:
 			if dir.length_squared() < 0.0001:
 				continue
 			var side := dir.cross(cp - a).normalized() * width * 0.5
-			var aa := 1.0 - float(k) / n
-			var ab := 1.0 - float(k + 1) / n
+			# fade near the camera: the close chase camera sits right in the
+			# trails' path and they would fill the screen
+			var aa := (1.0 - float(k) / n) * clampf((a.distance_to(cp) - 30.0) / 70.0, 0.0, 1.0)
+			var ab := (1.0 - float(k + 1) / n) * clampf((b.distance_to(cp) - 30.0) / 70.0, 0.0, 1.0)
+			if aa <= 0.0 and ab <= 0.0:
+				continue
 			var ca := Color(1, 1, 1, aa * 1.2)
 			var cb := Color(1, 1, 1, ab * 1.2)
 			_im.surface_set_color(ca)

@@ -1,13 +1,14 @@
 class_name GameCamera
 extends Camera3D
-## Perspective camera with three views that blend smoothly (no cuts):
-##  OVERHEAD - high above, looking straight down, north up, jet in the centre
-##  CHASE    - behind and above the jet, real perspective ground plane receding
+## Perspective camera with two views that blend smoothly (no cuts):
+##  CHASE    - close behind and above the jet, real perspective ground plane receding
 ##             to the horizon (Mode-7 style), sprite stacks scale with distance
 ##  COCKPIT  - first person from the canopy; horizon tilts with the jet's roll
 ## The camera eases towards the target transform of the current mode, so
 ## switching modes swoops the camera between viewpoints.
 
+## OVERHEAD (the old top-down view) is gone; the value stays so saved view
+## numbers keep their meaning, and it is shown as CHASE.
 enum Mode { OVERHEAD, CHASE, COCKPIT }
 const MODE_NAMES := ["OVERHEAD", "CHASE", "COCKPIT"]
 const FOV := [48.0, 62.0, 76.0]
@@ -36,8 +37,7 @@ var override: Node3D
 ## point it looks at, both relative to the override node
 var override_offset := Vector3(26.0, 10.0, 26.0)
 var override_look := Vector3(0, 4, 0)
-var overhead_follow := 0.6
-var chase_dist := 2.6 # jet lengths (1 length = 64 units incl. trail)
+var chase_dist := 0.7 # jet lengths (1 length = 64 units incl. trail)
 var chase_height := 25.0
 var transition := 1.4 # seconds for a view change
 var shake_mult := 1.0
@@ -65,8 +65,9 @@ func _ready() -> void:
 	current = true
 
 
+## VIEW button: chase <-> cockpit.
 func cycle_mode() -> void:
-	mode = ((mode + 1) % 3) as Mode
+	mode = Mode.CHASE if mode == Mode.COCKPIT else Mode.COCKPIT
 	_since_switch = 0.0
 
 
@@ -86,15 +87,10 @@ func screen_up() -> Vector3:
 func _target(m: int, jet: Node3D) -> Transform3D:
 	var jp: Vector3 = jet.position
 	match m:
-		Mode.OVERHEAD:
-			var a: float = jet.yaw * overhead_follow
-			var up := Vector3(-sin(a), 0.0, -cos(a))
-			var p := jp + Vector3(0.0, 560.0, 0.0) - up * 50.0
-			return Transform3D(Basis.IDENTITY, p).looking_at(jp + up * 6.0, up)
-		Mode.CHASE:
+		Mode.CHASE, Mode.OVERHEAD:
 			var f: Vector3 = jet.forward()
 			var f3: Vector3 = jet.forward3()
-			# 2.6 jet lengths ~ jet wingspan at ~0.19 of the screen height
+			# 0.7 jet lengths: close behind, the plane big on screen
 			var dist := chase_dist * 64.0
 			var el := deg_to_rad(chase_height)
 			var p := jp - f * dist * cos(el) + Vector3.UP * (dist * sin(el) - sin(jet.pitch) * dist * 0.5)
@@ -132,7 +128,9 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 
 func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	_since_switch += delta
-	if mode == Mode.OVERHEAD or override != null:
+	if mode == Mode.OVERHEAD:
+		mode = Mode.CHASE
+	if override != null:
 		look_target = Vector2.ZERO
 	var lt := Vector2(clampf(look_target.x, -LOOK_MAX.x, LOOK_MAX.x), clampf(look_target.y, LOOK_MIN_PITCH, LOOK_MAX.y))
 	if mode == Mode.CHASE:
@@ -155,10 +153,7 @@ func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	var tk := 1.4 / maxf(0.2, transition)
 	var rate_p := 7.0
 	var rate_r := 6.0
-	if mode == Mode.OVERHEAD:
-		rate_p = 5.0
-		rate_r = 4.0
-	elif mode == Mode.COCKPIT and override == null:
+	if mode == Mode.COCKPIT and override == null:
 		# ease in, then lock rigidly to the canopy (a lagging follow would
 		# never catch a jet doing ~100 units/s)
 		var k := clampf((_since_switch - transition * 0.43) / (transition * 0.57), 0.0, 1.0)
@@ -182,9 +177,9 @@ func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	global_transform = Transform3D(b, _pos + off)
 	fov = _fov
 	focus = jet.position
-	# steering frame: overhead is north-up, otherwise follow the camera
+	# steering frame: follow the camera
 	var fwd := -b.z
-	cam_yaw = 0.0 if mode == Mode.OVERHEAD else atan2(-fwd.x, -fwd.z)
+	cam_yaw = atan2(-fwd.x, -fwd.z)
 	RenderingServer.global_shader_parameter_set("cam_pos", global_position)
 	RenderingServer.global_shader_parameter_set("fog_far", _fog if _fog > 50.0 else 0.0)
 

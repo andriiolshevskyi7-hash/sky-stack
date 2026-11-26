@@ -124,9 +124,10 @@ first if Android refuses to update it (`adb uninstall com.skystack.game`).
 
 | Touch | Keyboard / mouse (desktop testing) |
 | --- | --- |
-Two control schemes (Settings → Controls):
+Three control options (Settings → Controls): **Aim + joystick** (default),
+**Aim + swipe** and **Classic stick**.
 
-**Aim (War Thunder style)** – the default. Two reticles are on screen in the
+**Aim (War Thunder style)**. Two reticles are on screen in the
 chase and cockpit views: the small winged **nose** cross (where the plane
 points, with a gun-lead diamond on the nearest enemy ahead) and the **aim**
 circle (where you want to fly; an arrow on the screen edge when it is off
@@ -136,11 +137,18 @@ the pull when slow (no stall, but hard turns still cost energy) and pulls up
 with a PULL UP warning when the flight path would hit the ground, a building
 or a mountain. The chase camera looks along the aim.
 
-**Stick (classic)** – an invisible floating stick on the left side.
+With **Aim + joystick** a floating joystick appears under the left thumb and
+keeps moving the aim circle while held: a small deflection moves it slowly
+for gunnery, full deflection fast for hard turns (small dead zone, speed in
+Settings). Hold it to one side and the plane keeps turning (the circle stays
+at most ~50° ahead of the nose); release and the circle stops where it is.
+With **Aim + swipe** the left half is a trackpad instead.
+
+**Classic stick** – an invisible floating stick on the left side.
 
 | Touch | Keyboard / mouse (desktop testing) |
 | --- | --- |
-| **Left half** (aim): drag like a trackpad to move the aim circle; it stays where you leave it (sensitivity in Settings) | mouse moves the aim; arrows / WASD |
+| **Left half** (aim + joystick): hold the floating joystick to keep the aim circle moving; (aim + swipe): drag like a trackpad. The circle stays where you leave it | mouse moves the aim; arrows / WASD |
 | **Left half** (stick): floating stick, drag left/right to **bank and turn**, down to **pull**, up to push | A/D or arrows bank, S/Down pull, W/Up push |
 | **Right side free area**: drag to look around the plane / the cockpit; it returns when you let go | hold Q / E, middle mouse drag |
 | **Right edge**: THROTTLE lever. Drag it up or down and it stays where you leave it; the orange top zone is the **afterburner** (it overheats, then has to cool) | T / G throttle, Shift afterburner, mouse wheel |
@@ -148,7 +156,7 @@ or a mountain. The chase camera looks along the aim.
 | FIRE icon (hold; ammo counter, reload when empty) | Space, J or mouse button |
 | MISSILE icon (count, reload ring) | M |
 | LOOP icon (flown for you; it can stall at the top if you start slow) | L |
-| Eye icon: overhead → chase → cockpit; **II** pause; INTEL lists all controls | C or V, Esc / P, I |
+| Eye icon: chase ↔ cockpit; **II** pause; INTEL lists all controls | C or V, Esc / P, I |
 
 Vibration on hits, lock-on, stall and crash (Settings → HELPERS).
 
@@ -199,7 +207,8 @@ Everything is synthesised in code (`scripts/sfx.gd`, `scripts/sound_scape.gd`):
 ## Settings (pause menu → SETTINGS)
 
 The player's page has only: language, graphics quality (low / medium /
-high), sound volume, music volume, controls (aim / stick), aim sensitivity,
+high), sound volume, music volume, controls (aim + joystick / aim + swipe /
+classic stick), aim speed, swipe sensitivity,
 invert climb / dive, stick indicator,
 vibration, and RESET TO DEFAULTS. Every detailed tuning value below is on the
 DEBUG SETTINGS page, which exists only in debug builds.
@@ -210,8 +219,8 @@ All values persist in `user://save.cfg`. Defaults:
   altitude 220, ceiling 3000, ground clearance 14, wingmen 1, crashes on,
   invert off
 * **Combat** – cannon 300, missiles 6, reload 5 s, enemy jets 3
-* **Camera** – view chase, view change 1.4 s, overhead turns with the jet
-  0.6, chase distance 2.6 jet lengths, chase height 25°
+* **Camera** – view chase (VIEW toggles chase ↔ cockpit), view change 1.4 s,
+  chase distance 0.7 jet lengths (close behind), chase height 25°
 * **World** – time of day day / sunset / night, day-night cycle off, islands
   0.33, clouds 0.45, world seed 7, jet shadow on
 * **Look** – glow 0.8, contrast 0.15, darkened corners 0.3, film grain 0.25,

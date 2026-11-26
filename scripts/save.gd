@@ -2,7 +2,7 @@ extends Node
 ## Autoload "Save": high score + all settings in user://save.cfg
 
 const PATH := "user://save.cfg"
-const VERSION := 4
+const VERSION := 5
 var high_score := 0
 var settings := {}
 
@@ -36,7 +36,7 @@ func _ready() -> void:
 		var saved: Dictionary = cf.get_value("settings", "values", {})
 		var ver: int = cf.get_value("settings", "version", 1)
 		for k in saved:
-			if settings.has(k) or k in ["map", "last_mode", "last_duel"]:
+			if settings.has(k) or k in ["map", "last_mode", "last_duel", "view"]:
 				settings[k] = saved[k]
 		if ver < 2:
 			# world became 2x bigger: altitudes/speed defaults changed
@@ -46,6 +46,14 @@ func _ready() -> void:
 			# realistic flight: crashes are fatal and you may fly down to 4 m
 			settings["clearance"] = SettingsScreen.defaults()["clearance"]
 			settings["crashes"] = true
+		if ver < 5:
+			# controls: aim + joystick / aim + swipe / stick (stick was 1);
+			# the chase camera moved close; the overhead view is gone
+			if saved.has("scheme") and int(saved["scheme"]) == 1:
+				settings["scheme"] = 2
+			settings["chase_dist"] = SettingsScreen.defaults()["chase_dist"]
+			if int(settings.get("view", 1)) == 0:
+				settings["view"] = 1
 		if ver < 3:
 			# calmer look for long sessions
 			for k in ["glow", "contrast", "vignette", "grain"]:

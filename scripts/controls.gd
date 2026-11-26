@@ -1,10 +1,14 @@
 class_name Controls
 extends Node
-## Touch controls for a landscape phone. Two schemes (Settings -> Controls):
-##  AIM (default, War Thunder style)
-##   LEFT  (~60% of the screen) - a trackpad: dragging moves the AIM circle
-##         (the direction you want to fly, a world direction that stays put
-##         when you lift the finger); an instructor flies the nose onto it.
+## Touch controls for a landscape phone. Settings -> Controls:
+##  AIM + JOYSTICK (default, War Thunder style)
+##   LEFT  (~60% of the screen) - a floating joystick (appears under the
+##         thumb) that keeps MOVING the AIM circle while held: small
+##         deflection = slow, precise; full = fast, for hard turns. Released,
+##         the circle stays where it is. The AIM is the direction you want to
+##         fly (a world direction); an instructor flies the nose onto it.
+##  AIM + SWIPE
+##   LEFT - a trackpad: dragging moves the aim circle by the drag.
 ##   RIGHT free area - drag = free look (camera / head turns, springs back
 ##         on release); the plane keeps flying to the aim.
 ##  STICK (classic)
@@ -28,7 +32,13 @@ signal tutorial_pressed
 
 enum { AIM, STICK }
 var scheme := AIM
-var aim_sens := 1.0
+var aim_sens := 1.0 # swipe sensitivity
+## Aim scheme input: true = floating joystick moves the aim, false = swipe.
+var aim_joy := true
+var aim_speed := 1.0 # joystick: aim speed multiplier
+## The player's nose (set by the plane each frame; INF = unknown): the
+## joystick may not run the aim more than AIM_LEAD_MAX ahead of it.
+var nose_dir := Vector3.INF
 ## Where the player wants to fly (world direction, unit length).
 var aim_dir := Vector3.FORWARD
 
@@ -67,6 +77,11 @@ const AB_ZONE := 0.92
 ## sensitivity 1.
 const AIM_PER_SCREEN := 2.0
 const LOOK_PER_SCREEN := 2.4
+## Joystick: aim speed at full deflection (rad/s, speed 1), response curve,
+## and how far the aim may lead the nose (then the plane just keeps turning).
+const AIM_JOY_RATE := 1.5
+const AIM_JOY_CURVE := 2.0
+const AIM_LEAD_MAX := 0.9
 var pressed := {} # name -> bool (for drawing)
 
 var _touch_role := {} # index -> role
@@ -164,6 +179,30 @@ func turn_aim(yaw: float, pitch: float) -> void:
 	aim_dir = Vector3(flat.x, sin(np), flat.y).normalized()
 
 
+## Joystick deflection after the dead zone and the response curve
+## (x + = right, y + = down), length 0..1.
+func joy_vector() -> Vector2:
+	var d := ((drag_pos - drag_start) / drag_radius).limit_length(1.0)
+	var m := d.length()
+	if m < DEAD_ZONE:
+		return Vector2.ZERO
+	return d / m * pow((m - DEAD_ZONE) / (1.0 - DEAD_ZONE), AIM_JOY_CURVE)
+
+
+## Keep the aim within AIM_LEAD_MAX of the nose: holding the joystick then
+## means "keep turning" instead of running the circle round behind.
+func _limit_lead() -> void:
+	if nose_dir == Vector3.INF:
+		return
+	var a := nose_dir.angle_to(aim_dir)
+	if a <= AIM_LEAD_MAX:
+		return
+	var ax := nose_dir.cross(aim_dir)
+	if ax.length_squared() < 1e-8:
+		return
+	aim_dir = nose_dir.rotated(ax.normalized(), AIM_LEAD_MAX).normalized()
+
+
 func _aim_drag(d: Vector2) -> void:
 	if not enabled:
 		return
@@ -239,10 +278,11 @@ func _input(event: InputEvent) -> void:
 				_touch_role[e.index] = b
 			elif left and _drag_index < 0:
 				_drag_index = e.index
-				if scheme == AIM:
+				if scheme == AIM and not aim_joy:
 					_touch_role[e.index] = "aim"
 					aiming = true
 				else:
+					aiming = scheme == AIM
 					_touch_role[e.index] = "drag"
 					drag_start = e.position
 					drag_pos = e.position
@@ -358,6 +398,13 @@ func _process(delta: float) -> void:
 		# keys move the aim (W = aim down like a stick push, S = up)
 		if k != Vector2.ZERO and enabled:
 			turn_aim(-k.x * 1.3 * delta, k.y * 1.0 * delta * (-1.0 if invert else 1.0))
+		# floating joystick: the aim keeps moving while it is held
+		if aim_joy and dragging and enabled:
+			var v := joy_vector()
+			if v != Vector2.ZERO:
+				var rate := AIM_JOY_RATE * aim_speed * delta
+				turn_aim(-v.x * rate, (v.y if invert else -v.y) * rate)
+				_limit_lead()
 		stick = Vector2.ZERO
 	else:
 		var t := Vector2.ZERO

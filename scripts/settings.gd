@@ -8,6 +8,8 @@ extends Control
 signal closed
 signal changed(key: String)
 
+## Chase camera distance (jet lengths): close behind, the plane big.
+const CHASE_DIST := 0.7
 ## [section, key, label, type, default, a, b, step]  type: f = slider, b = toggle, c = choice (a = options)
 const SCHEMA := [
 	["FLIGHT", "speed", "Speed", "f", 130.0, 40.0, 300.0, 1.0],
@@ -18,8 +20,9 @@ const SCHEMA := [
 	["FLIGHT", "ceiling", "Ceiling (highest it climbs)", "f", 3000.0, 400.0, 6000.0, 100.0],
 	["FLIGHT", "clearance", "Ground clearance (lowest it skims)", "f", 4.0, 2.0, 80.0, 1.0],
 	["FLIGHT", "wingmen", "Wingmen", "f", 1.0, 0.0, 3.0, 1.0],
-	["FLIGHT", "scheme", "Controls", "c", 0, ["aim_scheme", "stick_scheme"]],
-	["FLIGHT", "aim_sens", "Aim sensitivity", "f", 1.0, 0.4, 2.0, 0.05],
+	["FLIGHT", "scheme", "Controls", "c", 0, ["aim_joy", "aim_swipe", "stick_scheme"]],
+	["FLIGHT", "aim_speed", "Aim speed (joystick)", "f", 1.0, 0.4, 2.0, 0.05],
+	["FLIGHT", "aim_sens", "Swipe sensitivity", "f", 1.0, 0.4, 2.0, 0.05],
 	["FLIGHT", "invert", "Invert climb/dive (drag up climbs)", "b", false],
 	["FLIGHT", "crashes", "Crashes (dive into the ground to eject)", "b", true],
 	["FLIGHT FEEL (DEBUG)", "assist", "Turn assist (0 = simulator)", "f", 0.7, 0.0, 1.0, 0.05],
@@ -30,10 +33,8 @@ const SCHEMA := [
 	["COMBAT", "missiles", "Missiles before a reload", "f", 6.0, 1.0, 20.0, 1.0],
 	["COMBAT", "reload", "Reload time (seconds)", "f", 5.0, 1.0, 15.0, 0.5],
 	["COMBAT", "enemy_jets", "Enemy jets", "f", 3.0, 0.0, 8.0, 1.0],
-	["CAMERA", "view", "View", "c", 1, ["top", "chase", "cockpit"]],
 	["CAMERA", "view_change", "View change (seconds)", "f", 1.4, 0.3, 3.0, 0.1],
-	["CAMERA", "overhead_follow", "Overhead: turn with the jet", "f", 0.6, 0.0, 1.0, 0.05],
-	["CAMERA", "chase_dist", "Chase: distance (jet lengths)", "f", 2.6, 1.5, 6.0, 0.1],
+	["CAMERA", "chase_dist", "Chase: distance (jet lengths)", "f", CHASE_DIST, 0.5, 6.0, 0.05],
 	["CAMERA", "chase_height", "Chase: height (degrees)", "f", 25.0, 5.0, 60.0, 1.0],
 	["WORLD", "time", "Time of day", "c", 0, ["day", "sunset", "night"]],
 	["WORLD", "day_cycle", "Day/night cycle", "b", false],
@@ -96,7 +97,8 @@ const PLAYER := [
 	["SOUND", "volume", "Sound volume"],
 	["SOUND", "music", "Music volume"],
 	["CONTROLS", "scheme", "Controls"],
-	["CONTROLS", "aim_sens", "Aim sensitivity"],
+	["CONTROLS", "aim_speed", "Aim speed (joystick)"],
+	["CONTROLS", "aim_sens", "Swipe sensitivity"],
 	["CONTROLS", "invert", "Invert climb / dive"],
 	["CONTROLS", "stick_indicator", "Stick indicator"],
 	["CONTROLS", "vibration", "Vibration"],

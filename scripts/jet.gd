@@ -325,6 +325,7 @@ func _stick() -> Vector2:
 	if brain != null:
 		return in_stick
 	if aim_mode():
+		controls.nose_dir = forward3()
 		if steer_home:
 			# border: the aim swings back towards the battle area
 			var home := Vector3(-position.x, 0.0, -position.z).normalized()

@@ -419,8 +419,8 @@ Drag the lever on the right edge; the top zone is afterburner,Drag the lever on 
 Double tap anywhere free,Double tap anywhere free,Подвійний дотик у вільному місці
 Hold FIRE,Hold FIRE,Тримайте ВОГОНЬ
 LOOK AROUND,LOOK AROUND,ОЗИРНУТИСЯ
-"In the cockpit hold the eye and drag","In the cockpit hold the eye and drag","У кабіні затисніть око й ведіть пальцем"
-"Hold Q / E, or drag with the middle mouse button","Hold Q / E, or drag with the middle mouse button","Затисніть Q / E або ведіть середньою кнопкою миші"
+In the cockpit hold the eye and drag,In the cockpit hold the eye and drag,У кабіні затисніть око й ведіть пальцем
+"Hold Q / E, or drag with the middle mouse button","Hold Q / E, or drag with the middle mouse button",Затисніть Q / E або ведіть середньою кнопкою миші
 Graphics quality,Graphics quality,Якість графіки
 q_low,low,низька
 q_medium,medium,середня
@@ -435,7 +435,7 @@ GRAPHICS,GRAPHICS,ГРАФІКА
 CONTROLS,CONTROLS,КЕРУВАННЯ
 Controls,Controls,Керування
 aim_scheme,Aim (War Thunder style),Приціл (як у War Thunder)
-stick_scheme,Stick (classic),Ручка (класика)
+stick_scheme,Classic stick,Класична ручка
 Aim sensitivity,Aim sensitivity,Чутливість прицілу
 Drag on the LEFT to move the aim circle - the plane follows it,Drag on the LEFT to move the aim circle - the plane follows it,"Ведіть пальцем ЛІВОРУЧ, щоб рухати коло прицілу — літак летить за ним"
 Move the aim UP to climb,Move the aim UP to climb,"Підніміть приціл ВГОРУ, щоб набрати висоту"
@@ -464,3 +464,15 @@ T / G or the mouse wheel,T / G or the mouse wheel,T / G або коліщатк�
 Evade %d missiles by maneuvering,Evade %d missiles by maneuvering,Ухилитися маневром від ракет: %d
 Decoy %d missiles with flares,Decoy %d missiles with flares,Відвести пастками ракет: %d
 Fly %d loops,Fly %d loops,Петлі: %d
+aim_joy,Aim + joystick,Приціл + джойстик
+aim_swipe,Aim + swipe,Приціл + свайп
+Aim speed (joystick),Aim speed (joystick),Швидкість прицілу (джойстик)
+Swipe sensitivity,Swipe sensitivity,Чутливість свайпу
+"Hold the joystick on the LEFT: the aim circle moves, the plane follows it","Hold the joystick on the LEFT: the aim circle moves, the plane follows it","Тримайте джойстик ЛІВОРУЧ: коло прицілу рухається, літак летить за ним"
+Push the joystick UP to climb,Push the joystick UP to climb,Джойстик ВГОРУ — набір висоти
+Push the joystick DOWN to dive,Push the joystick DOWN to dive,Джойстик ВНИЗ — зниження
+AIM BY SWIPE,AIM BY SWIPE,ПРИЦІЛ СВАЙПОМ
+"Hold the floating joystick on the left: the circle keeps moving, further = faster","Hold the floating joystick on the left: the circle keeps moving, further = faster","Тримайте плаваючий джойстик ліворуч: коло рухається, далі — швидше"
+Settings: Controls - Aim + swipe drags the circle like a trackpad,Settings: Controls - Aim + swipe drags the circle like a trackpad,"Налаштування: Керування — Приціл + свайп рухає коло, як тачпад"
+Settings: Controls - Classic stick puts a stick on the left half,Settings: Controls - Classic stick puts a stick on the left half,Налаштування: Керування — Класична ручка ставить ручку ліворуч
+VIEW: chase or cockpit,VIEW: chase or cockpit,ВИД: ззаду або з кабіни

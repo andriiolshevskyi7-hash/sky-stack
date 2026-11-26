@@ -382,8 +382,9 @@ func test_touch(main: Node) -> void:
 	await _frames(2)
 	check(main.jet.flares == 3, "double tap releases flares (%d)" % main.jet.flares)
 	check(main.jet.man == Jet.M_NONE, "no barrel roll any more")
-	# --- aim scheme: the left half is a trackpad for the aim circle
+	# --- aim + swipe: the left half is a trackpad for the aim circle
 	c.scheme = Controls.AIM
+	c.aim_joy = false
 	main.jet.set_attitude(main.jet.yaw)
 	c.set_aim(main.jet.forward3())
 	var a0: Vector3 = c.aim_dir
@@ -401,6 +402,32 @@ func test_touch(main: Node) -> void:
 	check(c.aim_dir.distance_to(a1) < 0.01, "the aim stays where it was left")
 	check(c.stick == Vector2.ZERO and not c.dragging, "no stick in the aim scheme")
 	check(main.jet.aim_mode(), "player plane flies with the instructor")
+	# --- aim + joystick (default): holding it keeps moving the aim
+	c.aim_joy = true
+	main.jet.set_attitude(main.jet.yaw)
+	c.set_aim(main.jet.forward3())
+	var j0: Vector3 = c.aim_dir
+	_touch(jp, true, 1)
+	await _frames(1)
+	_drag(jp + Vector2(c.drag_radius * 0.15, 0), 1)
+	await get_tree().create_timer(0.2).timeout
+	var j_slow: float = j0.angle_to(c.aim_dir)
+	_drag(jp + Vector2(c.drag_radius, 0), 1)
+	var jy0 := atan2(-c.aim_dir.x, -c.aim_dir.z)
+	await get_tree().create_timer(0.2).timeout
+	var jy1 := atan2(-c.aim_dir.x, -c.aim_dir.z)
+	await get_tree().create_timer(0.2).timeout
+	var jy2 := atan2(-c.aim_dir.x, -c.aim_dir.z)
+	var step1 := absf(wrapf(jy1 - jy0, -PI, PI))
+	var step2 := absf(wrapf(jy2 - jy1, -PI, PI))
+	check(c.dragging and step1 > 0.02 and step2 > 0.02, "joystick held right keeps moving the aim (%.3f, %.3f rad)" % [step1, step2])
+	check(j_slow < step1 * 0.5, "small deflection moves the aim slowly (%.3f vs %.3f)" % [j_slow, step1])
+	check(c.nose_dir == Vector3.INF or c.nose_dir.angle_to(c.aim_dir) <= Controls.AIM_LEAD_MAX + 0.01, "the aim never runs too far ahead of the nose")
+	_touch(jp + Vector2(c.drag_radius, 0), false, 1)
+	await _frames(2)
+	var jr: Vector3 = c.aim_dir
+	await get_tree().create_timer(0.2).timeout
+	check(c.aim_dir.distance_to(jr) < 0.001 and not c.dragging, "released joystick: the aim circle stops")
 	c.set_aim(main.jet.forward3())
 	# LOOP
 	main.jet.man = Jet.M_NONE
@@ -418,6 +445,11 @@ func test_touch(main: Node) -> void:
 	_touch(c.button_center("view"), false)
 	await _frames(2)
 	check(main.cam.mode != mode_before, "VIEW button cycles the view")
+	var seen := {}
+	for k in 4:
+		main.cam.cycle_mode()
+		seen[main.cam.mode] = true
+	check(seen.size() == 2 and seen.has(GameCamera.Mode.CHASE) and seen.has(GameCamera.Mode.COCKPIT), "VIEW toggles only chase <-> cockpit (no top-down view)")
 	main.cam.mode = mode_before
 	# drag in the free area on the right = look around (cockpit and chase),
 	# springs back on release; the view does not change

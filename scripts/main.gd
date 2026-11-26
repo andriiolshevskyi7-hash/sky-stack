@@ -77,7 +77,7 @@ var popups: Array = [] # [world pos, text, age]
 var _hitstop_until := 0
 var _aa_fail := 0
 var rng := RandomNumberGenerator.new()
-# --shot=<file.png> --frames=<n> [--play] [--cam=0..2] [--time=0..1]: debug screenshots
+# --shot=<file.png> --frames=<n> [--play] [--cam=1..2] [--time=0..1]: debug screenshots
 var _shot_path := ""
 var _shot_frames := 0
 var _frame := 0
@@ -325,6 +325,9 @@ func _parse_args() -> void:
 			_stick_demo = true
 		elif a == "--fight":
 			_fight_test = true
+		elif a.begins_with("--chase="):
+			Save.settings["chase_dist"] = float(a.substr(8))
+			apply_settings("")
 		elif a == "--aimdemo":
 			_aim_demo = true
 		elif a.begins_with("--team="):
@@ -526,14 +529,13 @@ func _process(delta: float) -> void:
 	pv.post_mat.set_shader_parameter("stage_alpha", _stage_a)
 	pv.world_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED if _stage_a >= 1.0 else SubViewport.UPDATE_ALWAYS
 	pv.post_mat.set_shader_parameter("cockpit_alpha", cockpit.alpha if cockpit3d.active else 0.0)
-	chunks.radius = 2 if cam.mode == GameCamera.Mode.OVERHEAD or quality == 0 else 3
+	chunks.radius = 2 if quality == 0 else 3
 	var gf := ground_focus()
 	chunks.focus = gf
 	traffic.focus = gf
 	terrain.position = Vector3(snappedf(gf.x, 256.0), TERRAIN_Y, snappedf(gf.z, 256.0))
-	var over := cam.mode == GameCamera.Mode.OVERHEAD
-	clouds.opacity = lerpf(clouds.opacity, 0.5 if over else 1.0, 1.0 - exp(-delta * 3.0))
-	clouds.mat.set_shader_parameter("near_fade", 700.0 if over else 260.0)
+	clouds.opacity = lerpf(clouds.opacity, 1.0, 1.0 - exp(-delta * 3.0))
+	clouds.mat.set_shader_parameter("near_fade", 260.0)
 	fx.clear_columns_far(cam.focus, 900.0)
 	daynight.focus = gf
 	clouds.focus = gf
@@ -1493,7 +1495,10 @@ func apply_settings(key: String) -> void:
 	jet.invert_pitch = st["invert"]
 	missiles.max_missiles = plane_missiles()
 	missiles.reload_time = st["reload"]
-	controls.scheme = int(st["scheme"])
+	var sc := int(st["scheme"])
+	controls.scheme = Controls.STICK if sc == 2 else Controls.AIM
+	controls.aim_joy = sc == 0
+	controls.aim_speed = float(st["aim_speed"])
 	controls.aim_sens = float(st["aim_sens"])
 	if key == "missiles" or key == "":
 		missiles.ammo = missiles.max_missiles
@@ -1504,12 +1509,11 @@ func apply_settings(key: String) -> void:
 		fleet.plane_cfg[k] = st[k]
 	enemy_jets = int(st["enemy_jets"])
 	cam.transition = st["view_change"]
-	cam.overhead_follow = st["overhead_follow"]
 	cam.chase_dist = st["chase_dist"]
 	cam.chase_height = st["chase_height"]
 	cam.shake_mult = st["shake"]
 	if key == "view" or key == "":
-		cam.mode = int(st["view"]) as GameCamera.Mode
+		cam.mode = int(st.get("view", 1)) as GameCamera.Mode
 		cam._since_switch = 0.0
 	daynight.cycle = st["day_cycle"]
 	if key == "lang" or key == "":
@@ -1908,7 +1912,7 @@ func test_hook(t: Node) -> Array:
 	var pk: Array = []
 	for r in settings_ui.page_rows():
 		pk.append(r[1])
-	if pk != ["lang", "quality", "volume", "music", "scheme", "aim_sens", "invert", "stick_indicator", "vibration"]:
+	if pk != ["lang", "quality", "volume", "music", "scheme", "aim_speed", "aim_sens", "invert", "stick_indicator", "vibration"]:
 		errs.append("player settings page shows %s" % [pk])
 	settings_ui.debug_page = true
 	if settings_ui.page_rows().size() < 30:

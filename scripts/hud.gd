@@ -592,7 +592,30 @@ func _draw_touch(c: Controls) -> void:
 			"loop":
 				_icon_loop(ctr, k, col)
 	if c.dragging and c.show_indicator:
-		_draw_stick_icon(c)
+		if c.scheme == Controls.AIM:
+			_draw_aim_joystick(c)
+		else:
+			_draw_stick_icon(c)
+
+
+## Aim joystick under the thumb: a ring where the touch started and a knob
+## towards the finger; the arrow grows with the aim speed.
+func _draw_aim_joystick(c: Controls) -> void:
+	var base := c.drag_start.round()
+	var d := (c.drag_pos - c.drag_start).limit_length(c.drag_radius)
+	var knob := (base + d).round()
+	var lw := maxf(1.0, roundf(2.0 * s))
+	draw_circle(base, c.drag_radius, Color(0.06, 0.1, 0.22, 0.2))
+	draw_arc(base, c.drag_radius, 0, TAU, 48, Color(0.85, 0.92, 1.0, 0.4), lw)
+	draw_arc(base, c.drag_radius * Controls.DEAD_ZONE, 0, TAU, 16, Color(0.85, 0.92, 1.0, 0.3), lw)
+	var v := c.joy_vector()
+	if v != Vector2.ZERO:
+		var dir := v.normalized()
+		var tip := base + dir * (c.drag_radius + 6.0 * s + v.length() * 22.0 * s)
+		var perp := Vector2(-dir.y, dir.x)
+		draw_colored_polygon(PackedVector2Array([tip + dir * 12.0 * s, tip + perp * 9.0 * s, tip - perp * 9.0 * s]), Color(1, 1, 1, 0.35 + 0.5 * v.length()))
+	draw_circle(knob, 26.0 * s, Color(0.9, 0.95, 1.0, 0.35))
+	draw_arc(knob, 26.0 * s, 0, TAU, 32, Color(1, 1, 1, 0.85), lw)
 
 
 ## Control-stick icon under the thumb: base ring where the touch started, a
