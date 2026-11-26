@@ -1,0 +1,269 @@
+diff --git a/project.godot b/project.godot
+index 0e58adf..d350d94 100644
+--- a/project.godot
++++ b/project.godot
+@@ -66,6 +66,10 @@ textures/vram_compression/import_etc2_astc=true
+ 
+ [shader_globals]
+ 
++demo={
++"type": "float",
++"value": 0.0
++}
+ gfx_quality={
+ "type": "float",
+ "value": 2.0
+diff --git a/scripts/fx.gd b/scripts/fx.gd
+index 602ab32..2317bcf 100644
+--- a/scripts/fx.gd
++++ b/scripts/fx.gd
+@@ -32,6 +32,9 @@ const C_SMOKE := Color(0.45, 0.45, 0.5)
+ const C_DARK := Color(0.2, 0.2, 0.24)
+ 
+ 
++var _cam: Camera3D
++
++
+ func _ready() -> void:
+ 	pos.resize(MAX)
+ 	vel.resize(MAX)
+@@ -181,6 +184,7 @@ func clear_columns_far(c: Vector3, r: float) -> void:
+ 
+ 
+ func _process(delta: float) -> void:
++	_cam = get_viewport().get_camera_3d()
+ 	_col_t += delta
+ 	if _col_t > 0.12:
+ 		_col_t = 0.0
+@@ -260,6 +264,8 @@ func _process(delta: float) -> void:
+ 				stl = 1.0
+ 			elif k == FIRE or k == FLASH:
+ 				stl = 2.0
++		if k == TRAIL and _cam != null:
++			col.a *= clampf((pos[i].distance_to(_cam.global_position) - 70.0) / 90.0, 0.0, 1.0)
+ 		batch.push(pos[i], s, col, stl)
+ 		i += 1
+ 	batch.end()
+diff --git a/scripts/main.gd b/scripts/main.gd
+index 402f803..40f12d8 100644
+--- a/scripts/main.gd
++++ b/scripts/main.gd
+@@ -330,6 +330,16 @@ func _parse_args() -> void:
+ 			apply_settings("")
+ 		elif a == "--aimdemo":
+ 			_aim_demo = true
++		elif a.begins_with("--demo="):
++			_demo = a.substr(7)
++			var dv := {"clouds": 1.0, "speed": 2.0, "water": 3.0, "storm": 4.0, "damage": 5.0}
++			RenderingServer.global_shader_parameter_set("demo", float(dv.get(_demo, 0.0)))
++			if _demo == "clouds":
++				clouds.visible = false
++			if _demo == "storm":
++				pv.set_post("lightning", 0.35)
++		elif a.begins_with("--aimup="):
++			controls.turn_aim(0.0, float(a.substr(8)))
+ 		elif a == "--splitdemo":
+ 			_split_demo = true
+ 		elif a.begins_with("--team="):
+@@ -432,6 +442,7 @@ var _stall_warn := 0.0
+ var _was_locked := false
+ var _aim_demo := false
+ var _split_demo := false
++var _demo := ""
+ 
+ 
+ ## --fight (screenshots only): sit behind an enemy and shoot, so combat
+@@ -459,6 +470,30 @@ func _shot_tick() -> void:
+ 		controls.drag_start = Vector2(vs.x * 0.2, vs.y * 0.62)
+ 		controls.drag_pos = controls.drag_start + Vector2(0.55, 0.35) * controls.drag_radius
+ 		controls.pressed["fire"] = true
++	if _demo == "speed" and jet.alive:
++		# vapour cone around the fuselage, wingtip vortices, long contrails
++		var vb := jet.visual_basis()
++		var fwd := jet.forward3()
++		for i in 10:
++			var a := randf() * TAU
++			var r := randf_range(4.0, 9.0)
++			var o := vb * Vector3(cos(a) * r, sin(a) * r * 0.8 + 1.0, randf_range(-6.0, 2.0))
++			fx.spawn(jet.position + o, fwd * jet.speed * 0.97, randf_range(0.04, 0.09), randf_range(1.0, 1.8), Fx.TRAIL)
++		trails.width = 3.2
++		for sx in [-1.0, 1.0]:
++			fx.spawn(jet.position + vb * Vector3(2.0 * sx, 2.5, 22.0), Vector3.ZERO, 6.0, 2.4, Fx.TRAIL)
++	if _demo == "damage":
++		# a shot-down enemy: fire, thick black smoke trail, debris
++		for pl in fleet.planes:
++			if pl.alive and pl.team == 1 and pl.position.distance_to(jet.position) < 900.0:
++				var tail: Vector3 = pl.position - pl.forward3() * 8.0
++				for k in 3:
++					fx.spawn(tail + Vector3(randf_range(-2, 2), randf_range(-2, 2), randf_range(-2, 2)), Vector3(0, 4, 0), randf_range(2.5, 4.0), randf_range(3.0, 5.0), Fx.SMOKE)
++				for k in 3:
++					fx.spawn(tail + Vector3(randf_range(-1.5, 1.5), randf_range(-1, 1), randf_range(-1.5, 1.5)), -pl.forward3() * 20.0, randf_range(0.15, 0.35), randf_range(2.0, 3.5), Fx.FIRE)
++				if _frame % 12 == 0:
++					fx.debris(pl.position, 1)
++				break
+ 	if _split_demo and _frame == _shot_frames - 150 and state == State.PLAY:
+ 		# mid split-S at the shot: aim straight down and back
+ 		jet.position.y = 1500.0
+diff --git a/shaders/common.gdshaderinc b/shaders/common.gdshaderinc
+index 93ebe8f..c062b69 100644
+--- a/shaders/common.gdshaderinc
++++ b/shaders/common.gdshaderinc
+@@ -19,6 +19,7 @@ global uniform sampler2D island_tex;
+ global uniform vec3 cam_pos;
+ global uniform float fog_far;
+ global uniform vec3 fog_color;
++global uniform float demo;
+ 
+ const vec3 SHADOW_TINT = vec3(0.42, 0.55, 0.88);
+ 
+@@ -75,6 +76,12 @@ vec3 lit(vec3 col, vec3 w) {
+ vec3 fogged(vec3 col, vec3 w) {
+ 	if (fog_far <= 0.0) return col;
+ 	float d = distance(w, cam_pos);
++	if (demo > 0.5 && demo < 1.5) {
++		// aerial perspective: blue haze that builds up with distance
++		float a = 1.0 - exp(-d / (fog_far * 0.38));
++		col = mix(col, col * vec3(0.82, 0.9, 1.05), clamp(d / 1500.0, 0.0, 1.0) * 0.5);
++		return mix(col, fog_color * vec3(0.95, 0.98, 1.04), clamp(a * 0.95, 0.0, 0.95));
++	}
+ 	return mix(col, fog_color, 0.9 * smoothstep(fog_far * 0.3, fog_far, d));
+ }
+ 
+@@ -116,6 +123,23 @@ bool fade_hides(vec3 view_pos, mat4 view_m, vec2 frag) {
+ // sun glints where the sun reflects towards the camera (medium+ quality).
+ vec3 water_light(vec3 col, vec3 w, vec2 p) {
+ 	if (gfx_quality < 0.5) return col;
++	if (demo > 2.5 && demo < 3.5) {
++		// sky reflection with wave normals, wide glittering sun path
++		vec3 v = normalize(cam_pos - w);
++		vec2 q = w.xz * 0.045;
++		float wn = sin(q.x * 1.3 + TIME * 1.4) * 0.5 + sin(q.y * 1.7 - TIME * 1.1) * 0.5 + (hash12(floor(w.xz / 2.0)) - 0.5) * 0.6;
++		vec3 n = normalize(vec3(wn * 0.09, 1.0, cos(q.x * 0.9 + q.y * 1.2 + TIME) * 0.07));
++		float fres = pow(1.0 - clamp(dot(v, n), 0.0, 1.0), 3.0);
++		vec3 skyc = mix(fog_color * 1.08, fog_color * vec3(0.7, 0.85, 1.1), clamp(-reflect(-v, n).y * 0.0 + 0.3, 0.0, 1.0));
++		col = mix(col * 0.85, skyc, clamp(0.15 + fres * 0.85, 0.0, 0.9) * (1.0 - night * 0.5));
++		vec3 sd = normalize(vec3(-sun_shift.x, 1.0, -sun_shift.y));
++		vec3 r = reflect(-v, n);
++		float sp = max(dot(r, sd), 0.0);
++		float tw = step(0.55, hash12(floor(p / 2.0) + floor(TIME * 6.0)));
++		col += vec3(1.0, 0.86, 0.62) * pow(sp, 40.0) * tw * 3.0 * (1.0 - night);
++		col += vec3(1.0, 0.85, 0.65) * pow(sp, 6.0) * 0.25 * (1.0 - night);
++		return col;
++	}
+ 	vec3 v = normalize(cam_pos - w);
+ 	float fres = pow(1.0 - clamp(v.y, 0.0, 1.0), 4.0);
+ 	col = mix(col, fog_color * 1.05, fres * 0.5 * (1.0 - night * 0.5));
+diff --git a/shaders/post.gdshader b/shaders/post.gdshader
+index bdc1e6c..ff68113 100644
+--- a/shaders/post.gdshader
++++ b/shaders/post.gdshader
+@@ -17,6 +17,8 @@ uniform float dither_amount = 0.02;
+ uniform float contrast = 0.15;
+ uniform float vignette = 0.3;
+ uniform float grain = 0.25;
++
++uniform float lightning = 0.0;
+ uniform float gblack = 0.0; // G-LOC: vision tunnels and greys out
+ uniform float gred = 0.0; // negative G: red-out
+ uniform sampler2D cockpit_tex : filter_nearest; // 3D cockpit (premultiplied alpha)
+@@ -64,6 +66,18 @@ void fragment() {
+ 	float lum = dot(c, vec3(0.299, 0.587, 0.114));
+ 	c = mix(vec3(lum), c, 1.0 + contrast);
+ 	c = (c - 0.5) * (1.0 + contrast * 0.8) + 0.5;
++	if (demo > 3.5 && demo < 4.5) {
++		// storm: dark wet grade, rain streaks, lightning
++		float l = dot(c, vec3(0.299, 0.587, 0.114));
++		c = mix(vec3(l), c, 0.45) * vec3(0.62, 0.68, 0.78);
++		c = mix(c, vec3(0.42, 0.46, 0.52), 0.25 * (1.0 - UV.y));
++		vec2 rp = FRAGCOORD.xy;
++		float col_i = floor((rp.x + rp.y * 0.22) / 2.0);
++		float seg = floor(rp.y / 9.0 + TIME * 22.0 + hash12(vec2(col_i, 3.0)) * 50.0);
++		float drop = step(0.93, hash12(vec2(col_i, seg)));
++		c = mix(c, vec3(0.78, 0.82, 0.9), drop * 0.45);
++		c += vec3(0.85, 0.88, 1.0) * lightning * (0.6 + 0.4 * (1.0 - UV.y));
++	}
+ 	vec2 vq = UV * 2.0 - 1.0;
+ 	c *= 1.0 - vignette * 0.55 * smoothstep(0.35, 1.6, dot(vq, vq));
+ 	c += (hash12(FRAGCOORD.xy + fract(TIME * 7.13) * vec2(91.7, 53.3)) - 0.5) * grain * 0.1;
+diff --git a/shaders/sky.gdshader b/shaders/sky.gdshader
+index 7091839..78bc6d4 100644
+--- a/shaders/sky.gdshader
++++ b/shaders/sky.gdshader
+@@ -9,6 +9,38 @@ uniform float night = 0.0;
+ uniform float sun_amount = 1.0;
+ uniform vec3 sun_dir = vec3(-0.5, 0.5, -0.7);
+ uniform vec3 moon_dir = vec3(0.45, 0.45, -0.75);
++global uniform float demo;
++
++float h3(vec3 p) {
++	p = fract(p * 0.3183099 + 0.1);
++	p *= 17.0;
++	return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
++}
++float n3(vec3 x) {
++	vec3 i = floor(x);
++	vec3 f = fract(x);
++	f = f * f * (3.0 - 2.0 * f);
++	return mix(mix(mix(h3(i), h3(i + vec3(1, 0, 0)), f.x), mix(h3(i + vec3(0, 1, 0)), h3(i + vec3(1, 1, 0)), f.x), f.y),
++		mix(mix(h3(i + vec3(0, 0, 1)), h3(i + vec3(1, 0, 1)), f.x), mix(h3(i + vec3(0, 1, 1)), h3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
++}
++float fbm(vec3 p) {
++	float a = 0.5;
++	float v = 0.0;
++	for (int i = 0; i < 5; i++) {
++		v += a * n3(p);
++		p = p * 2.03 + vec3(1.7, 9.2, 3.1);
++		a *= 0.5;
++	}
++	return v;
++}
++float cdens(vec3 p) {
++	float h = clamp((p.y - 1100.0) / 900.0, 0.0, 1.0);
++	// flat bases, rounded tops (cumulus)
++	float shape = smoothstep(0.0, 0.06, h) * smoothstep(1.0, 0.3, h);
++	float cov = n3(p * 0.00035);
++	float n = fbm(p * vec3(0.0016, 0.0022, 0.0016));
++	return clamp((n - 0.6 + cov * 0.16 - (1.0 - shape) * 0.3) * 5.0, 0.0, 1.0);
++}
+ 
+ void sky() {
+ 	vec3 d = EYEDIR;
+@@ -30,5 +62,38 @@ void sky() {
+ 	float sd = dot(d, normalize(sun_dir));
+ 	c += vec3(1.0, 0.75, 0.45) * pow(max(sd, 0.0), 120.0) * sun_amount * 0.6;
+ 	if (sd > 0.9993) c = mix(c, vec3(1.0, 0.95, 0.8), sun_amount);
++	if (demo > 0.5 && demo < 1.5) {
++		// atmosphere: deeper blue overhead, bright hazy band and a wide
++		// sun halo (Mie)
++		c = mix(c, c * vec3(0.78, 0.9, 1.12), smoothstep(0.1, 0.8, y));
++		c += vec3(1.0, 0.85, 0.65) * pow(max(sd, 0.0), 6.0) * 0.1 * sun_amount;
++		c += vec3(0.9, 0.95, 1.0) * exp(-abs(y) * 14.0) * 0.05;
++		// volumetric clouds: ray-march a cloud layer 700..1600 m
++		if (d.y > 0.02) {
++			float t0 = max((1100.0 - POSITION.y) / d.y, 0.0);
++			float t1 = min((2000.0 - POSITION.y) / d.y, t0 + 6000.0);
++			float tr = 1.0;
++			vec3 acc = vec3(0.0);
++			vec3 sdn = normalize(sun_dir);
++			float stp = (t1 - t0) / 40.0;
++			for (int i = 0; i < 40; i++) {
++				if (tr < 0.02) break;
++				vec3 p = POSITION + d * (t0 + (float(i) + 0.5) * stp);
++				float den = cdens(p);
++				if (den > 0.01) {
++					float ls = cdens(p + sdn * 90.0) + cdens(p + sdn * 260.0) * 0.6;
++					float light = exp(-ls * 2.2);
++					float hgt = clamp((p.y - 1100.0) / 900.0, 0.0, 1.0);
++					vec3 col = mix(vec3(0.62, 0.68, 0.8), vec3(1.05, 1.02, 0.97), light) * (0.85 + 0.25 * hgt);
++					col += vec3(1.0, 0.8, 0.6) * pow(max(sd, 0.0), 4.0) * light * 0.35;
++					float a = 1.0 - exp(-den * stp * 0.02);
++					acc += col * a * tr;
++					tr *= 1.0 - a;
++				}
++			}
++			float far = smoothstep(6000.0, 18000.0, t0);
++			c = mix(c * tr + acc, c, far);
++		}
++	}
+ 	COLOR = c;
+ }
