@@ -10,6 +10,7 @@ uniform sampler2D palette : filter_nearest;
 uniform int palette_size = 32;
 uniform float palette_mix = 1.0;
 uniform float bloom = 0.9;
+uniform float res_k = 1.0; // render height / 336: effects keep their screen size
 uniform float threshold = 0.8;
 uniform float fog = 0.0;
 uniform float flash = 0.0;
@@ -39,9 +40,9 @@ void fragment() {
 	for (int i = 0; i < 8; i++) {
 		float a = float(i) * 0.785398;
 		vec2 d = vec2(cos(a), sin(a));
-		b += bright(UV + d * 1.5 * px) * 0.10;
-		b += bright(UV + d.yx * vec2(1.0, -1.0) * 3.5 * px) * 0.06;
-		b += bright(UV + d * 6.0 * px) * 0.035;
+		b += bright(UV + d * 1.5 * res_k * px) * 0.10;
+		b += bright(UV + d.yx * vec2(1.0, -1.0) * 3.5 * res_k * px) * 0.06;
+		b += bright(UV + d * 6.0 * res_k * px) * 0.035;
 	}
 	c += b * bloom;
 	float bay = bayer4(FRAGCOORD.xy);

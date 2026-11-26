@@ -5,6 +5,9 @@ extends Node
 ## by collapsed building stacks and the ground tile atlas.
 
 const ATLAS_W := 1024
+## HD voxel: texels per art pixel in the prop / vehicle / tree atlas (the
+## packing, UVs and mesh sizes stay in art pixels).
+const TEX_K := 2
 const PAD := 1
 const OVERRIDE_DIR := "res://assets/stacks/"
 
@@ -42,7 +45,8 @@ var sheets := {}
 var atlas_size := Vector2i(ATLAS_W, 256)
 ## Second atlas: one row of 16 slices per plane of the aircraft tree, holding
 ## MATERIAL indices; skins are rows of the palette texture (see PlaneArt).
-const PLANE_ATLAS := Vector2i(1024, 1024)
+## Plane index atlas: one row of D slices per plane (HD: 32 x 128 px wide).
+const PLANE_ATLAS := Vector2i(PlaneArt.W * PlaneArt.D, 2048)
 var plane_atlas_tex: ImageTexture
 var plane_palette_tex: ImageTexture
 var plane_albedo := {} # plane index -> Image (slice strip, for shadows)
@@ -99,7 +103,74 @@ func _try_load_png(path: String) -> Image:
 	return img
 
 
+func _sheet_cache_path(emit: bool) -> String:
+	var key := "%d_%d_%d" % [SheetGen.VERSION, TEX_K, absi(hash(var_to_str(SheetGen.DEFS)))]
+	return "user://cache/sheets_%s%s.png" % [key, "_e" if emit else ""]
+
+
+## The cached HD atlas pair, or [] (overrides in assets/stacks skip the cache).
+func _load_sheet_cache() -> Array:
+	if OS.get_cmdline_user_args().has("--no-sheet-cache"):
+		return []
+	for n in SheetGen.DEFS:
+		if ResourceLoader.exists(OVERRIDE_DIR + n + ".png"):
+			return []
+	var pa := _sheet_cache_path(false)
+	var pe := _sheet_cache_path(true)
+	if not FileAccess.file_exists(pa) or not FileAccess.file_exists(pe):
+		return []
+	var a := Image.load_from_file(pa)
+	var e := Image.load_from_file(pe)
+	if a == null or e == null:
+		return []
+	a.convert(Image.FORMAT_RGBA8)
+	e.convert(Image.FORMAT_RGBA8)
+	return [a, e]
+
+
+func _save_sheet_cache(a: Image, e: Image) -> void:
+	DirAccess.make_dir_recursive_absolute("user://cache")
+	var dir := DirAccess.open("user://cache")
+	if dir != null:
+		for f in dir.get_files():
+			if f.begins_with("sheets_"):
+				dir.remove(f)
+	a.save_png(_sheet_cache_path(false))
+	e.save_png(_sheet_cache_path(true))
+
+
 func _build_sheets() -> void:
+	var cached := _load_sheet_cache()
+	if not cached.is_empty():
+		for sheet_name in SheetGen.DEFS:
+			var d: Array = SheetGen.DEFS[sheet_name]
+			var sh := Sheet.new()
+			sh.name = sheet_name
+			sh.w = d[0]
+			sh.h = d[1]
+			sh.n = d[2]
+			sh.v = d[3]
+			sheets[sheet_name] = sh
+		_pack()
+		if (cached[0] as Image).get_size() == atlas_size * TEX_K:
+			for sheet_name in sheets:
+				var sh: Sheet = sheets[sheet_name]
+				sh.uv_rects.clear()
+				for vi in sh.v:
+					for s in sh.n:
+						sh.uv_rects.append(slice_uv(sh, s, vi))
+			atlas_tex = ImageTexture.create_from_image(cached[0])
+			emit_tex = ImageTexture.create_from_image(cached[1])
+			var jsh: Sheet = sheets["jet"]
+			var strip := Image.create(jsh.w * jsh.n, jsh.h, false, Image.FORMAT_RGBA8)
+			for s in jsh.n:
+				var cell := Image.create(jsh.w * TEX_K, jsh.h * TEX_K, false, Image.FORMAT_RGBA8)
+				cell.blit_rect(cached[0], Rect2i(jsh.cell(s, 0) * TEX_K, Vector2i(jsh.w, jsh.h) * TEX_K), Vector2i.ZERO)
+				cell.resize(jsh.w, jsh.h, Image.INTERPOLATE_NEAREST)
+				strip.blit_rect(cell, Rect2i(0, 0, jsh.w, jsh.h), Vector2i(s * jsh.w, 0))
+			_build_jet_shadow(strip, jsh)
+			return
+		sheets.clear()
 	var gen := SheetGen.new()
 	var albedo_imgs := {} # name -> Array[Image] per variant
 	var emit_imgs := {}
@@ -125,6 +196,8 @@ func _build_sheets() -> void:
 				var vimg := _try_load_png(OVERRIDE_DIR + "%s_%d.png" % [sheet_name, vi])
 				if vimg == null or vimg.get_size() != base.get_size():
 					vimg = base
+				vimg = vimg.duplicate()
+				vimg.resize(vimg.get_width() * TEX_K, vimg.get_height() * TEX_K, Image.INTERPOLATE_NEAREST)
 				alb.append(vimg)
 				var e := Image.create(base.get_width(), base.get_height(), false, Image.FORMAT_RGBA8)
 				if base_emit != null and base_emit.get_size() == base.get_size():
@@ -134,15 +207,17 @@ func _build_sheets() -> void:
 							var c := base_emit.get_pixel(x, y)
 							if c.a > 0.5 and (c.r + c.g + c.b) > 0.05:
 								e.set_pixel(x, y, Color(c.r, c.g, c.b, Painter.EM_ALWAYS))
+				e.resize(e.get_width() * TEX_K, e.get_height() * TEX_K, Image.INTERPOLATE_NEAREST)
 				emi.append(e)
 		else:
 			for vi in sh.v:
-				var a := Image.create(sh.w * sh.n, sh.h, false, Image.FORMAT_RGBA8)
-				var e := Image.create(sh.w * sh.n, sh.h, false, Image.FORMAT_RGBA8)
-				var p := Painter.new(a, e, sh.w, sh.h)
+				var a := Image.create(sh.w * sh.n * TEX_K, sh.h * TEX_K, false, Image.FORMAT_RGBA8)
+				var e := Image.create(sh.w * sh.n * TEX_K, sh.h * TEX_K, false, Image.FORMAT_RGBA8)
+				var p := Painter.new(a, e, sh.w, sh.h, TEX_K)
 				for s in sh.n:
 					p.ox = s * sh.w
 					gen.call(d[4], p, s, vi)
+				Painter.detail(a, e, sh.w * TEX_K)
 				alb.append(a)
 				emi.append(e)
 		albedo_imgs[sheet_name] = alb
@@ -155,21 +230,29 @@ func _build_sheets() -> void:
 		for vi in sh.v:
 			for s in sh.n:
 				sh.uv_rects.append(slice_uv(sh, s, vi))
-	var atlas := Image.create(atlas_size.x, atlas_size.y, false, Image.FORMAT_RGBA8)
-	var eatlas := Image.create(atlas_size.x, atlas_size.y, false, Image.FORMAT_RGBA8)
+	var atlas := Image.create(atlas_size.x * TEX_K, atlas_size.y * TEX_K, false, Image.FORMAT_RGBA8)
+	var eatlas := Image.create(atlas_size.x * TEX_K, atlas_size.y * TEX_K, false, Image.FORMAT_RGBA8)
 	for sheet_name in sheets:
 		var sh: Sheet = sheets[sheet_name]
 		for vi in sh.v:
 			var a: Image = albedo_imgs[sheet_name][vi]
 			var e: Image = emit_imgs[sheet_name][vi]
 			for s in sh.n:
-				var src := Rect2i(s * sh.w, 0, sh.w, sh.h)
-				var dst := sh.cell(s, vi)
+				var src := Rect2i(s * sh.w * TEX_K, 0, sh.w * TEX_K, sh.h * TEX_K)
+				var dst := sh.cell(s, vi) * TEX_K
 				atlas.blit_rect(a, src, dst)
 				eatlas.blit_rect(e, src, dst)
 	atlas_tex = ImageTexture.create_from_image(atlas)
 	emit_tex = ImageTexture.create_from_image(eatlas)
-	_build_jet_shadow(albedo_imgs["jet"][0], sheets["jet"])
+	var overridden := false
+	for sheet_name in sheets:
+		overridden = overridden or (sheets[sheet_name] as Sheet).overridden
+	if not overridden and not OS.get_cmdline_user_args().has("--no-sheet-cache"):
+		_save_sheet_cache(atlas, eatlas)
+	# the classic jet sheet only seeds the shadow until the player's plane is set
+	var js: Image = albedo_imgs["jet"][0].duplicate()
+	js.resize(sheets["jet"].w * sheets["jet"].n, sheets["jet"].h, Image.INTERPOLATE_NEAREST)
+	_build_jet_shadow(js, sheets["jet"])
 
 
 func _pack() -> void:
@@ -245,13 +328,26 @@ func set_player_shadow(plane: int) -> void:
 
 
 func _build_jet_shadow(img: Image, sh: Sheet) -> void:
-	var s := Image.create(sh.w, sh.h, false, Image.FORMAT_RGBA8)
+	# silhouette = union of all slices (alpha channel), on raw bytes: the HD
+	# plane has 32 slices of 128 x 128
+	var src := img.duplicate() as Image
+	src.convert(Image.FORMAT_RGBA8)
+	var a := src.get_data()
+	var iw := src.get_width()
+	var out := PackedByteArray()
+	out.resize(sh.w * sh.h * 4)
+	out.fill(0)
 	for i in sh.n:
+		var x0 := i * sh.w
+		if x0 + sh.w > iw:
+			break
 		for y in sh.h:
+			var row := (y * iw + x0) * 4 + 3
+			var orow := y * sh.w * 4
 			for x in sh.w:
-				if img.get_pixel(i * sh.w + x, y).a > 0.5:
-					s.set_pixel(x, y, Color(0, 0, 0, 1))
-	jet_shadow_tex = ImageTexture.create_from_image(s)
+				if a[row + x * 4] > 127:
+					out[orow + x * 4 + 3] = 255
+	jet_shadow_tex = ImageTexture.create_from_image(Image.create_from_data(sh.w, sh.h, false, Image.FORMAT_RGBA8, out))
 
 
 func get_sheet(sheet_name: String) -> Sheet:
@@ -338,11 +434,37 @@ func roof_uv(style: int) -> Vector2:
 	return Vector2(float(style * FT) / FACADE_W, float(ROOF_ROW) / FACADE_H)
 
 
+## HD voxel: the facade / roof atlas is painted FK times finer than its
+## layout (FACADE_W x FACADE_H art pixels, so UVs are unchanged): one-texel
+## window frames, mullions, sills and lintels, bonded brick courses, fine
+## sheet ribs, roof seams and grain.
+const FK := 2
+
+
+func _fr(img: Image, x: int, y: int, w: int, h: int, c: Color) -> void:
+	img.fill_rect(Rect2i(x * FK, y * FK, w * FK, h * FK), c)
+
+
+## Fill in fine texels (x, y, w, h already in texels).
+func _ft(img: Image, x: int, y: int, w: int, h: int, c: Color) -> void:
+	if w > 0 and h > 0:
+		img.fill_rect(Rect2i(x, y, w, h), c)
+
+
+## Random fine-texel specks inside an art-pixel rect.
+func _specks(img: Image, rng: RandomNumberGenerator, x: int, y: int, w: int, h: int, n: int, dark: float, light: float) -> void:
+	for i in n:
+		var tx := x * FK + rng.randi_range(0, w * FK - 1)
+		var ty := y * FK + rng.randi_range(0, h * FK - 1)
+		var c := img.get_pixel(tx, ty)
+		img.set_pixel(tx, ty, c.darkened(dark) if i % 2 == 0 else c.lightened(light))
+
+
 func _build_facades() -> void:
-	# 64x48 tiles = 4 window bays x 4 floors, 16x12 px per window cell:
-	# frames, sills, floor ledges, brick courses, corrugated sheet...
-	var img := Image.create(FACADE_W, FACADE_H, false, Image.FORMAT_RGBA8)
-	var em := Image.create(FACADE_W, FACADE_H, false, Image.FORMAT_RGBA8)
+	# 64x48 tiles = 4 window bays x 4 floors, 16x12 art px per window cell
+	# (32x24 texels at HD)
+	var img := Image.create(FACADE_W * FK, FACADE_H * FK, false, Image.FORMAT_RGBA8)
+	var em := Image.create(FACADE_W * FK, FACADE_H * FK, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
 	# [wall, glass, win_x, win_y, win_w, win_h, frame, kind]  kind: 0 punched, 1 curtain wall, 2 brick
@@ -368,89 +490,122 @@ func _build_facades() -> void:
 		var st: Array = styles[si]
 		var ox := (si % 8) * FT
 		var oy := (si / 8) * FH
+		var tx0 := ox * FK
+		var ty0 := oy * FK
+		var tw := FT * FK
+		var th := FH * FK
 		var wall := Pal.c(st[0])
 		# calm facades: frames sit close to the wall colour, low contrast
 		var frame := Pal.c(st[6]).lerp(wall, 0.55)
-		img.fill_rect(Rect2i(ox, oy, FT, FH), wall)
+		_fr(img, ox, oy, FT, FH, wall)
 		var kind: int = st[7]
 		match kind:
 			2:
-				# brick courses
-				for y in range(0, FH, 3):
-					img.fill_rect(Rect2i(ox, oy + y, FT, 1), wall.darkened(0.06))
+				# bonded brick: 3-texel courses, staggered head joints
+				for ty in range(0, th, 3):
+					_ft(img, tx0, ty0 + ty, tw, 1, wall.darkened(0.07))
+					var off := 0 if (ty / 3) % 2 == 0 else 4
+					for tx in range(off, tw, 8):
+						_ft(img, tx0 + tx, ty0 + ty + 1, 1, 2, wall.darkened(0.05))
+				_specks(img, rng, ox, oy, FT, FH, 160, 0.06, 0.05)
 			3:
-				# corrugated sheet
-				for x in range(0, FT, 8):
-					img.fill_rect(Rect2i(ox + x, oy, 1, FH), wall.darkened(0.08))
-					img.fill_rect(Rect2i(ox + x + 1, oy, 1, FH), wall.lightened(0.05))
+				# corrugated sheet: fine ribs, light crest / dark trough
+				for tx in range(0, tw, 6):
+					_ft(img, tx0 + tx, ty0, 1, th, wall.darkened(0.09))
+					_ft(img, tx0 + tx + 2, ty0, 1, th, wall.lightened(0.05))
+				# panel seams every floor
+				for ty in range(0, th, 24):
+					_ft(img, tx0, ty0 + ty, tw, 1, wall.darkened(0.12))
 				if si == 5:
 					for x in range(4, FT, 16):
-						img.fill_rect(Rect2i(ox + x, oy + 2, 8, 4), Pal.c(Pal.STEEL))
-						em.fill_rect(Rect2i(ox + x, oy + 2, 8, 4), Color(1, 0, 0, 1))
+						_fr(img, ox + x, oy + 2, 8, 4, Pal.c(Pal.STEEL))
+						_ft(img, (ox + x) * FK, (oy + 2) * FK, 8 * FK, 1, Pal.c(Pal.STEEL).lightened(0.15))
+						_fr(em, ox + x, oy + 2, 8, 4, Color(1, 0, 0, 1))
 			4:
-				# stadium: pillars + red band
+				# stadium: pillars with a lit edge + red band
 				for x in range(0, FT, 16):
-					img.fill_rect(Rect2i(ox + x, oy, 4, FH), Pal.c(Pal.GRAY))
-					img.fill_rect(Rect2i(ox + x, oy, 1, FH), Pal.c(Pal.WHITE))
-				img.fill_rect(Rect2i(ox, oy, FT, 4), Pal.c(Pal.RED))
-				img.fill_rect(Rect2i(ox, oy + 24, FT, 2), Pal.c(Pal.GRAY))
+					_fr(img, ox + x, oy, 4, FH, Pal.c(Pal.GRAY))
+					_ft(img, (ox + x) * FK, ty0, 1, th, Pal.c(Pal.WHITE))
+					_ft(img, (ox + x + 4) * FK - 1, ty0, 1, th, Pal.c(Pal.GRAY).darkened(0.2))
+				_fr(img, ox, oy, FT, 4, Pal.c(Pal.RED))
+				_ft(img, tx0, ty0 + 4 * FK - 1, tw, 1, Pal.c(Pal.RED).darkened(0.3))
+				_fr(img, ox, oy + 24, FT, 2, Pal.c(Pal.GRAY))
 			5:
-				for i in 300:
-					img.set_pixel(ox + rng.randi_range(0, FT - 1), oy + rng.randi_range(0, FH - 1), Pal.c([Pal.BROWN_D, Pal.CHAR, Pal.GRAY][i % 3]))
+				for i in 900:
+					img.set_pixel(tx0 + rng.randi_range(0, tw - 1), ty0 + rng.randi_range(0, th - 1), Pal.c([Pal.BROWN_D, Pal.CHAR, Pal.GRAY][i % 3]))
+			_:
+				_specks(img, rng, ox, oy, FT, FH, 120, 0.04, 0.04)
 		if st[1] != -1:
 			var glass := Pal.c(st[1]).lerp(wall, 0.3)
 			for fy in 4:
 				for bx in 4:
 					var cx := ox + bx * 16
 					var cy := oy + fy * 12
-					var r := Rect2i(cx + st[2], cy + st[3], st[4], st[5])
+					var r := Rect2i((cx + st[2]) * FK, (cy + st[3]) * FK, st[4] * FK, st[5] * FK)
 					if kind != 1:
+						# frame (one texel), lintel shadow above, sill below
 						img.fill_rect(r.grow(1), frame)
+						_ft(img, r.position.x - 1, r.position.y - 2, r.size.x + 2, 1, wall.darkened(0.1))
+						_ft(img, r.position.x - 2, r.end.y + 1, r.size.x + 4, 1, wall.lightened(0.12))
+						_ft(img, r.position.x - 2, r.end.y + 2, r.size.x + 4, 1, wall.darkened(0.1))
 					img.fill_rect(r, glass)
 					em.fill_rect(r, Color(1, 0, 0, 1))
 					# one soft sky reflection on the upper part of the pane
-					img.fill_rect(Rect2i(r.position.x, r.position.y, r.size.x, maxi(1, r.size.y / 3)), glass.lightened(0.06))
-				# floor ledge
-				img.fill_rect(Rect2i(ox, oy + fy * 12 + 11, FT, 1), wall.darkened(0.08))
+					_ft(img, r.position.x, r.position.y, r.size.x, maxi(1, r.size.y / 3), glass.lightened(0.06))
+					if kind != 1:
+						# mullion + transom
+						_ft(img, r.position.x + r.size.x / 2, r.position.y, 1, r.size.y, frame)
+						_ft(img, r.position.x, r.position.y + r.size.y / 3, r.size.x, 1, frame)
+					else:
+						# curtain wall: thin vertical mullions
+						for mx in range(0, r.size.x, 8):
+							_ft(img, r.position.x + mx, r.position.y, 1, r.size.y, frame.darkened(0.1))
+				# floor ledge: lit top, shadow below
+				_ft(img, tx0, (oy + fy * 12 + 11) * FK, tw, 1, wall.lightened(0.06))
+				_ft(img, tx0, (oy + fy * 12 + 11) * FK + 1, tw, 1, wall.darkened(0.1))
 				if kind == 1:
-					img.fill_rect(Rect2i(ox, oy + fy * 12, FT, 1), frame)
+					_ft(img, tx0, (oy + fy * 12) * FK, tw, 2, frame)
 	# roofs (64x64): gravel, tar, green, tiles, metal, concrete, field, rubble
 	var roofs := [Pal.GRAY, Pal.CHAR, Pal.GREEN, Pal.RED_D, Pal.LGRAY, Pal.LGRAY, Pal.GREEN, Pal.DGRAY]
 	for ri in roofs.size():
 		var ox := ri * FT
 		var oy := ROOF_ROW
+		var tx0 := ox * FK
+		var ty0 := oy * FK
+		var tw := FT * FK
 		var base := Pal.c(roofs[ri])
-		img.fill_rect(Rect2i(ox, oy, FT, FT), base)
+		_fr(img, ox, oy, FT, FT, base)
 		match ri:
 			R_TAR:
-				for y in range(0, FT, 16):
-					img.fill_rect(Rect2i(ox, oy + y, FT, 1), base.lightened(0.12))
+				for ty in range(0, tw, 16):
+					_ft(img, tx0, ty0 + ty, tw, 1, base.lightened(0.12))
+					_ft(img, tx0, ty0 + ty + 1, tw, 1, base.darkened(0.08))
 			R_GREEN:
-				for i in 60:
-					img.fill_rect(Rect2i(ox + rng.randi_range(0, FT - 4), oy + rng.randi_range(0, FT - 4), 3, 3), Pal.c(Pal.GREEN_L) if i % 2 == 0 else Pal.c(Pal.GREEN_D))
+				for i in 240:
+					var c := Pal.c(Pal.GREEN_L) if i % 2 == 0 else Pal.c(Pal.GREEN_D)
+					_ft(img, tx0 + rng.randi_range(0, tw - 4), ty0 + rng.randi_range(0, tw - 4), rng.randi_range(2, 4), rng.randi_range(2, 4), c)
 			R_TILES:
-				for y in range(0, FT, 4):
-					img.fill_rect(Rect2i(ox, oy + y, FT, 1), base.darkened(0.3))
-					var sh := 0 if (y / 4) % 2 == 0 else 3
-					for x in range(sh, FT, 6):
-						img.fill_rect(Rect2i(ox + x, oy + y + 1, 1, 3), base.darkened(0.18))
+				for ty in range(0, tw, 6):
+					_ft(img, tx0, ty0 + ty, tw, 1, base.darkened(0.3))
+					_ft(img, tx0, ty0 + ty + 1, tw, 1, base.lightened(0.08))
+					var shf := 0 if (ty / 6) % 2 == 0 else 5
+					for tx in range(shf, tw, 10):
+						_ft(img, tx0 + tx, ty0 + ty + 1, 1, 5, base.darkened(0.18))
 			R_METAL:
-				for x in range(0, FT, 6):
-					img.fill_rect(Rect2i(ox + x, oy, 1, FT), base.darkened(0.2))
-					img.fill_rect(Rect2i(ox + x + 1, oy, 1, FT), base.lightened(0.1))
+				for tx in range(0, tw, 8):
+					_ft(img, tx0 + tx, ty0, 1, tw, base.darkened(0.2))
+					_ft(img, tx0 + tx + 1, ty0, 1, tw, base.lightened(0.1))
 			R_FIELD:
 				for x in range(0, FT, 16):
-					img.fill_rect(Rect2i(ox + x, oy, 8, FT), Pal.c(Pal.GREEN_L))
+					_fr(img, ox + x, oy, 8, FT, Pal.c(Pal.GREEN_L))
+				for tx in range(0, tw, 3):
+					_ft(img, tx0 + tx, ty0, 1, tw, base.darkened(0.06))
 			R_CONCRETE:
-				for x in range(0, FT, 32):
-					img.fill_rect(Rect2i(ox + x, oy, 1, FT), base.darkened(0.15))
-					img.fill_rect(Rect2i(ox, oy + x, FT, 1), base.darkened(0.15))
-		var speck := 200 if ri == R_GRAVEL or ri == R_RUBBLE else 90
-		for i in speck:
-			var x := ox + rng.randi_range(0, FT - 1)
-			var y := oy + rng.randi_range(0, FT - 1)
-			var c := img.get_pixel(x, y)
-			img.set_pixel(x, y, c.darkened(0.15) if i % 2 == 0 else c.lightened(0.1))
+				for t in range(0, tw, 32):
+					_ft(img, tx0 + t, ty0, 1, tw, base.darkened(0.15))
+					_ft(img, tx0, ty0 + t, tw, 1, base.darkened(0.15))
+		var speck := 700 if ri == R_GRAVEL or ri == R_RUBBLE else 280
+		_specks(img, rng, ox, oy, FT, FT, speck, 0.15, 0.1)
 	_build_map_facades(img, em, rng)
 	# mipmaps: distant facades average into calm colour (and distant lit
 	# windows into a soft glow) instead of shimmering single pixels
@@ -462,7 +617,7 @@ func _build_facades() -> void:
 
 ## Map terrain styles. Facades 16..19 live at pixel row 160 (sandstone strata,
 ## granite with snow streaks, ship hull, neon); roofs 8..11 at row 208 are
-## 64x48 (sand, snow, carrier deck, rock).
+## 64x48 (sand, snow, carrier deck, rock). Painted at FK texels per pixel.
 func _build_map_facades(img: Image, em: Image, rng: RandomNumberGenerator) -> void:
 	var oy := 160
 	# 16 sandstone: horizontal strata in warm oranges, ragged
@@ -472,52 +627,61 @@ func _build_map_facades(img: Image, em: Image, rng: RandomNumberGenerator) -> vo
 	var si := 0
 	while y < FH:
 		var hgt := rng.randi_range(4, 11)
-		img.fill_rect(Rect2i(ox, oy + y, FT, mini(hgt, FH - y)), strata[si % strata.size()])
-		img.fill_rect(Rect2i(ox, oy + y, FT, 1), (strata[si % strata.size()] as Color).darkened(0.18))
+		_fr(img, ox, oy + y, FT, mini(hgt, FH - y), strata[si % strata.size()])
+		_ft(img, ox * FK, (oy + y) * FK, FT * FK, 1, (strata[si % strata.size()] as Color).darkened(0.18))
+		# ragged lower edge of each layer
+		for tx in range(0, FT * FK, 3):
+			if rng.randf() < 0.4:
+				_ft(img, ox * FK + tx, (oy + y) * FK + 1, rng.randi_range(1, 3), 1, (strata[si % strata.size()] as Color).darkened(0.1))
 		y += hgt
 		si += 1
-	for i in 140:
-		var x := ox + rng.randi_range(0, FT - 1)
-		var yy := oy + rng.randi_range(0, FH - 1)
-		img.set_pixel(x, yy, img.get_pixel(x, yy).darkened(0.12) if i % 3 else img.get_pixel(x, yy).lightened(0.1))
+	_specks(img, rng, ox, oy, FT, FH, 560, 0.12, 0.1)
 	for x in range(0, FT, rng.randi_range(9, 15)):
-		img.fill_rect(Rect2i(ox + x, oy, 1, FH), Color(0.6, 0.34, 0.22, 0.9)) # vertical cracks
+		var cx := (ox + x) * FK
+		for ty in FH * FK:
+			_ft(img, cx + int(sin(ty * 0.3 + x) * 1.5), oy * FK + ty, 1, 1, Color(0.6, 0.34, 0.22, 0.9)) # wavy vertical cracks
 	# 17 granite with snow streaks
 	ox = FT
-	img.fill_rect(Rect2i(ox, oy, FT, FH), Color(0.46, 0.49, 0.55))
-	for i in 260:
-		var x := ox + rng.randi_range(0, FT - 1)
-		var yy := oy + rng.randi_range(0, FH - 1)
-		img.set_pixel(x, yy, Color(0.36, 0.38, 0.44) if i % 2 else Color(0.56, 0.59, 0.64))
-	for k in 7:
-		var x := ox + rng.randi_range(0, FT - 4)
-		var yy := oy + rng.randi_range(0, FH - 12)
-		var l := rng.randi_range(5, 14)
+	_fr(img, ox, oy, FT, FH, Color(0.46, 0.49, 0.55))
+	for i in 1100:
+		img.set_pixel(ox * FK + rng.randi_range(0, FT * FK - 1), oy * FK + rng.randi_range(0, FH * FK - 1), Color(0.36, 0.38, 0.44) if i % 2 else Color(0.56, 0.59, 0.64))
+	for k in 9:
+		var x := ox * FK + rng.randi_range(0, FT * FK - 8)
+		var yy := oy * FK + rng.randi_range(0, FH * FK - 24)
+		var l := rng.randi_range(10, 28)
 		for j in l:
-			img.fill_rect(Rect2i(x + (j % 3) - 1, yy + j, 2, 1), Color(0.92, 0.95, 1.0))
-	img.fill_rect(Rect2i(ox, oy, FT, 3), Color(0.95, 0.97, 1.0)) # snow ledge
-	# 18 ship hull: grey plates, portholes, dark boot stripe
+			_ft(img, x + (j % 5) - 2, yy + j, 3, 1, Color(0.92, 0.95, 1.0))
+	_fr(img, ox, oy, FT, 3, Color(0.95, 0.97, 1.0)) # snow ledge
+	for tx in range(0, FT * FK, 2):
+		if rng.randf() < 0.5:
+			_ft(img, ox * FK + tx, (oy + 3) * FK, 2, rng.randi_range(1, 4), Color(0.9, 0.93, 0.98)) # icicles
+	# 18 ship hull: grey plates, rivet lines, portholes, dark boot stripe
 	ox = FT * 2
-	img.fill_rect(Rect2i(ox, oy, FT, FH), Color(0.52, 0.56, 0.6))
+	_fr(img, ox, oy, FT, FH, Color(0.52, 0.56, 0.6))
 	for x in range(0, FT, 16):
-		img.fill_rect(Rect2i(ox + x, oy, 1, FH), Color(0.44, 0.47, 0.52))
+		_ft(img, (ox + x) * FK, oy * FK, 1, FH * FK, Color(0.44, 0.47, 0.52))
+		for ty in range(2, FH * FK, 4):
+			_ft(img, (ox + x) * FK + 2, oy * FK + ty, 1, 1, Color(0.6, 0.64, 0.68))
 	for yy in [12, 36]:
-		img.fill_rect(Rect2i(ox, oy + yy, FT, 1), Color(0.44, 0.47, 0.52))
+		_ft(img, ox * FK, (oy + yy) * FK, FT * FK, 1, Color(0.44, 0.47, 0.52))
 	for x in range(4, FT, 8):
-		img.fill_rect(Rect2i(ox + x, oy + 6, 2, 2), Color(0.18, 0.2, 0.24))
-		em.fill_rect(Rect2i(ox + x, oy + 6, 2, 2), Color(1, 0, 0, 1))
-	img.fill_rect(Rect2i(ox, oy + FH - 6, FT, 6), Color(0.25, 0.22, 0.24))
-	# 19 neon: dark tower, bright vertical/horizontal neon bands (glow at night)
+		img.fill_rect(Rect2i((ox + x) * FK, (oy + 6) * FK, 2 * FK, 2 * FK), Color(0.62, 0.66, 0.7)) # porthole rim
+		img.fill_rect(Rect2i((ox + x) * FK + 1, (oy + 6) * FK + 1, 2 * FK - 2, 2 * FK - 2), Color(0.18, 0.2, 0.24))
+		em.fill_rect(Rect2i((ox + x) * FK + 1, (oy + 6) * FK + 1, 2 * FK - 2, 2 * FK - 2), Color(1, 0, 0, 1))
+	_fr(img, ox, oy + FH - 6, FT, 6, Color(0.25, 0.22, 0.24))
+	_ft(img, ox * FK, (oy + FH - 6) * FK, FT * FK, 1, Color(0.85, 0.85, 0.85)) # waterline stripe
+	# 19 neon: dark tower, framed windows, a muted neon strip (glows at night)
 	ox = FT * 3
-	img.fill_rect(Rect2i(ox, oy, FT, FH), Color(0.13, 0.12, 0.2))
+	_fr(img, ox, oy, FT, FH, Color(0.13, 0.12, 0.2))
 	for fy in 4:
 		for bx in 4:
-			var r := Rect2i(ox + bx * 16 + 2, oy + fy * 12 + 2, 12, 7)
+			var r := Rect2i((ox + bx * 16 + 2) * FK, (oy + fy * 12 + 2) * FK, 12 * FK, 7 * FK)
+			img.fill_rect(r.grow(1), Color(0.2, 0.19, 0.3))
 			img.fill_rect(r, Color(0.2, 0.24, 0.4))
+			_ft(img, r.position.x + r.size.x / 2, r.position.y, 1, r.size.y, Color(0.16, 0.16, 0.26))
 			em.fill_rect(r, Color(1, 0, 0, 1))
-	# a single muted neon strip on the corner (subtle, glows at night)
-	img.fill_rect(Rect2i(ox + 1, oy, 1, FH), Color(0.75, 0.3, 0.6))
-	em.fill_rect(Rect2i(ox + 1, oy, 1, FH), Color(0, 1, 0, 1))
+	_ft(img, (ox + 1) * FK, oy * FK, FK, FH * FK, Color(0.75, 0.3, 0.6))
+	_ft(em, (ox + 1) * FK, oy * FK, FK, FH * FK, Color(0, 1, 0, 1))
 	# roofs (64x48) at row 208
 	var ry := 208
 	var rh := FACADE_H - ry
@@ -525,21 +689,29 @@ func _build_map_facades(img: Image, em: Image, rng: RandomNumberGenerator) -> vo
 	for ri in rcols.size():
 		var rx := ri * FT
 		var base: Color = rcols[ri]
-		img.fill_rect(Rect2i(rx, ry, FT, rh), base)
-		for i in 160:
-			var x := rx + rng.randi_range(0, FT - 1)
-			var yy := ry + rng.randi_range(0, rh - 1)
+		_fr(img, rx, ry, FT, rh, base)
+		for i in 640:
 			var c := base.darkened(0.08) if i % 2 else base.lightened(0.06)
 			if ri == 1:
 				c = Color(0.82, 0.88, 0.96) if i % 3 == 0 else base
-			img.set_pixel(x, yy, c)
+			img.set_pixel(rx * FK + rng.randi_range(0, FT * FK - 1), ry * FK + rng.randi_range(0, rh * FK - 1), c)
+		if ri == 0:
+			# sand ripples
+			for ty in range(0, rh * FK, 5):
+				for tx in FT * FK:
+					if sin(tx * 0.35 + ty * 0.9) > 0.85:
+						_ft(img, rx * FK + tx, ry * FK + ty, 1, 1, base.darkened(0.08))
 		if ri == 2:
 			# carrier deck: plating lines + yellow/white markings
 			for yy in range(0, rh, 12):
-				img.fill_rect(Rect2i(rx, ry + yy, FT, 1), base.darkened(0.25))
-			img.fill_rect(Rect2i(rx + 30, ry, 2, rh), Color(0.95, 0.85, 0.3))
+				_ft(img, rx * FK, (ry + yy) * FK, FT * FK, 1, base.darkened(0.25))
+			_fr(img, rx + 30, ry, 2, rh, Color(0.95, 0.85, 0.3))
 			for yy in range(0, rh, 12):
-				img.fill_rect(Rect2i(rx + 8, ry + yy, 1, 6), Color(0.9, 0.9, 0.9))
+				_fr(img, rx + 8, ry + yy, 1, 6, Color(0.9, 0.9, 0.9))
+			# tie-down points
+			for ty in range(4, rh * FK, 12):
+				for tx in range(6, FT * FK, 12):
+					_ft(img, rx * FK + tx, ry * FK + ty, 1, 1, base.darkened(0.35))
 
 
 # ------------------------------------------------------------------ ground
@@ -563,87 +735,133 @@ const G_SLABS := 15
 
 
 func _build_ground() -> void:
-	const F := 2 # 32 px tiles: 1 px = 1 world unit at world scale 2
+	# 16x16 art px tiles, F texels per art px (HD: 64 texel tiles); the
+	# shader maps tiles by normalised UV, so only the detail changes
+	const F := 4
+	var T := 16 * F
 	var img := Image.create(128 * F, 32 * F, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 777
 	for t in 16:
-		var ox := (t % 8) * 16 * F
-		var oy := (t / 8) * 16 * F
+		var ox := (t % 8) * T
+		var oy := (t / 8) * T
 		var base: Color
-		var speck: Array = []
+		var grain := 0.04
 		match t:
 			G_ASPHALT, G_DASH, G_CROSS, G_PARKING:
 				base = Color("6b6e7a")
-				speck = [Pal.DGRAY, Pal.BLACK]
+				grain = 0.06
 			G_SIDEWALK:
 				base = Color("c9cbd2")
-				speck = [Pal.LGRAY, Pal.DGRAY]
 			G_GRASS:
 				base = Color("63c34e")
-				speck = [Pal.GREEN_L, Pal.GREEN_D]
+				grain = 0.08
 			G_PLAZA:
 				base = Color("efe3c4")
-				speck = [Pal.TAN]
 			G_WATER:
 				base = Pal.c(Pal.OCEAN)
-				speck = [Pal.SKY, Pal.DEEP]
+				grain = 0.02
 			G_SAND:
 				base = Pal.c(Pal.BEIGE)
-				speck = [Pal.TAN, Pal.WHITE]
+				grain = 0.05
 			G_RUNWAY:
 				base = Pal.c(Pal.DGRAY)
-				speck = [Pal.CHAR]
+				grain = 0.05
 			G_RAILS:
 				base = Pal.c(Pal.BROWN_D)
-				speck = [Pal.DGRAY]
 			G_DIRT:
 				base = Pal.c(Pal.BROWN)
-				speck = [Pal.BROWN_D, Pal.TAN]
+				grain = 0.08
 			G_FIELD:
 				base = Pal.c(Pal.GREEN)
-				speck = []
+				grain = 0.05
 			G_PATH:
 				base = Color("e6cf96")
-				speck = [Pal.BEIGE, Pal.BROWN]
+				grain = 0.07
 			G_DEEP:
 				base = Pal.c(Pal.DEEP)
-				speck = [Pal.OCEAN, Pal.NAVY]
+				grain = 0.015
 			G_SLABS:
 				base = Color("aeb2bc")
-				speck = [Pal.DGRAY]
-		img.fill_rect(Rect2i(ox, oy, 16 * F, 16 * F), base)
-		for i in 0:
-			if speck.is_empty():
-				break
-			img.set_pixel(ox + rng.randi_range(0, 15), oy + rng.randi_range(0, 15), Pal.c(speck[i % speck.size()]))
+		img.fill_rect(Rect2i(ox, oy, T, T), base)
+		# fine grain (texel noise, calm)
+		for ty in T:
+			for tx in T:
+				var hv := float(((tx * 73856093) ^ (ty * 19349663) ^ (t * 83492791)) & 255) / 255.0
+				if hv > 0.55 or hv < 0.35:
+					img.set_pixel(ox + tx, oy + ty, base.lightened(grain * (hv - 0.45)) if hv > 0.5 else base.darkened(grain * (0.45 - hv) * 1.5))
 		match t:
+			G_ASPHALT, G_PARKING:
+				# hairline cracks
+				for k in 2:
+					var cx := rng.randi_range(4, T - 4)
+					var cy := rng.randi_range(4, T - 4)
+					for j in rng.randi_range(8, 18):
+						cx = clampi(cx + rng.randi_range(-1, 1), 0, T - 1)
+						cy = clampi(cy + 1, 0, T - 1)
+						img.set_pixel(ox + cx, oy + cy, base.darkened(0.16))
 			G_DASH:
-				img.fill_rect(Rect2i(ox, oy + (7) * F, (8) * F, (2) * F), Color("f5f5f5"))
+				img.fill_rect(Rect2i(ox, oy + 7 * F, 8 * F, 2 * F), Color("f5f5f5"))
+				for k in 14: # worn paint
+					img.set_pixel(ox + rng.randi_range(0, 8 * F - 1), oy + 7 * F + rng.randi_range(0, 2 * F - 1), Color("cfd0d4"))
 			G_SIDEWALK:
-				img.fill_rect(Rect2i(ox, oy + (7) * F, (16) * F, (1) * F), Color("b3b6bf"))
-				img.fill_rect(Rect2i(ox + (7) * F, oy, (1) * F, (16) * F), Color("b3b6bf"))
+				img.fill_rect(Rect2i(ox, oy + 7 * F, T, 2), Color("b3b6bf"))
+				img.fill_rect(Rect2i(ox + 7 * F, oy, 2, T), Color("b3b6bf"))
+				img.fill_rect(Rect2i(ox, oy + 7 * F + 2, T, 1), Color("d6d8de"))
+				img.fill_rect(Rect2i(ox + 7 * F + 2, oy, 1, T), Color("d6d8de"))
+			G_GRASS:
+				for k in 90: # blades
+					var bx := rng.randi_range(0, T - 1)
+					var by := rng.randi_range(1, T - 1)
+					img.set_pixel(ox + bx, oy + by, Pal.c(Pal.GREEN_L))
+					img.set_pixel(ox + bx, oy + by - 1, base.lightened(0.05))
 			G_PLAZA:
-				img.fill_rect(Rect2i(ox, oy, (8) * F, (8) * F), Color("e2d3ad"))
-				img.fill_rect(Rect2i(ox + (8) * F, oy + (8) * F, (8) * F, (8) * F), Color("e2d3ad"))
+				img.fill_rect(Rect2i(ox, oy, 8 * F, 8 * F), Color("e2d3ad"))
+				img.fill_rect(Rect2i(ox + 8 * F, oy + 8 * F, 8 * F, 8 * F), Color("e2d3ad"))
+				for k in range(0, T, 8 * F):
+					img.fill_rect(Rect2i(ox + k, oy, 1, T), Color("d4c49c"))
+					img.fill_rect(Rect2i(ox, oy + k, T, 1), Color("d4c49c"))
+			G_WATER:
+				for ty in range(2, T, 9):
+					for tx in T:
+						if sin(tx * 0.25 + ty) > 0.7:
+							img.set_pixel(ox + tx, oy + ty, base.lightened(0.05))
+			G_SAND:
+				for ty in range(0, T, 5):
+					for tx in T:
+						if sin(tx * 0.3 + ty * 1.3) > 0.8:
+							img.set_pixel(ox + tx, oy + ty, base.darkened(0.06))
 			G_RUNWAY:
-				img.fill_rect(Rect2i(ox, oy + (7) * F, (10) * F, (2) * F), Pal.c(Pal.WHITE))
+				img.fill_rect(Rect2i(ox, oy + 7 * F, 10 * F, 2 * F), Pal.c(Pal.WHITE))
+				for k in 30: # tyre marks
+					img.set_pixel(ox + rng.randi_range(0, T - 1), oy + rng.randi_range(0, T - 1), Pal.c(Pal.CHAR))
 			G_CROSS:
-				img.fill_rect(Rect2i(ox + (1) * F, oy, (2) * F, (16) * F), Color("f2f2f2"))
-				img.fill_rect(Rect2i(ox + (9) * F, oy, (2) * F, (16) * F), Color("f2f2f2"))
+				img.fill_rect(Rect2i(ox + 1 * F, oy, 2 * F, T), Color("f2f2f2"))
+				img.fill_rect(Rect2i(ox + 9 * F, oy, 2 * F, T), Color("f2f2f2"))
 			G_RAILS:
 				for x in range(1, 16, 4):
-					img.fill_rect(Rect2i(ox + (x) * F, oy + (2) * F, (2) * F, (12) * F), Pal.c(Pal.BROWN))
-				img.fill_rect(Rect2i(ox, oy + (4) * F, (16) * F, (1) * F), Pal.c(Pal.LGRAY))
-				img.fill_rect(Rect2i(ox, oy + (11) * F, (16) * F, (1) * F), Pal.c(Pal.LGRAY))
-			G_PARKING:
-				img.fill_rect(Rect2i(ox, oy, (1) * F, (7) * F), Pal.c(Pal.WHITE))
-				img.fill_rect(Rect2i(ox + (8) * F, oy, (1) * F, (7) * F), Pal.c(Pal.WHITE))
+					img.fill_rect(Rect2i(ox + x * F, oy + 2 * F, 2 * F, 12 * F), Pal.c(Pal.BROWN))
+					img.fill_rect(Rect2i(ox + x * F, oy + 2 * F, 2 * F, 1), Pal.c(Pal.BROWN).lightened(0.15))
+				for ry in [4, 11]:
+					img.fill_rect(Rect2i(ox, oy + ry * F, T, F), Pal.c(Pal.LGRAY).darkened(0.15))
+					img.fill_rect(Rect2i(ox, oy + ry * F, T, 1), Pal.c(Pal.WHITE))
+			G_DIRT, G_PATH:
+				for k in 40: # pebbles
+					var px := rng.randi_range(0, T - 2)
+					var py := rng.randi_range(0, T - 2)
+					img.fill_rect(Rect2i(ox + px, oy + py, 2, 1), base.lightened(0.12))
+					img.set_pixel(ox + px, oy + py + 1, base.darkened(0.15))
 			G_FIELD:
-				img.fill_rect(Rect2i(ox, oy, (8) * F, (16) * F), Pal.c(Pal.GREEN_L))
+				img.fill_rect(Rect2i(ox, oy, 8 * F, T), Pal.c(Pal.GREEN_L))
+				for tx in range(0, T, 3):
+					img.fill_rect(Rect2i(ox + tx, oy, 1, T), base.darkened(0.06))
 			G_SLABS:
-				img.fill_rect(Rect2i(ox, oy, (16) * F, (1) * F), Pal.c(Pal.DGRAY))
-				img.fill_rect(Rect2i(ox, oy, (1) * F, (16) * F), Pal.c(Pal.DGRAY))
+				img.fill_rect(Rect2i(ox, oy, T, 2), Pal.c(Pal.DGRAY))
+				img.fill_rect(Rect2i(ox, oy, 2, T), Pal.c(Pal.DGRAY))
+				img.fill_rect(Rect2i(ox, oy + 2, T, 1), base.lightened(0.08))
+		if t == G_PARKING:
+			img.fill_rect(Rect2i(ox, oy, F, 7 * F), Pal.c(Pal.WHITE))
+			img.fill_rect(Rect2i(ox + 8 * F, oy, F, 7 * F), Pal.c(Pal.WHITE))
 	ground_tex = ImageTexture.create_from_image(img)
 
 

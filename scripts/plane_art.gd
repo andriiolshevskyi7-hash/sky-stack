@@ -2,7 +2,7 @@ class_name PlaneArt
 extends RefCounted
 ## Detailed pixel-art sprite stacks for the 12 planes of the aircraft tree.
 ##
-## Every plane is built as a small voxel model (64 x 64 px, 16 slices; nose
+## Every plane is built as a voxel model (HD: 128 x 128 px, 32 slices; nose
 ## at the top of the slice, slice 0 = belly) from parametric parts: shaped
 ## fuselage stations, bubble canopy with frame bows and the pilot's helmet,
 ## wings with dihedral, leading-edge highlight, spar / rib panel lines,
@@ -18,12 +18,16 @@ extends RefCounted
 ## palette texture (row = skin * 3 + class), so all skins cost no extra
 ## texture memory and new skins are one palette row.
 
-const W := 64 # slice size (px)
-const D := 16 # slices
-const CX := 32
+## HD voxel: the art parameters below are authored on a 64 px / 16 slice
+## grid and scaled by K at build time; fine details (panel lines, rivets,
+## edges) stay one voxel, so they come out twice as fine.
+const K := 2
+const W := 64 * K # slice size (px)
+const D := 16 * K # slices
+const CX := W / 2
 ## World length of a plane (units); slices are scaled from W to this.
 const WORLD := 40.0
-const VERSION := 3
+const VERSION := 4
 
 # materials (palette columns)
 enum {
@@ -194,12 +198,14 @@ func put(x: int, y: int, z: int, m: int, shade: float = 1.0, em: int = 0, over: 
 	var f := (_cls << 6) | (em << 4)
 	if m == BODY or m == BELLY or m == LIGHT or m == TANK or m == RADOME:
 		var h := (x * 73856093) ^ (y * 19349663) ^ (z * 83492791)
-		var p := ((x >> 2) * 7919 + (y >> 2) * 104729 + _pi * 31) * 2654435761
+		var p := ((x / (4 * K)) * 7919 + (y / (4 * K)) * 104729 + _pi * 31) * 2654435761
 		shade *= 0.965 + float((h >> 5) & 255) / 255.0 * 0.06 + float((p >> 9) & 255) / 255.0 * 0.03 - 0.015
 		if m == BODY:
-			if CityGen.vnoise(x * 0.17 + _pi * 3.1, y * 0.17 + z * 0.45, 91) > 0.58:
+			var gx := float(x) / K
+			var gy := float(y) / K
+			if CityGen.vnoise(gx * 0.17 + _pi * 3.1, gy * 0.17 + z * 0.45 / K, 91) > 0.58:
 				f |= 1
-			if int(floor(x * 0.3125 + y * 0.219 + sin(y * 0.375) * 1.5)) % 4 == 0:
+			if int(floor(gx * 0.3125 + gy * 0.219 + sin(gy * 0.375) * 1.5)) % 4 == 0:
 				f |= 2
 	mat[i] = m
 	shd[i] = clampi(int(round(shade * 128.0)), 0, 255)
@@ -233,7 +239,7 @@ func build(pi: int) -> void:
 	_pi = pi
 	var d: Dictionary = Planes.LIST[pi]
 	_cls = int(d["branch"])
-	_art = ART[d["id"]]
+	_art = scale_art(ART[d["id"]])
 	var a := _art
 	if a.has("booms"):
 		var b: Array = a["booms"]
@@ -275,6 +281,38 @@ func build(pi: int) -> void:
 	if a.get("bays", false):
 		_bays()
 	_soot(int(a["soot"]))
+
+
+## Art parameters from the 64 px grid to the HD grid (fin cant is pixels
+## per slice: unchanged; "sec" is an exponent).
+static func scale_art(a: Dictionary) -> Dictionary:
+	var o := {}
+	for k in a:
+		if k == "sec":
+			o[k] = a[k]
+		elif k == "fins":
+			var fl: Array = []
+			for f: Array in a[k]:
+				var g: Array = _sc(f)
+				g[1] = f[1]
+				fl.append(g)
+			o[k] = fl
+		else:
+			o[k] = _sc(a[k])
+	return o
+
+
+static func _sc(v: Variant) -> Variant:
+	if v is int:
+		return int(v) * K
+	if v is float:
+		return float(v) * K
+	if v is Array:
+		var out: Array = []
+		for e in v:
+			out.append(_sc(e))
+		return out
+	return v
 
 
 ## Fuselage station interpolation: [hw, hh, cz] at y (0 outside).
@@ -333,7 +371,7 @@ func _fuselage(st: Array, p: float, radome: int) -> void:
 					sh *= 1.05
 				elif y == radome:
 					sh *= 0.72
-				elif y < cy0 and nl.y > 0.75 and k < 2:
+				elif y < cy0 and nl.y > 0.75 and k < 2 * K:
 					m = ANTIGLARE
 				if panel and nl.y > -0.6:
 					sh *= 0.82
@@ -360,7 +398,7 @@ func _wing(wd: Array, main: bool) -> void:
 	var rnd_s := 0.7
 	var rnd_x := int(round(rnd_s * span))
 	var rnd_yc := lerpf(rf, tf, rnd_s) + (lerpf(rb, tb, rnd_s) - lerpf(rf, tf, rnd_s)) * 0.5
-	var rnd_ok := main and (lerpf(rb, tb, rnd_s) - lerpf(rf, tf, rnd_s)) >= 6.0
+	var rnd_ok := main and (lerpf(rb, tb, rnd_s) - lerpf(rf, tf, rnd_s)) >= 6.0 * K
 	var fus_hw := 0.0
 	for k in span:
 		var s := (k + 0.5) / span
@@ -371,9 +409,9 @@ func _wing(wd: Array, main: bool) -> void:
 		if yz <= ya:
 			continue
 		var z := wz + int(round(dih * s))
-		var th := thick if s < 0.55 else 1
+		var th := thick if s < 0.55 else K
 		var x := CX + k
-		var tip := k == span - 1
+		var tip := k >= span - K
 		if fus_hw == 0.0 and not occupied(x, ya + (yz - ya) / 2, z):
 			fus_hw = float(k)
 		for y in range(ya, yz):
@@ -409,17 +447,19 @@ func _wing(wd: Array, main: bool) -> void:
 						m = METAL_D if tip_store else ACC
 					if rnd_ok:
 						var dd := Vector2(k - rnd_x, (y + 0.5) - rnd_yc).length()
-						if dd < 2.2:
-							m = ACC if dd < 0.8 else (ROUNDEL_I if dd < 1.6 else ROUNDEL_O)
+						if dd < 2.2 * K:
+							m = ACC if dd < 0.8 * K else (ROUNDEL_I if dd < 1.6 * K else ROUNDEL_O)
 							sh = 1.0
-					if k == int(fus_hw) + 1 and t > 0.15 and t < 0.6 and y % 3 == 0:
+					if k == int(fus_hw) + K and t > 0.15 and t < 0.6 and (y / K) % 3 == 0:
 						m = STENCIL
-				elif tip and k > 2:
+				elif tip and k > 2 * K:
 					sh *= 0.9
 				putm(x, y, zz, m, sh, 0, false)
-		if main and tip and not tip_store:
-			put(x, ya, z + th - 1, NAV_G, 1.0, EM_NIGHT)
-			put(W - 1 - x, ya, z + th - 1, NAV_R, 1.0, EM_NIGHT)
+		if main and k == span - 1 and not tip_store:
+			for a in K:
+				for b in K:
+					put(x - a, ya + b, z + th - 1, NAV_G, 1.0, EM_NIGHT)
+					put(W - 1 - x + a, ya + b, z + th - 1, NAV_R, 1.0, EM_NIGHT)
 
 
 ## Fin: [x, cant, z0, height, rf, rb, tf, tb]. x = 0: one fin on the centre
@@ -439,7 +479,7 @@ func _fin(fd: Array) -> void:
 		var xo := fx + int(round(cant * k))
 		for y in range(ya, yz):
 			var t := (y + 0.5 - yf) / maxf(1.0, yb - yf)
-			var m := ACC if k == h - 1 else BODY
+			var m := ACC if k >= h - K else BODY
 			var sh := 1.0
 			if y == ya:
 				sh = 1.14
@@ -447,20 +487,22 @@ func _fin(fd: Array) -> void:
 				sh *= 0.9
 				if y == int(round(yf + (yb - yf) * 0.68)):
 					sh *= 0.8
-			if k == h - 3 and t < 0.68:
+			if k == h - 3 * K and t < 0.68:
 				sh *= 0.86
-			if fx == 0:
-				put(CX - 1, y, z, m, sh * 0.94)
-				put(CX, y, z, m, sh)
-			else:
-				put(CX + xo, y, z, m, sh)
-				put(CX - 1 - xo, y, z, m, sh * 0.94)
-		if k == h - 1 and yz > ya:
-			if fx == 0:
-				putm(CX, yz - 1, z, STROBE, 1.0, EM_BLINK)
-			else:
-				put(CX + xo, yz - 1, z, STROBE, 1.0, EM_BLINK)
-				put(CX - 1 - xo, yz - 1, z, STROBE, 1.0, EM_BLINK)
+			for a in K:
+				if fx == 0:
+					put(CX - 1 - a, y, z, m, sh * 0.94)
+					put(CX + a, y, z, m, sh)
+				else:
+					put(CX + xo + a, y, z, m, sh)
+					put(CX - 1 - xo - a, y, z, m, sh * 0.94)
+		if k >= h - K and yz > ya:
+			for b in K:
+				if fx == 0:
+					putm(CX, yz - 1 - b, z, STROBE, 1.0, EM_BLINK)
+				else:
+					put(CX + xo, yz - 1 - b, z, STROBE, 1.0, EM_BLINK)
+					put(CX - 1 - xo, yz - 1 - b, z, STROBE, 1.0, EM_BLINK)
 
 
 ## Bubble canopy: glass with a highlight, frame bows, sill, the pilot's
@@ -477,7 +519,7 @@ func _canopy(cd: Array) -> void:
 	var st: Array = _art["fus"]
 	for y in range(int(y0), int(y1)):
 		var v := _station(st, y + 0.5)
-		var base := v.z + v.y - 1.2
+		var base := v.z + v.y - 1.2 * K
 		var sy := (y + 0.5 - ym) / ry
 		# steeper windscreen at the front, long taper at the back
 		var prof := sqrt(maxf(0.0, 1.0 - sy * sy)) if sy > -0.4 else sqrt(maxf(0.0, 1.0 - pow((sy + 0.4) / 0.6, 2.0))) * 0.92
@@ -494,19 +536,20 @@ func _canopy(cd: Array) -> void:
 				var m := GLASS
 				var sh := 0.86 + 0.24 * dz
 				var edge := k == n - 1
-				if bows.has(y):
+				if bows.has(y) or (K > 1 and bows.has(y - 1)):
 					m = FRAME
 					sh = 0.9 + 0.3 * dz
 				elif z == floori(base) and edge:
 					m = FRAME
-				elif dz > 0.55 and sy < 0.1 and k == 0:
+				elif dz > 0.55 and sy < 0.1 and k < K:
 					m = GLASS_HI
-				elif sy < -0.25 and dz > 0.3 and k == 1:
+				elif sy < -0.25 and dz > 0.3 and k >= K and k < 2 * K:
 					m = GLASS_HI
-				if m == GLASS and absi(y - py) <= 1 and k < 2 and dz > 0.6:
+				if m == GLASS and absi(y - py) <= K and k < 2 * K and dz > 0.6:
+					# helmet: round, lit from above
 					m = PILOT
-					sh = 0.62 + (0.12 if y < py else 0.0) - (0.1 if k == 1 else 0.0)
-				elif m == GLASS and y == py + 2 and k < 2 and dz > 0.5:
+					sh = 0.62 + (0.12 if y < py else 0.0) - (0.1 if k >= K else 0.0) + 0.08 * dz
+				elif m == GLASS and y >= py + 2 * K and y < py + 3 * K and k < 2 * K and dz > 0.5:
 					m = FRAME
 					sh = 0.7
 				putm(CX + k, y, z, m, sh)
@@ -516,21 +559,28 @@ func _canopy(cd: Array) -> void:
 ## dark seam where the radome meets the body.
 func _spine_details() -> void:
 	var c1 := int(_art["canopy"][1])
-	for y in range(c1 + 2, c1 + 8):
-		for x in [CX - 2, CX + 1]:
+	for y in range(c1 + 2 * K, c1 + 8 * K):
+		for x in [CX - 2 * K, CX + 2 * K - 1]:
 			var z := top_z(x, y)
 			if z >= 0:
 				set_shade(x, y, z, 0.82)
-	for x in range(CX - 2, CX + 2):
-		for y in [c1 + 2, c1 + 7]:
+	for x in range(CX - 2 * K, CX + 2 * K):
+		for y in [c1 + 2 * K, c1 + 8 * K - 1]:
 			var z := top_z(x, y)
 			if z >= 0:
 				set_shade(x, y, z, 0.82)
-	var ay := c1 + 10
+	# rivets along the airbrake outline (every other voxel)
+	for y in range(c1 + 2 * K, c1 + 8 * K, 2):
+		for x in [CX - 2 * K + 1, CX + 2 * K - 2]:
+			var z := top_z(x, y)
+			if z >= 0:
+				set_shade(x, y, z, 1.08)
+	var ay := c1 + 10 * K
 	var az := top_z(CX, ay)
-	if az >= 0 and az < D - 1:
-		putm(CX, ay, az + 1, METAL_D, 0.9)
-		putm(CX, ay + 1, az + 1, METAL_D, 0.75)
+	if az >= 0 and az < D - K - 1:
+		for h in K + 1:
+			putm(CX, ay + h / 2, az + 1 + h, METAL_D, 0.9 - 0.05 * h)
+			putm(CX, ay + 1 + h / 2, az + 1 + h, METAL_D, 0.75)
 
 
 ## Engine intake: "box" (rectangular side box), "half" (half-round side),
@@ -545,7 +595,7 @@ func _intake(idf: Array) -> void:
 	var st: Array = _art["fus"]
 	for y in range(y0, y1):
 		var v := _station(st, y + 0.5)
-		var taper := clampf(float(y1 - y) / 5.0, 0.3, 1.0)
+		var taper := clampf(float(y1 - y) / (5.0 * K), 0.3, 1.0)
 		var front := y - y0
 		if kind == "chin":
 			var cwid := w * taper
@@ -553,12 +603,12 @@ func _intake(idf: Array) -> void:
 				for k in int(round(cwid)):
 					var m := BELLY
 					var sh := 0.8
-					if front < 2:
-						m = INTAKE if (k < int(round(cwid)) - 1 and z > floori(zc - hh)) else METAL
+					if front < 2 * K:
+						m = INTAKE if (k < int(round(cwid)) - K and z > floori(zc - hh) + K - 1) else METAL
 						sh = 1.0
-					putm(CX + k, y, z, m, sh, 0, front < 2)
+					putm(CX + k, y, z, m, sh, 0, front < 2 * K)
 			continue
-		var xin := int(floor(v.x)) - 1
+		var xin := int(floor(v.x)) - K
 		var ww := maxi(1, int(round(w * taper)))
 		for z in range(maxi(0, floori(zc - hh * taper)), mini(D, ceili(zc + hh * taper))):
 			var dz := (z + 0.5 - zc) / (hh * taper)
@@ -568,13 +618,13 @@ func _intake(idf: Array) -> void:
 					continue
 				var m := BODY if dz > -0.2 else BELLY
 				var sh := 0.78 + 0.3 * clampf(dz, 0.0, 1.0)
-				if k == ww - 1:
+				if k >= ww - K:
 					sh *= 0.86
-				if front < 2:
-					var lip := k == ww - 1 or absf(dz) > 0.7 or front == 0 and k == 0
+				if front < 2 * K:
+					var lip := k >= ww - K or absf(dz) > 0.7 or front < K and k < K
 					m = METAL if lip else INTAKE
 					sh = 1.05 if lip else 1.0
-				elif front == 3 and k == ww - 1 and dz > 0.0:
+				elif front >= 3 * K and front < 4 * K and k >= ww - K and dz > 0.0:
 					m = RED
 					sh = 1.0
 				putm(CX + xin + k, y, z, m, sh)
@@ -583,7 +633,7 @@ func _intake(idf: Array) -> void:
 ## Round body along y (booms, also used for nacelles).
 func _cyl(xc: int, zc: float, r: float, y0: int, y1: int, paint: bool) -> void:
 	for y in range(y0, y1):
-		var rr := r * clampf(float(y - y0 + 1) / 2.0, 0.5, 1.0)
+		var rr := r * clampf(float(y - y0 + 1) / (2.0 * K), 0.5, 1.0)
 		for z in range(maxi(0, floori(zc - rr)), mini(D, ceili(zc + rr))):
 			for x in range(floori(xc - rr), ceili(xc + rr) + 1):
 				var d := Vector2(x + 0.5 - (xc + 0.5), z + 0.5 - zc) / rr
@@ -605,15 +655,15 @@ func _nacelle(xc: float, zc: float, r: float, y0: int, y1: int) -> void:
 					continue
 				var m := BODY if d.y > -0.3 else BELLY
 				var sh := _nshade(d.x, d.y)
-				if y - y0 < 2:
+				if y - y0 < 2 * K:
 					m = METAL if l > 0.62 else INTAKE
 					sh = 1.05 if l > 0.62 else 1.0
-				elif y == y0 + 4 or y == y1 - 4:
+				elif y == y0 + 4 * K or y == y1 - 4 * K:
 					sh *= 0.82
 				put(x, y, z, m, sh)
-	_nozzle(xc, zc, r * 0.85, y1, y1 + 2, false)
+	_nozzle(xc, zc, r * 0.85, y1, y1 + 2 * K, false)
 	# pylon to the fuselage
-	for y in range(y0 + 3, y1 - 2):
+	for y in range(y0 + 3 * K, y1 - 2 * K):
 		var dir := 1 if xc < CX else -1
 		var xx := int(xc) + dir
 		while (xx < CX if dir > 0 else xx > CX - 1):
@@ -629,15 +679,16 @@ func _boom_tails(b: Array) -> void:
 	var y1 := int(b[4])
 	for sx: int in [-1, 1]:
 		var x := CX + sx * int(b[0]) - (1 if sx < 0 else 0)
-		put(x, y1, int(b[1]), BODY, 0.8)
+		for a in K:
+			for c in K:
+				put(x + (a if sx > 0 else -a), y1 + c, int(b[1]), BODY, 0.8)
 
 
 ## Nozzle: ring of petals (alternate shades, heat-blued), dark inside, a
 ## glowing core on the last row (visible from behind). flat = rectangular.
 func _nozzle(xc: float, zc: float, r: float, y0: int, y1: int, flat: bool) -> void:
 	for y in range(y0, y1):
-		var last := y == y1 - 1
-		var rr := r * (1.0 - 0.06 * (y - y0))
+		var rr := r * (1.0 - 0.06 * float(y - y0) / K)
 		for z in range(maxi(0, floori(zc - rr - 0.5)), mini(D, ceili(zc + rr + 0.5))):
 			for x in range(floori(xc - rr - 1.0), ceili(xc + rr + 1.0)):
 				var d := Vector2(x + 0.5 - xc, z + 0.5 - zc)
@@ -646,93 +697,115 @@ func _nozzle(xc: float, zc: float, r: float, y0: int, y1: int, flat: bool) -> vo
 					l = maxf(absf(d.x) * 0.7, absf(d.y) * 1.6)
 				if l > rr:
 					continue
-				var inner := l < maxf(rr - 1.0, 0.86)
-				var m := BURN if (y - y0) >= 1 else METAL
+				var inner := l < maxf(rr - K, 0.86 * K)
+				var m := BURN if (y - y0) >= K else METAL
 				var sh := _nshade(d.x / rr, d.y / rr)
 				if not inner:
 					var ang := atan2(d.y, d.x)
-					sh *= 0.86 if int(floor((ang + PI) / TAU * 12.0)) % 2 == 0 else 1.06
+					sh *= 0.86 if int(floor((ang + PI) / TAU * 16.0)) % 2 == 0 else 1.06
 					put(x, y, z, m, sh)
-				elif last:
+				elif y >= y1 - K:
 					put(x, y, z, GLOW, 1.0 - 0.25 * (l / rr), EM_ALWAYS)
 				else:
 					put(x, y, z, METAL_D, 0.8)
 
 
 ## Stores: [kind, x, y0, z]: "aam" missile on a pylon, "tip" wing-tip
-## missile on a rail, "tank" drop tank, "bomb", "rocket" pod.
+## missile on a rail, "tank" drop tank, "bomb", "rocket" pod. Round bodies
+## of radius ~K voxels so they read as cylinders on the HD grid.
 func _store(sd: Array) -> void:
 	var kind: String = sd[0]
 	var xo := int(sd[1])
 	var y0 := int(sd[2])
 	var z := int(sd[3])
-	var xs: Array = [CX + xo, W - 1 - (CX + xo)] if xo != 0 else [CX]
-	if xo == 0:
-		xs = [CX - 1]
+	var xs: Array = [CX + xo, W - 1 - (CX + xo)] if xo != 0 else [CX - 1]
 	for x: int in xs:
+		var xc := float(x) + 0.5 if xo != 0 else float(CX)
 		match kind:
 			"aam", "tip":
-				var l := 11
+				var l := 11 * K
+				var r := 0.55 * K + 0.1
 				for k in l:
 					var m := MSL
 					var sh := 1.0
-					if k == 0:
-						m = MSL_D
-					elif k == 1:
+					var rk := r
+					if k < K:
+						m = MSL_D # seeker head
+						rk = r * (0.55 + 0.45 * float(k) / K)
+					elif k < 2 * K:
 						sh = 0.92
-					elif k == 3:
+					elif k >= 3 * K and k < 4 * K:
 						m = MSL_BAND
-					elif k >= l - 3:
+					elif k >= l - 3 * K:
 						sh = 0.9
-					put(x, y0 + k, z, m, sh)
-					if kind == "aam" and k >= 3 and k < l - 3 and z + 1 < D:
-						put(x, y0 + k, z + 1, METAL_D, 0.8, 0, false) # pylon
-				for k in [1, l - 2]:
-					put(x - 1, y0 + k + 1, z, MSL_D, 0.9)
-					put(x + 1, y0 + k + 1, z, MSL_D, 0.9)
-					put(x, y0 + k + 1, z - 1, MSL_D, 0.8)
-				if kind == "aam" and z + 2 < D:
-					for k in range(4, l - 4):
-						put(x, y0 + k, z + 2, BELLY, 0.7, 0, false)
+					_disc(xc, float(z) + 0.5, rk, y0 + k, m, sh)
+					if kind == "aam" and k >= 3 * K and k < l - 3 * K:
+						for h in K:
+							_sp(xo, int(xc), y0 + k, z + K + h, METAL_D, 0.8, 0, false) # pylon
+				# canard and tail fins: a cross of thin plates
+				for k0 in [K, l - 2 * K]:
+					for k in K:
+						for f in range(1, K + 2):
+							_sp(xo, int(xc) - f, y0 + k0 + k, z, MSL_D, 0.9)
+							_sp(xo, int(xc) + f, y0 + k0 + k, z, MSL_D, 0.9)
+							_sp(xo, int(xc), y0 + k0 + k, z - f, MSL_D, 0.8)
+				if kind == "aam" and z + 2 * K < D:
+					for k in range(4 * K, l - 4 * K):
+						_sp(xo, int(xc), y0 + k, z + 2 * K, BELLY, 0.7, 0, false)
 			"tank":
-				var l := 13
-				var xc := float(CX) if xo == 0 else x + 0.5
+				var l := 13 * K
 				for k in l:
-					var r := 1.6 * sin(PI * clampf((k + 0.7) / l, 0.0, 1.0)) + 0.3
-					for dz in range(-2, 3):
-						for xx in range(int(xc) - 3, int(xc) + 3):
-							var dx := xx + 0.5 - xc
-							if Vector2(dx, dz).length() <= r:
-								put(xx, y0 + k, z + dz, TANK, _nshade(dx / 2.0, dz / 2.0))
-				for xx in ([CX - 1, CX] if xo == 0 else [x]):
-					put(xx, y0 + l - 1, z, ACC, 1.0)
-					for k in range(3, l - 3):
-						put(xx, y0 + k, z + 2, BELLY, 0.7, 0, false)
+					var r := (1.6 * sin(PI * clampf((k + 0.7 * K) / l, 0.0, 1.0)) + 0.3) * K
+					_disc(xc, float(z) + 0.5, r, y0 + k, TANK, 1.0)
+				for k in K:
+					_disc(xc, float(z) + 0.5, 0.6 * K, y0 + l - 1 - k, ACC, 1.0)
+				for k in range(3 * K, l - 3 * K):
+					for h in K:
+						_sp(xo, int(xc), y0 + k, z + 2 * K + h, BELLY, 0.7, 0, false)
 			"bomb":
-				var l := 9
+				var l := 9 * K
 				for k in l:
-					var r := 1.25 if (k > 0 and k < l - 3) else 0.7
-					for dz in range(-1, 2):
-						for dx in range(-1, 2):
-							if Vector2(dx, dz).length() <= r:
-								put(x + dx, y0 + k, z + dz, BOMB, _nshade(float(dx), float(dz)))
-				put(x, y0 + 2, z + 1, STENCIL, 1.0)
-				for dx in [-1, 1]:
-					put(x + dx, y0 + l - 1, z, MSL_D, 0.85)
-				put(x, y0 + l - 1, z + 1, MSL_D, 0.85)
-				put(x, y0 + 3, z + 2, METAL_D, 0.8, 0, false)
-				put(x, y0 + 5, z + 2, METAL_D, 0.8, 0, false)
+					var r := 1.25 * K if (k >= K and k < l - 3 * K) else 0.7 * K
+					_disc(xc, float(z) + 0.5, r, y0 + k, BOMB, 1.0)
+				for k in K:
+					_sp(xo, int(xc), y0 + 2 * K + k, z + K, STENCIL, 1.0)
+				for k in K:
+					for f in range(1, K + 2):
+						_sp(xo, int(xc) - f, y0 + l - 1 - k, z, MSL_D, 0.85)
+						_sp(xo, int(xc) + f, y0 + l - 1 - k, z, MSL_D, 0.85)
+						_sp(xo, int(xc), y0 + l - 1 - k, z + f, MSL_D, 0.85)
+				for k in [3 * K, 5 * K]:
+					for h in K:
+						_sp(xo, int(xc), y0 + k, z + 2 * K + h, METAL_D, 0.8, 0, false)
 			"rocket":
-				var l := 8
+				var l := 8 * K
+				var r := 1.5 * K
 				for k in l:
-					for dz in range(-1, 2):
-						for dx in range(-1, 2):
-							var front := k == 0
-							var m := POD
-							if front:
-								m = INTAKE if (dx + dz) % 2 == 0 else POD
-							put(x + dx, y0 + k, z + dz, m, _nshade(float(dx), float(dz)) * (1.08 if k == 1 else 1.0))
-				put(x, y0 + 4, z + 2, METAL_D, 0.8, 0, false)
+					_disc(xc, float(z) + 0.5, r, y0 + k, POD, 1.08 if k >= K and k < 2 * K else 1.0)
+				# tube mouths on the front face
+				for dz in range(-K, K + 1, K):
+					for dx in range(-K, K + 1, K):
+						_sp(xo, int(xc) + dx, y0, z + dz, INTAKE, 1.0)
+				for h in K:
+					_sp(xo, int(xc), y0 + 4 * K, z + 2 * K + h, METAL_D, 0.8, 0, false)
+
+
+## Store voxel: centre-line stores (xo = 0) are drawn as a mirrored pair.
+func _sp(xo: int, x: int, y: int, z: int, m: int, sh: float = 1.0, em: int = 0, over: bool = true) -> void:
+	if xo == 0:
+		putm(x, y, z, m, sh, em, over)
+	else:
+		put(x, y, z, m, sh, em, over)
+
+
+## One round cross-section (x-z disc) at row y, shaded like a cylinder.
+func _disc(xc: float, zc: float, r: float, y: int, m: int, sh: float) -> void:
+	for zz in range(floori(zc - r), ceili(zc + r)):
+		for xx in range(floori(xc - r), ceili(xc + r)):
+			var d := Vector2(xx + 0.5 - xc, zz + 0.5 - zc) / maxf(r, 0.01)
+			if d.length_squared() > 1.0:
+				continue
+			put(xx, y, zz, m, _nshade(d.x, d.y) * sh)
 
 
 func _gun(gd: Array) -> void:
@@ -744,9 +817,8 @@ func _gun(gd: Array) -> void:
 	if xo == 0:
 		# long nose cannon of the attackers
 		for k in l:
-			put(CX - 1, y0 + k, z, METAL_D, 0.9)
-			put(CX, y0 + k, z, METAL_D, 0.75)
-		put(CX - 1, y0, z, INTAKE)
+			_disc(float(CX), float(z) + 0.5, 0.8 * K, y0 + k, METAL_D, 0.85)
+		_disc(float(CX), float(z) + 0.5, 0.4 * K, y0, INTAKE, 1.0)
 		return
 	for k in l:
 		var zz := z
@@ -754,20 +826,23 @@ func _gun(gd: Array) -> void:
 		# sit on the fuselage surface
 		while xx != CX and not occupied(xx, y0 + k, zz):
 			xx += 1 if xo < 0 else -1
-		put(xx, y0 + k, zz, METAL_D, 0.85 if k > 0 else 0.6)
+		# paint over the skin only (a one-sided gun keeps the shape symmetric)
+		for h in K:
+			if occupied(xx, y0 + k, zz + h):
+				put(xx, y0 + k, zz + h, METAL_D, (0.85 if k >= K else 0.6) - 0.08 * h)
 
 
 ## Stealth plane: internal bay door outlines (zig-zag) on the belly and the
 ## top, no external stores.
 func _bays() -> void:
-	for y in range(20, 44):
-		for x in range(CX - 4, CX + 4):
-			if (x - CX + y) % 6 == 0:
+	for y in range(20 * K, 44 * K):
+		for x in range(CX - 4 * K, CX + 4 * K):
+			if (x - CX + y) % (6 * K) == 0:
 				var z := top_z(x, y)
 				if z >= 0:
 					set_shade(x, y, z, 0.86)
-	for y in [22, 42]:
-		for x in range(CX - 4, CX + 4):
+	for y in [22 * K, 42 * K]:
+		for x in range(CX - 4 * K, CX + 4 * K):
 			var z := top_z(x, y)
 			if z >= 0:
 				set_shade(x, y, z, 0.8)
@@ -778,13 +853,13 @@ func _soot(y0: int) -> void:
 	for y in range(y0, W):
 		var k := 1.0 - 0.22 * float(y - y0 + 1) / maxf(1.0, float(W - y0) * 0.5)
 		k = clampf(k, 0.7, 1.0)
-		for x in range(CX - 12, CX + 12):
+		for x in range(CX - 12 * K, CX + 12 * K):
 			var z := top_z(x, y)
 			if z < 0:
 				continue
 			var m := get_mat(x, y, z)
 			if m == BODY or m == BELLY:
-				set_shade(x, y, z, k * (0.94 + 0.12 * CityGen.hashf(x, y, 5)))
+				set_shade(x, y, z, k * (0.94 + 0.12 * CityGen.hashf(x / K, y / K, 5)))
 
 
 # ------------------------------------------------------------------ atlas

@@ -50,6 +50,9 @@ func _process(_d: float) -> void:
 		queue_redraw()
 
 
+var px_k := 1.0
+
+
 func _draw() -> void:
 	if game == null or game.cockpit3d == null:
 		return
@@ -60,11 +63,13 @@ func _draw() -> void:
 	var g: Color = c3.glow
 	HUD = Color(g.r, g.g, g.b, lerpf(0.85, 1.0, night))
 	HUD_DIM = Color(g.r, g.g, g.b, lerpf(0.45, 0.6, night))
-	var ly := c3.lip_y()
+	# the overlay is drawn in "classic" low-res pixels (px_k = 2 at HD), so
+	# the symbology keeps its size on screen and gets twice as sharp
+	var ly := c3.lip_y() / px_k
 	DASH_FRAC = clampf(ly / maxf(1.0, size.y), 0.3, 1.0)
 	var hs: Array = c3.hud_screen()
-	var hr: Rect2 = hs[0]
-	var bs: Vector2 = hs[1]
+	var hr: Rect2 = Rect2(hs[0].position / px_k, hs[0].size / px_k)
+	var bs: Vector2 = hs[1] / px_k if hs[1] != Vector2.INF else Vector2.INF
 	var head_turned: bool = game.cam.look.length() > 0.25
 	# the HUD is only readable looking through the combiner
 	if hr.size.x > 10.0 and bs != Vector2.INF and game.cam.look.length() < 0.3:
@@ -232,7 +237,7 @@ func _targets(jet: Jet, c: Vector2, lip: float, head_turned: bool) -> void:
 		var behind: bool = game.cam.is_position_behind(ep)
 		var sp := Vector2.ZERO
 		if not behind:
-			sp = game.cam.unproject_position(ep).round()
+			sp = (game.cam.unproject_position(ep) / px_k).round()
 		var on_glass := not behind and sp.y < lip - 4 and sp.y > 4 and sp.x > 6 and sp.x < w - 6
 		var ang := atan2(-to.dot(cam_u), to.dot(cam_r)) if (behind or not on_glass or sp.distance_to(c) > sr) else (sp - c).angle()
 		if dist < nearest:
@@ -253,7 +258,7 @@ func _targets(jet: Jet, c: Vector2, lip: float, head_turned: bool) -> void:
 		draw_colored_polygon(PackedVector2Array([tp + tn * 6.0, tp + tt * 3.0, tp - tt * 3.0]), YEL)
 	var lpos: Vector3 = Missiles.tpos(m.lock_target)
 	if lpos != Vector3.INF and not game.cam.is_position_behind(lpos):
-		var lp2: Vector2 = game.cam.unproject_position(lpos).round()
+		var lp2: Vector2 = (game.cam.unproject_position(lpos) / px_k).round()
 		if lp2.y < lip:
 			var k := clampf(m.lock_t / m.lock_time, 0.0, 1.0)
 			var rr := lerpf(26.0, 9.0, k)
@@ -262,7 +267,7 @@ func _targets(jet: Jet, c: Vector2, lip: float, head_turned: bool) -> void:
 			var dist2: float = jet.position.distance_to(lpos)
 			var lead: Vector3 = lpos + Vector3(-sin(e.yaw), 0, -cos(e.yaw)) * e.speed * dist2 / 600.0
 			if not game.cam.is_position_behind(lead):
-				var ld: Vector2 = game.cam.unproject_position(lead).round()
+				var ld: Vector2 = (game.cam.unproject_position(lead) / px_k).round()
 				draw_arc(ld, 3.0, 0, TAU, 10, YEL, 1.0)
 				draw_line(lp2, ld, Color(YEL.r, YEL.g, YEL.b, 0.4), 1.0)
 			if m.locked:

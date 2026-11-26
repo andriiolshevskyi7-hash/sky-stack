@@ -3,6 +3,9 @@ class_name SheetGen
 ## variant into the Painter's current cell. Slice 0 is the bottom slice.
 ## Image "up" (y = 0) is the object's FRONT (nose of a jet, bonnet of a car).
 
+## Bump when any generator changes (the HD atlas is cached in user://cache).
+const VERSION := 1
+
 ## name: [cell_w, cell_h, slices, variants, generator method]
 const DEFS := {
 	"jet": [40, 40, 11, 1, "_jet"],

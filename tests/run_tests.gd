@@ -155,6 +155,10 @@ func test_pixel_view() -> void:
 	print("[pixel view]")
 	var r: Array = PixelView.compute(Vector2i(2992, 1344))
 	check(r[0] == 4 and r[1] == Vector2i(748, 336), "Pixel 9 Pro XL 2992x1344 -> 748x336 @4x (got %s)" % [r])
+	var hd: Array = PixelView.compute(Vector2i(2992, 1344), PixelView.QUALITY_MAX_H[2])
+	check(hd[0] == 2 and hd[1] == Vector2i(1496, 672), "HD voxel on the Pixel 9 Pro XL -> 1496x672 @2x (got %s)" % [hd])
+	var md: Array = PixelView.compute(Vector2i(2992, 1344), PixelView.QUALITY_MAX_H[1])
+	check(md[0] == 3 and md[1].y == 448, "medium quality -> 448 px @3x (got %s)" % [md])
 	for sz in [Vector2i(1920, 1080), Vector2i(2400, 1080), Vector2i(1280, 720), Vector2i(1344, 648), Vector2i(3200, 1440), Vector2i(800, 480)]:
 		r = PixelView.compute(sz)
 		var low: Vector2i = r[1]

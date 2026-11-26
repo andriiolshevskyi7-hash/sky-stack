@@ -241,7 +241,7 @@ All values persist in `user://save.cfg`. Defaults:
 
 | Feature | Where |
 | --- | --- |
-| Low-res pixel view (280–400 px tall, integer scale 3–4×, nearest) + bloom | `scripts/pixel_view.gd`, `shaders/post.gdshader` |
+| Pixel view (HD voxel: ~720 px tall on high, 540 medium, 400 low; integer scale, nearest) + bloom | `scripts/pixel_view.gd`, `shaders/post.gdshader` |
 | Sprite-stack node, GPU rotation, 64-step angle snapping | `scripts/sprite_stack.gd`, `scripts/stack_batch.gd`, `shaders/stack.gdshader` |
 | Procedural slice sheets + PNG overrides | `scripts/sheet_gen.gd`, `scripts/stack_lib.gd`, [`assets/stacks/README.md`](assets/stacks/README.md) |
 | Collapsed stacks for tall buildings | `shaders/building.gdshader`, `CityGen._box` |
@@ -252,11 +252,27 @@ All values persist in `user://save.cfg`. Defaults:
 | 3D cockpit: low-poly tub (angled consoles, sloped panel under an overhanging glareshield, canopy bows, HUD posts + combiner, keypad, stick between the knees, throttle lever, seat) in its own low-res viewport composited by the post shader; pixel-art textures drawn live into a canvas atlas (radar, colour attitude, moving map, engine page, panoramic page, lit keys, warning lights); sun + ambient + night instrument glow; head look and head motion with G / turbulence | `scripts/cockpit3d.gd`, `scripts/cockpit_art.gd`, `shaders/cockpit.gdshader` |
 | HUD symbology clipped to the projected combiner, helmet target markers | `scripts/cockpit.gd` |
 
-The pixel view: the world renders into a `SubViewport` whose height is
-280–400 px and whose width follows the screen aspect, chosen so it scales to the
-screen by a whole number (Pixel 9 Pro XL 2992×1344 → 748×336 at 4×). The
-project stretch mode stays *disabled*: only the world is pixelated, the HUD and
-menus are drawn at full resolution on top.
+The pixel view: the world renders into a `SubViewport` whose height follows
+the graphics quality (HD voxel on high: up to 720 px, medium 540, low 400 —
+the classic look) and whose width follows the screen aspect, chosen so it
+scales to the screen by a whole number (Pixel 9 Pro XL 2992×1344 → 1496×672
+at 2× on high, 748×336 at 4× on low). The project stretch mode stays
+*disabled*: only the world is pixelated, the HUD and menus are drawn at full
+resolution on top; the cockpit HUD is drawn at a matching UI scale so it keeps
+its size and gets sharper.
+
+**HD voxel.** Every model is twice as fine as the classic art:
+- planes are 128×128 px × 32 slices (the art parameters stay on the 64 grid
+  and are scaled at build time, so panel lines, rivets and edges come out
+  one voxel thin, with round missiles, tanks and bombs);
+- props, vehicles, ships and trees are painted by `Painter` at 2 texels per art
+  pixel (smooth polygons, ellipses and lines) plus a detail pass (bevels at
+  material boundaries, edge rims, grain);
+- facades and roofs (window frames, mullions, sills, bonded brick, sheet
+  ribs) and ground tiles (asphalt grain and cracks, slab joints, grass,
+  ripples, rails) are painted at 2–4× too.
+
+The atlases are cached in `user://cache` (first start ~3 s, later ~0.3 s).
 
 Sprite stacking: each slice is a flat textured quad at its height, rendered by
 a perspective camera with a depth buffer — the camera shifts each slice "up the
@@ -265,8 +281,8 @@ test removes all manual sorting. Dynamic stacks draw each slice 2–4 times
 between slice heights so no gaps appear when the camera is close. Dynamic stacks are GPU-instanced (`MultiMesh`, one draw call per sheet)
 and rotated in the vertex shader; static stacks are baked per chunk.
 
-Planes (`scripts/plane_art.gd`) are small voxel models, 64×64 px × 16
-slices, built from parametric parts: shaped fuselage stations, bubble canopy
+Planes (`scripts/plane_art.gd`) are voxel models, 128×128 px × 32
+slices (HD), built from parametric parts: shaped fuselage stations, bubble canopy
 with frame bows and the pilot's helmet, wings with dihedral, panel lines,
 rivets, flaps, roundels and nav lights, canards, fins with rudders and a
 strobe, intakes with lips and dark ducts, nacelles, booms, nozzles with petals

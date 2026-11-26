@@ -22,8 +22,8 @@ void vertex() {
 vec4 atlas(sampler2D t, vec2 uv, vec2 g) {
 	vec2 dx = dFdx(g);
 	vec2 dy = dFdy(g);
-	float m = max(length(dx), length(dy)) * 512.0;
-	float k = m > 6.0 ? 6.0 / m : 1.0; // lod <= ~2.6
+	float m = max(length(dx), length(dy)) * 1024.0; // HD atlas: 2 texels per art px
+	float k = m > 12.0 ? 12.0 / m : 1.0; // lod <= ~3.6 (same reach in art px)
 	return textureGrad(t, uv, dx * k, dy * k);
 }
 

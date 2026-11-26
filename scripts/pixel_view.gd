@@ -1,13 +1,15 @@
 class_name PixelView
 extends Node
-## Renders the 3D world into a low-res SubViewport (height 280..400 px),
-## post-processes it at that same low resolution (bloom + palette), then
-## shows it on screen scaled by a WHOLE number with nearest filtering, so
-## every world pixel is the same size. HUD/menus are drawn on top at full
-## resolution (project stretch mode stays "disabled").
+## Renders the 3D world into a low-res SubViewport, post-processes it at
+## that same resolution (bloom + palette), then shows it on screen scaled by
+## a WHOLE number with nearest filtering, so every world pixel is the same
+## size. HUD/menus are drawn on top at full resolution (project stretch mode
+## stays "disabled"). The height cap follows the graphics quality: HD voxel
+## (high) ~720 px (672 on a 1344 px phone), medium 540, low 400 (classic).
 
 const MAX_H := 400
 const MIN_H := 280
+const QUALITY_MAX_H := [400, 540, 720]
 
 var world_vp: SubViewport
 var post_vp: SubViewport
@@ -17,14 +19,17 @@ var display: TextureRect
 var post_mat: ShaderMaterial
 var pixel_scale := 1
 var low := Vector2i(400, 224)
+var max_h := 720
+## UI scale for overlays drawn in world pixels (cockpit HUD): 2 at HD.
+var ui_k := 1
 
 
-static func compute(screen: Vector2i) -> Array:
-	var s := maxi(1, int(ceil(float(screen.y) / MAX_H)))
+static func compute(screen: Vector2i, cap: int = MAX_H) -> Array:
+	var s := maxi(1, int(ceil(float(screen.y) / cap)))
 	var h := screen.y / s
 	while h < MIN_H and s > 1:
 		s -= 1
-		h = mini(MAX_H, screen.y / s)
+		h = mini(cap, screen.y / s)
 	if s == 1:
 		h = screen.y
 	var w := int(ceil(float(screen.x) / s))
@@ -80,14 +85,24 @@ func _ready() -> void:
 
 func _relayout() -> void:
 	var screen := Vector2i(get_viewport().get_visible_rect().size)
-	var r := compute(screen)
+	var r := compute(screen, max_h)
 	pixel_scale = r[0]
 	low = r[1]
+	ui_k = maxi(1, low.y / 300)
+	post_mat.set_shader_parameter("res_k", float(low.y) / 336.0)
 	world_vp.size = low
 	post_vp.size = low
 	post_rect.size = Vector2(low)
 	display.size = Vector2(low * pixel_scale)
 	display.position = Vector2((screen - low * pixel_scale) / 2)
+
+
+## Graphics quality -> render resolution (0 low, 1 medium, 2 high).
+func set_quality(q: int) -> void:
+	var h: int = QUALITY_MAX_H[clampi(q, 0, 2)]
+	if h != max_h:
+		max_h = h
+		_relayout()
 
 
 func set_post(param: String, value: Variant) -> void:

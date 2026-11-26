@@ -525,7 +525,9 @@ func _process(delta: float) -> void:
 	# in the cockpit the own plane stays hidden (the 3D cockpit replaces it)
 	cam.look_target = controls.look
 	jet.visible = jet.alive and cam.cockpit_blend < 0.6
-	cockpit.size = Vector2(pv.low)
+	cockpit.px_k = float(pv.ui_k)
+	cockpit.scale = Vector2(pv.ui_k, pv.ui_k)
+	cockpit.size = Vector2(pv.low) / float(pv.ui_k)
 	cockpit.alpha = cam.cockpit_blend if state != State.TITLE else 0.0
 	cockpit3d.set_size(pv.low)
 	cockpit3d.update(delta, cockpit.alpha)
@@ -1544,6 +1546,7 @@ func apply_settings(key: String) -> void:
 	# graphics quality: low = no sun shadows / bloom / soft effects,
 	# medium = shadows + bloom, high = soft shadows, richer smoke and water
 	quality = int(st.get("quality", 2))
+	pv.set_quality(quality)
 	chunks.set_shadows(quality >= 1)
 	plane_shadows.enabled = quality >= 1
 	Stacks.shadow_mat.set_shader_parameter("soft", 1.0 if quality >= 2 else 0.0)
