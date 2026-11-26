@@ -77,7 +77,8 @@ func _draw() -> void:
 		_draw_flight(vs)
 		_draw_tags(vs)
 		_draw_feed(vs)
-		_draw_rings(vs)
+		_draw_aim(vs)
+		_draw_flares_count(vs)
 		_draw_missile_arrow(vs)
 		_draw_popups()
 		_draw_boss(vs)
@@ -201,7 +202,7 @@ func _draw_feed(vs: Vector2) -> void:
 ## Red arrow around the screen centre pointing at the incoming missile.
 func _draw_missile_arrow(vs: Vector2) -> void:
 	var m: Missiles = game.missiles
-	if m.incoming_t > 3.5 or not game.jet.alive:
+	if m.incoming_t > 5.0 or not game.jet.alive:
 		return
 	var c := vs * 0.5
 	var sp := _screen(m.incoming_pos)
@@ -215,7 +216,9 @@ func _draw_missile_arrow(vs: Vector2) -> void:
 	var blink := int(Time.get_ticks_msec() / 150) % 2 == 0
 	var col := Color(1, 0.2, 0.15, 0.95 if blink else 0.55)
 	draw_colored_polygon(PackedVector2Array([p + d * 26.0 * s, p - d * 10.0 * s + perp * 18.0 * s, p - d * 10.0 * s - perp * 18.0 * s]), col)
-	ctext(c.x, c.y + 190.0 * s, "MISSILE", 18, col)
+	ctext(c.x, c.y + 190.0 * s, tr("MISSILE") + " %.1f" % m.incoming_t, 18, col)
+	if game.jet.flares > 0 and m.incoming_t < 3.0:
+		ctext(c.x, c.y + 214.0 * s, "DOUBLE TAP: FLARES", 15, Color(1, 0.85, 0.6, 0.9))
 
 
 ## Floating "+150" kill popups.
@@ -440,20 +443,125 @@ func _draw_lock(_vs: Vector2) -> void:
 		text(p + Vector2(-half, half + 22 * s), "LOCK", 15, col, HORIZONTAL_ALIGNMENT_CENTER, half * 2.0)
 
 
-## Incoming missile: an outer ring closes in on a fixed ring around the jet;
-## roll when they meet to dodge.
-func _draw_rings(_vs: Vector2) -> void:
-	var m: Missiles = game.missiles
-	if m.incoming_t > 2.0 or not game.jet.alive:
+## Aim scheme reticles (chase and cockpit):
+##  NOSE - where the plane points now (a small winged cross), with the gun
+##         lead marker on the nearest enemy ahead (red when the nose is on it)
+##  AIM  - the circle the pilot drags around; the instructor flies the nose
+##         onto it. Off-screen it becomes an arrow on the screen edge.
+## Plus the instructor's PULL UP warning and the flares counter.
+func _draw_aim(vs: Vector2) -> void:
+	var jet: Jet = game.jet
+	if not jet.alive:
 		return
-	var p := _screen(game.jet.position) if not game.cam.is_position_behind(game.jet.position) else get_viewport_rect().size * 0.5
-	var r0 := 46.0 * s
-	var r1 := r0 + maxf(0.0, m.incoming_t - 0.4) * 130.0 * s
-	var near := absf(r1 - r0) < 22.0 * s
-	draw_arc(p, r0, 0, TAU, 48, Color(1, 1, 1, 0.9), maxf(2.0, 3.0 * s))
-	draw_arc(p, r1, 0, TAU, 64, Color(1, 0.25, 0.2) if near else Color(1, 0.85, 0.3), maxf(2.0, 3.0 * s))
-	if near:
-		ctext(p.x, p.y - r0 - 14 * s, "ROLL!", 22, Color(1, 0.3, 0.25))
+	var cam: Camera3D = game.cam
+	var lw := maxf(2.0, roundf(2.0 * s))
+	var nose_w := jet.position + jet.forward3() * 1500.0
+	var nose := Vector2.INF
+	if not cam.is_position_behind(nose_w):
+		nose = _screen(nose_w)
+		var r := 9.0 * s
+		for pass_i in 2:
+			# dark outline first, then the bright symbol
+			var col := Color(0.0, 0.08, 0.04, 0.55) if pass_i == 0 else Color(0.6, 1.0, 0.7, 1.0)
+			var w := lw + 2.0 * s if pass_i == 0 else lw
+			draw_arc(nose, r, 0, TAU, 20, col, w)
+			draw_line(nose + Vector2(-r * 2.6, 0), nose + Vector2(-r, 0), col, w)
+			draw_line(nose + Vector2(r, 0), nose + Vector2(r * 2.6, 0), col, w)
+			draw_line(nose + Vector2(0, -r), nose + Vector2(0, -r * 1.9), col, w)
+		_draw_lead(nose, lw)
+	var c: Controls = game.controls
+	if jet.aim_mode() and c != null:
+		var aim_w: Vector3 = cam.global_position + c.aim_dir * 1500.0
+		var ap := _screen(aim_w)
+		var behind := cam.is_position_behind(aim_w)
+		var margin := 40.0 * s
+		var inner := Rect2(Vector2(margin, margin), vs - Vector2(margin, margin) * 2.0)
+		var col := Color(1, 1, 1, 0.9)
+		if behind or not inner.has_point(ap):
+			# off-screen: arrow on the edge pointing at the aim
+			var ctr := vs * 0.5
+			var d := (ap - ctr)
+			if behind:
+				d = -d
+			if d.length() < 1.0:
+				d = Vector2.UP
+			d = d.normalized()
+			var t := minf(absf((inner.size.x * 0.5) / maxf(absf(d.x), 1e-3)), absf((inner.size.y * 0.5) / maxf(absf(d.y), 1e-3)))
+			var p := ctr + d * t
+			var perp := Vector2(-d.y, d.x)
+			draw_colored_polygon(PackedVector2Array([p + d * 18.0 * s, p - d * 8.0 * s + perp * 14.0 * s, p - d * 8.0 * s - perp * 14.0 * s]), col)
+			draw_arc(p - d * 26.0 * s, 9.0 * s, 0, TAU, 16, col, lw)
+		else:
+			draw_arc(ap, 22.0 * s, 0, TAU, 40, Color(0, 0, 0, 0.35), lw + 2.0)
+			draw_arc(ap, 22.0 * s, 0, TAU, 40, col, lw)
+			draw_circle(ap, 2.5 * s, col)
+			if nose != Vector2.INF and nose.distance_to(ap) > 30.0 * s:
+				# dotted guide from the nose towards the aim
+				var dd := (ap - nose)
+				var n := int(dd.length() / (14.0 * s))
+				for i in range(1, n):
+					if i % 2 == 0:
+						draw_circle(nose + dd * (float(i) / n), 1.6 * s, Color(1, 1, 1, 0.35))
+	if Instructor.warning != "" and jet.aim_mode():
+		var on := fmod(Time.get_ticks_msec() / 1000.0, 0.4) < 0.25
+		ctext(vs.x * 0.5, vs.y * 0.24, Instructor.warning, 36, Color(1, 0.25, 0.2) if on else Color(1, 0.8, 0.3))
+
+
+## Gun lead marker: where to put the nose so the rounds meet the nearest
+## enemy plane ahead (the locked target first).
+func _draw_lead(nose: Vector2, lw: float) -> void:
+	var jet: Jet = game.jet
+	var cam: Camera3D = game.cam
+	var best: Jet = null
+	var bd := 1e9
+	var lt: Object = game.missiles.lock_target
+	for pl in game.fleet.planes:
+		if not pl.alive or pl == jet or pl.team == jet.team:
+			continue
+		var rel: Vector3 = pl.position - jet.position
+		var d := rel.length()
+		if d > 1000.0 or d < 20.0:
+			continue
+		var ang := jet.forward3().angle_to(rel)
+		if ang > 0.6:
+			continue
+		var score := ang * 1000.0 + d * 0.2 - (5000.0 if pl == lt else 0.0)
+		if score < bd:
+			bd = score
+			best = pl
+	if best == null:
+		return
+	var d := best.position.distance_to(jet.position)
+	var t := d / (Combat.PLAYER_SPEED + jet.speed)
+	var lead_w: Vector3 = best.position + best.forward3() * best.speed * t
+	if cam.is_position_behind(lead_w) or cam.is_position_behind(best.position):
+		return
+	var lp := _screen(lead_w)
+	var tp := _screen(best.position)
+	var on := nose.distance_to(lp) < 16.0 * s
+	var col := Color(1, 0.3, 0.25, 0.95) if on else Color(1, 0.85, 0.35, 0.9)
+	var r := 7.0 * s
+	draw_line(tp, lp, Color(col, 0.4), maxf(1.0, lw * 0.5))
+	draw_polyline(PackedVector2Array([lp + Vector2(0, -r), lp + Vector2(r, 0), lp + Vector2(0, r), lp + Vector2(-r, 0), lp + Vector2(0, -r)]), col, lw)
+
+
+## Flares left (chase view; the cockpit HUD shows its own).
+func _draw_flares_count(vs: Vector2) -> void:
+	var jet: Jet = game.jet
+	if not jet.alive or game.cam.cockpit_blend >= 0.5:
+		return
+	var w := 560.0 * s
+	var r := Rect2(Vector2(vs.x * 0.5 + w * 0.5 + 10 * s, vs.y - 54 * s), Vector2(96 * s, 40 * s))
+	_panel(r)
+	var ic := r.position + Vector2(20, 20) * s
+	var col := Color(1, 0.8, 0.4) if jet.flares > 0 else Color(1, 0.35, 0.3)
+	if jet.flares_active > 0.0:
+		col = Color(1, 1, 0.8)
+	for k in 3:
+		var a := -PI * 0.5 + (k - 1) * 0.6
+		draw_line(ic, ic + Vector2(cos(a), sin(a)) * 10.0 * s, col, maxf(2.0, 2.0 * s))
+	draw_circle(ic, 3.0 * s, col)
+	text(Vector2(r.position.x + 36 * s, r.position.y + 28 * s), "%d" % jet.flares, 20, col)
 
 
 ## Rectangular semi-transparent buttons (like the reference).

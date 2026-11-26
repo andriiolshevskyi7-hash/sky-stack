@@ -50,8 +50,8 @@ its own outline, painted in code:
 * Buy a plane with coins once your rank allows it and you own the tier
   before it.
 * Each plane has 5 upgrades with 5 levels each: engine, armor, guns,
-  missiles (more missiles, faster lock-on) and flares. Flares fire
-  automatically just before an enemy missile hits.
+  missiles (more missiles, faster lock-on) and flares (more flares per
+  sortie). Flares are released by hand: double tap.
 * Skins: Factory, Arctic, Desert camo, Jungle camo, Midnight, Tiger and Ace
   gold. They unlock by rank, by kills or with coins, and you see them in
   battle. You can also set a tail number.
@@ -124,14 +124,31 @@ first if Android refuses to update it (`adb uninstall com.skystack.game`).
 
 | Touch | Keyboard / mouse (desktop testing) |
 | --- | --- |
-| **Left side**: invisible floating stick, shown as a control-stick icon while held. Drag left/right to **bank and turn**, down to **pull**, up to push | A/D or arrows bank, S/Down pull, W/Up push |
+Two control schemes (Settings → Controls):
+
+**Aim (War Thunder style)** – the default. Two reticles are on screen in the
+chase and cockpit views: the small winged **nose** cross (where the plane
+points, with a gun-lead diamond on the nearest enemy ahead) and the **aim**
+circle (where you want to fly; an arrow on the screen edge when it is off
+screen). An instructor flies the plane so the nose chases the aim with the
+real flight model: it banks the lift vector onto the aim and pulls, eases
+the pull when slow (no stall, but hard turns still cost energy) and pulls up
+with a PULL UP warning when the flight path would hit the ground, a building
+or a mountain. The chase camera looks along the aim.
+
+**Stick (classic)** – an invisible floating stick on the left side.
+
+| Touch | Keyboard / mouse (desktop testing) |
+| --- | --- |
+| **Left half** (aim): drag like a trackpad to move the aim circle; it stays where you leave it (sensitivity in Settings) | mouse moves the aim; arrows / WASD |
+| **Left half** (stick): floating stick, drag left/right to **bank and turn**, down to **pull**, up to push | A/D or arrows bank, S/Down pull, W/Up push |
+| **Right side free area**: drag to look around the plane / the cockpit; it returns when you let go | hold Q / E, middle mouse drag |
 | **Right edge**: THROTTLE lever. Drag it up or down and it stays where you leave it; the orange top zone is the **afterburner** (it overheats, then has to cool) | T / G throttle, Shift afterburner, mouse wheel |
-| **Double tap** anywhere free: barrel roll (also with a second finger while steering) | R |
+| **Double tap** anywhere free (not on buttons): release **flares** (limited, counter in the HUD; also with a second finger while steering) | R |
 | FIRE icon (hold; ammo counter, reload when empty) | Space, J or mouse button |
 | MISSILE icon (count, reload ring) | M |
 | LOOP icon (flown for you; it can stall at the top if you start slow) | L |
 | Eye icon: overhead → chase → cockpit; **II** pause; INTEL lists all controls | C or V, Esc / P, I |
-| Cockpit: hold the eye icon and drag to look around (springs back when released) | hold Q / E, middle mouse drag |
 
 Vibration on hits, lock-on, stall and crash (Settings → HELPERS).
 
@@ -143,10 +160,20 @@ cinematic, tap to skip).
 Fight: fighters dogfight (they get on your tail and break away when you get on
 theirs), interceptors are fast, drones come in swarms, bombers are tanky and a
 boss bomber arrives every 5 waves. Keep an enemy ahead until the box turns red
-(rising beeps, steady tone when locked), then MISSILE. When an
-enemy missile comes, two rings close in around your jet — roll exactly as
-they meet to dodge (short slow motion); a MISSILE straight after a dodge fires
-three for free. An AI wingman flies with you.
+(rising beeps, steady tone when locked), then MISSILE. An AI wingman flies
+with you.
+
+Missile defence: an incoming missile sounds a warning that beeps faster as it
+closes, and a red arrow shows where it comes from. Missiles burn their motor
+for 2.6 s and then coast, losing speed to drag and climbing; their turn is
+limited by G and their seeker sees only ~55° off their path. So:
+
+* **Flares** (double tap) decoy a missile with a chance that depends on
+  timing (best 1–2.6 s before impact) and aspect (best when it comes from
+  behind), plus a bonus while pulling hard.
+* **Hard maneuvers**: turn across its path so it has to out-turn you; it
+  bleeds energy, and past its seeker limit or below ~170 m/s it is beaten
+  (EVADED).
 
 ## Sound
 
@@ -172,7 +199,8 @@ Everything is synthesised in code (`scripts/sfx.gd`, `scripts/sound_scape.gd`):
 ## Settings (pause menu → SETTINGS)
 
 The player's page has only: language, graphics quality (low / medium /
-high), sound volume, music volume, invert climb / dive, stick indicator,
+high), sound volume, music volume, controls (aim / stick), aim sensitivity,
+invert climb / dive, stick indicator,
 vibration, and RESET TO DEFAULTS. Every detailed tuning value below is on the
 DEBUG SETTINGS page, which exists only in debug builds.
 
@@ -181,8 +209,7 @@ All values persist in `user://save.cfg`. Defaults:
 * **Flight** – speed 130, boost x1.8, turn rate 1.25, bank 52°, cruising
   altitude 220, ceiling 3000, ground clearance 14, wingmen 1, crashes on,
   invert off
-* **Combat** – cannon 300, missiles 6, reload 5 s, enemy jets 3, dodge slow
-  motion 1.3 s
+* **Combat** – cannon 300, missiles 6, reload 5 s, enemy jets 3
 * **Camera** – view chase, view change 1.4 s, overhead turns with the jet
   0.6, chase distance 2.6 jet lengths, chase height 25°
 * **World** – time of day day / sunset / night, day-night cycle off, islands

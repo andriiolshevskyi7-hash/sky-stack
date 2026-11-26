@@ -8,15 +8,21 @@ var _t := 0.0
 var _ref := 0.0
 var _seen := false
 
+## Aim scheme versions of the first three steps.
+const AIM_STEPS := [
+	"Drag on the LEFT to move the aim circle - the plane follows it",
+	"Move the aim UP to climb",
+	"Move the aim DOWN to dive",
+]
 const STEPS := [
 	"Drag LEFT or RIGHT to turn",
 	"Drag DOWN to climb",
 	"Drag UP to dive",
-	"TAP the screen to barrel roll",
+	"DOUBLE TAP the screen to release FLARES",
 	"Press LOOP",
 	"Hold GUN to fire the cannon",
 	"Keep the drone ahead until the box turns RED, then MISSILE",
-	"Incoming missile! ROLL as the two rings meet",
+	"Incoming missile! FLARES (double tap) and turn hard",
 	"Tutorial complete - defend the city!",
 ]
 
@@ -26,7 +32,12 @@ func active() -> bool:
 
 
 func text() -> String:
-	return STEPS[step] if active() and step < STEPS.size() else ""
+	if not active() or step >= STEPS.size():
+		return ""
+	var c: Controls = game.controls if game != null and "controls" in game else null
+	if step < AIM_STEPS.size() and c != null and c.scheme == Controls.AIM:
+		return AIM_STEPS[step]
+	return STEPS[step]
 
 
 func start() -> void:
@@ -47,6 +58,9 @@ func _begin() -> void:
 			_ref = 0.0
 		1, 2:
 			_ref = jet.position.y
+		3:
+			jet.flares = maxi(jet.flares, 2)
+			_ref = jet.flares
 		5:
 			_ref = jet.ammo
 		6:
@@ -55,7 +69,8 @@ func _begin() -> void:
 			game.enemies.spawn(Enemies.DRONE, p)
 			_ref = game.kills
 		7:
-			_ref = game.missiles.dodges
+			jet.flares = maxi(jet.flares, 2)
+			_ref = game.missiles.dodges + game.missiles.decoys
 			game.missiles.fire_enemy(jet.position - jet.forward() * 260.0 + Vector3(0, 20, 0))
 	Sfx.play("ui")
 
@@ -85,8 +100,7 @@ func process(delta: float) -> void:
 		2:
 			done = jet.position.y < _ref - 40.0
 		3:
-			_seen = _seen or jet.man == Jet.M_ROLL
-			done = _seen and jet.man == Jet.M_NONE
+			done = jet.flares < _ref
 		4:
 			_seen = _seen or jet.man == Jet.M_LOOP
 			done = _seen and jet.man == Jet.M_NONE
@@ -97,7 +111,7 @@ func process(delta: float) -> void:
 			if not done and game.enemies.count_active() == 0 and _t > 2.0:
 				_begin()
 		7:
-			done = game.missiles.dodges > _ref
+			done = game.missiles.dodges + game.missiles.decoys > _ref
 			if not done and _t > 6.0:
 				_begin()
 		8:

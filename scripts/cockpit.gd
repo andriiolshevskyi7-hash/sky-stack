@@ -168,12 +168,14 @@ func _hud(jet: Jet, hr: Rect2, c: Vector2, tier: int) -> void:
 	ptext(Vector2(lx, ry + 12), "%d" % int(jet.ammo), HUD_DIM)
 	var aam := "M%d" % game.missiles_left()
 	ptext(Vector2(rx - PixFont.width(aam, 2), ry), aam, HUD, false, 2)
+	var fl := "F%d" % jet.flares
+	ptext(Vector2(rx - PixFont.width(fl), ry - 12), fl, (ORANGE if jet.flares_active > 0.0 else HUD_DIM) if jet.flares > 0 else RED)
 	var thr := ("AB" if jet.boosting else "%d" % int(jet.throttle * 100.0))
 	ptext(Vector2(rx - PixFont.width(thr), ry + 12), thr, ORANGE if jet.boosting else HUD_DIM)
 	if jet.stalling and int(Time.get_ticks_msec() / 220) % 2 == 0:
 		ptext(Vector2(c.x, _clip.end.y - 14), "STALL", RED, true)
-	if game.missiles.counter_t > 0.0:
-		ptext(Vector2(c.x, by + 10), "COUNTER", RED, true)
+	if game.missiles.incoming_t < 5.0 and int(Time.get_ticks_msec() / 150) % 2 == 0:
+		ptext(Vector2(c.x, by + 10), "MISSILE", RED, true)
 	if jet.multiplier > 1:
 		ptext(Vector2(c.x, by + 18), "LOW X%d" % jet.multiplier, YEL, true)
 

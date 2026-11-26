@@ -3,9 +3,9 @@ extends Node3D
 ## Player fighter jet. Cruises above the city; dive down to thread between
 ## skyscrapers for a score multiplier (hitting one costs hull).
 ## Flight (all views): stick X turns with a visible bank, stick Y pitches
-## (+ = climb). Tricks: barrel roll (tap), loop (LOOP button), back flip
-## (full climb + boost held), front flip (full dive + boost held, needs
-## height), eject (hold a dive into the ground with boost off).
+## (+ = climb). The player's stick comes from the controls (stick scheme) or
+## the Instructor (aim scheme). Tricks: loop (LOOP button), front flip (full
+## dive + boost held, needs height). Flares (double tap) decoy missiles.
 
 signal hit_building(amount: float)
 signal died
@@ -13,7 +13,7 @@ signal damaged(amount: float)
 signal ejected(pos: Vector3)
 signal trick(name: String)
 
-enum { M_NONE, M_ROLL, M_LOOP, M_FRONT }
+enum { M_NONE, M_LOOP, M_FRONT }
 
 const ALT := CityGen.JET_ALT
 const MIN_ALT := 6.0
@@ -67,7 +67,7 @@ var _loop_turned := 0.0
 var yaw := 0.0
 var pitch := 0.0 # + = nose up (can go past 90 deg during loops)
 var roll := 0.0 # visual bank, + = left wing down
-var roll_extra := 0.0 # barrel roll
+var roll_extra := 0.0 # extra visual roll (manoeuvres)
 var flight_mode := true
 var invert_pitch := false
 var ammo := MAX_AMMO
@@ -90,8 +90,6 @@ var man_dir := 1.0
 var _pitch0 := 0.0
 var _flip_hold := 0.0
 var _eject_hold := 0.0
-## > 0 while a barrel roll is in its "dodge" phase (combat checks this)
-var dodge_window := 0.0
 
 var lowfly_time := 0.0
 var lowfly_grace := 0.0
@@ -233,6 +231,8 @@ func visual_basis() -> Basis:
 func set_attitude(p_yaw: float, p_pitch: float = 0.0) -> void:
 	orient = Basis.from_euler(Vector3(p_pitch, p_yaw, 0.0))
 	_derive_angles()
+	if controls != null and brain == null:
+		controls.set_aim(forward3()) # teleported: the aim starts on the nose
 
 
 func reset(pos: Vector3, p_yaw: float) -> void:
@@ -278,19 +278,25 @@ func in_maneuver() -> bool:
 
 # ------------------------------------------------------------------ tricks
 
-## Barrel roll: a fast 360 deg roll around the flight path (dodges missiles
-## in its first part). Works while the stick is held with another finger.
-func barrel_roll() -> void:
-	if not alive or man == M_LOOP or man == M_FRONT or man == M_ROLL:
-		return
-	man = M_ROLL
-	man_t = 0.0
-	man_dur = clampf(TAU / (float(phys.get("roll", 3.0)) * 1.6), 0.55, 1.2)
-	man_dir = -1.0 if _stick().x > 0.2 else 1.0
-	dodge_window = 0.8
+## Release a salvo of flares (decoys for heat-seeking missiles): limited
+## per plane (the flares upgrade adds more). Returns false when none left.
+func release_flares() -> bool:
+	if not alive or flares <= 0 or flares_active > 0.4:
+		return false
+	flares -= 1
+	flares_active = 1.4
+	var f: Node = fx
+	if f == null and Missiles.instance != null:
+		f = Missiles.instance.fx
+	if f != null:
+		f.flares(position, -forward3(), forward3() * speed)
 	if is_player:
-		Sfx.play("boost", -10.0, 1.6)
-	trick.emit("ROLL")
+		Sfx.play("flare", -4.0)
+	else:
+		Sfx.play_at("flare", position, -6.0)
+	if Missiles.instance != null:
+		Missiles.instance.flare_release(self)
+	return true
 
 
 ## Loop: wings level, maximum pull until the nose has come all the way
@@ -318,7 +324,18 @@ func _stick() -> Vector2:
 		return stick_override
 	if brain != null:
 		return in_stick
+	if aim_mode():
+		if steer_home:
+			# border: the aim swings back towards the battle area
+			var home := Vector3(-position.x, 0.0, -position.z).normalized()
+			controls.set_aim(controls.aim_dir.slerp(home, 0.04))
+		return Instructor.stick_for(self, controls.aim_dir)
 	return controls.stick if controls != null else Vector2.ZERO
+
+
+## The player flies with the aim scheme (the instructor makes the stick).
+func aim_mode() -> bool:
+	return brain == null and not autopilot and controls != null and controls.scheme == Controls.AIM and stick_override == Vector2.INF
 
 
 ## yaw / pitch / roll from the orientation (HUD, camera, bots, cockpit).
@@ -338,11 +355,11 @@ func _inputs(delta: float) -> Vector2:
 		var desired := _autopilot_heading(delta)
 		stick.x = clampf(-wrapf(desired - yaw, -PI, PI) * 2.5, -1.0, 1.0)
 		stick.y = clampf((float(cfg["cruise"]) - position.y) * 0.01 - forward3().y * 2.0, -0.6, 0.6)
-	elif brain == null:
+	elif brain == null and not aim_mode():
 		stick.y *= -1.0 if invert_pitch else 1.0
 		if absf(stick.y) < 0.08:
 			stick.y = 0.0
-	if steer_home:
+	if steer_home and not aim_mode():
 		var home := atan2(position.x, position.z) # heading towards the origin
 		stick.x = clampf(-wrapf(home - yaw, -PI, PI) * 2.0, -1.0, 1.0)
 	# flight assist: smooth small corrections (the more assist, the softer)
@@ -356,7 +373,6 @@ func step(delta: float) -> void:
 	if not alive:
 		return
 	invuln = maxf(0.0, invuln - delta)
-	dodge_window = maxf(0.0, dodge_window - delta)
 	flares_active = maxf(0.0, flares_active - delta)
 	var stick := _inputs(delta)
 	# ---- throttle + afterburner (heat: overheats, then cools before reuse)
@@ -405,15 +421,6 @@ func step(delta: float) -> void:
 			n_cmd = max_g
 			if _loop_turned >= TAU * 0.97 or man_t > man_dur:
 				man = M_NONE
-		M_ROLL:
-			man_t += delta
-			var k := clampf(man_t / man_dur, 0.0, 1.0)
-			roll_extra = man_dir * TAU * (k * k * (3.0 - 2.0 * k))
-			position += right() * (-man_dir) * sin(k * PI) * 30.0 * delta
-			n_cmd = cos_g / (maxf(cos(bank), 0.35) * turn_k) if absf(bank) < PI * 0.5 else 1.0
-			if k >= 1.0:
-				man = M_NONE
-				roll_extra = 0.0
 		_:
 			# bank-to-turn: the stick commands a bank angle, the pilot pulls
 			# enough G for a level turn, and stick Y adds / removes G
@@ -434,8 +441,7 @@ func step(delta: float) -> void:
 	# roll with inertia
 	var roll_max: float = float(phys.get("roll", 3.0)) * soft * (1.0 + 0.5 * assist)
 	_roll_rate = lerpf(_roll_rate, roll_cmd * roll_max, 1.0 - exp(-delta * agile * 1.6))
-	if man != M_ROLL:
-		orient = orient.rotated(f, -_roll_rate * delta) # positive rate rolls left wing down
+	orient = orient.rotated(f, -_roll_rate * delta) # positive rate rolls left wing down
 	# G with inertia, limited by lift available at this speed and by the airframe
 	var n_lim := minf(max_g, n_avail)
 	# stall only when really slow AND pulling hard; ease off = quick recovery
@@ -444,8 +450,6 @@ func step(delta: float) -> void:
 		n_lim = n_avail * 0.75 # past the critical angle: lift collapses
 		soft = maxf(soft, 0.5)
 	n_cmd = clampf(n_cmd, -minf(max_g * 0.45, n_avail * 0.6), n_lim)
-	if man == M_ROLL:
-		n_cmd = 0.0 # unloaded roll: the path stays straight
 	_n = lerpf(_n, n_cmd, 1.0 - exp(-delta * agile * 1.3))
 	g_load = _n
 	# visual angle of attack
@@ -454,8 +458,6 @@ func step(delta: float) -> void:
 	var drag := _cd * V * V + _ki * float(cfg.get("bleed", 0.6)) * _n * _n / (V * V)
 	var up := orient.y
 	var grav := Vector3(0, -G, 0)
-	if man == M_ROLL:
-		grav = Vector3.ZERO # (unloaded roll ignores the gravity turn)
 	var a_par := thrust - drag + grav.dot(f)
 	var a_perp := up * (_n * G * turn_k) + (grav - f * grav.dot(f))
 	speed = maxf(4.0, speed + a_par * delta)

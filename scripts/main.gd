@@ -280,7 +280,9 @@ func _ready() -> void:
 
 	controls.cam_pressed.connect(_on_cam)
 	controls.pause_pressed.connect(_on_pause)
-	controls.roll_pressed.connect(func() -> void: jet.barrel_roll())
+	controls.flares_pressed.connect(func() -> void:
+		if state == State.PLAY and jet.alive and not jet.release_flares() and jet.flares <= 0:
+			show_banner("NO FLARES", "", 0.6))
 	controls.loop_pressed.connect(func() -> void: jet.loop(false))
 	controls.missile_pressed.connect(_on_missile)
 	controls.intel_pressed.connect(_on_intel)
@@ -288,8 +290,7 @@ func _ready() -> void:
 	jet.ejected.connect(_on_ejected)
 	jet.trick.connect(func(n: String) -> void:
 		if state == State.PLAY:
-			if n != "ROLL":
-				Profile.track("loop")
+			Profile.track("loop")
 			score += 25
 			show_banner(n, "", 0.8))
 	jet.died.connect(_on_jet_died)
@@ -324,6 +325,8 @@ func _parse_args() -> void:
 			_stick_demo = true
 		elif a == "--fight":
 			_fight_test = true
+		elif a == "--aimdemo":
+			_aim_demo = true
 		elif a.begins_with("--team="):
 			Save.settings["team_size"] = int(a.substr(7))
 		elif a == "--hangar":
@@ -422,6 +425,7 @@ var _crash_test := false
 var _stick_demo := false
 var _stall_warn := 0.0
 var _was_locked := false
+var _aim_demo := false
 
 
 ## --fight (screenshots only): sit behind an enemy and shoot, so combat
@@ -449,6 +453,8 @@ func _shot_tick() -> void:
 		controls.drag_start = Vector2(vs.x * 0.2, vs.y * 0.62)
 		controls.drag_pos = controls.drag_start + Vector2(0.55, 0.35) * controls.drag_radius
 		controls.pressed["fire"] = true
+	if _aim_demo and _frame == _shot_frames - 25 and state == State.PLAY:
+		controls.turn_aim(-0.8, 0.2) # aim off to the right: both reticles show
 	if _crash_test and _frame == 30 and state == State.PLAY:
 		jet.position.y = 320.0
 		jet.crash()
@@ -497,19 +503,12 @@ func _process(delta: float) -> void:
 		if missiles.locked and not _was_locked:
 			Controls.haptic(20, 0.3)
 		_was_locked = missiles.locked
-		# flares go out by themselves just before an enemy missile hits
-		if jet.alive and jet.flares > 0 and jet.flares_active <= 0.0 and missiles.incoming_t < 0.45:
-			jet.flares -= 1
-			jet.flares_active = 1.5
-			fx.flares(jet.position, -jet.forward3(), jet.forward3() * jet.speed)
-			Sfx.play("boost", -6.0, 2.2)
-			Profile.track("flare_save")
-			popups.append([jet.position, "FLARES", 0.0])
 		match_rules.update(delta)
 		if _player_respawn > 0.0:
 			_player_respawn -= delta
 			if _player_respawn <= 0.0:
 				_respawn_player()
+	cam.aim_dir = controls.aim_dir if (jet.alive and jet.aim_mode() and state == State.PLAY) else Vector3.INF
 	cam.update_cam(delta, jet, jet.speed_ratio())
 	# in the cockpit the own plane stays hidden (the 3D cockpit replaces it)
 	cam.look_target = controls.look
@@ -1494,7 +1493,8 @@ func apply_settings(key: String) -> void:
 	jet.invert_pitch = st["invert"]
 	missiles.max_missiles = plane_missiles()
 	missiles.reload_time = st["reload"]
-	missiles.slowmo_s = st["slowmo"]
+	controls.scheme = int(st["scheme"])
+	controls.aim_sens = float(st["aim_sens"])
 	if key == "missiles" or key == "":
 		missiles.ammo = missiles.max_missiles
 	if key == "cannon":
@@ -1771,20 +1771,78 @@ func test_hook(t: Node) -> Array:
 	if kills <= k0:
 		errs.append("locked missile did not kill the target")
 
-	# --- enemy missile: roll as the rings meet -> dodge, counter volley armed
+	# --- enemy missile: flares released 1-2 s before impact decoy it
 	enemies.clear()
-	var d0 := missiles.dodges
-	missiles.fire_enemy(jet.position - jet.forward() * 200.0)
-	var rolled := false
+	missiles.clear()
+	jet.invuln = 0.0
+	jet.flares = maxi(jet.flares, 3)
+	jet.flares_active = 0.0
+	missiles.flare_luck = 1.0
+	var dc0 := missiles.decoys
+	var fl0 := jet.flares
+	var hp0 := jet.health
+	missiles.fire_enemy(jet.position - jet.forward() * 300.0)
+	var flared := false
 	for i in 900:
 		await t.get_tree().process_frame
-		if not rolled and missiles.incoming_t < 0.35:
-			jet.barrel_roll()
-			rolled = true
-		if missiles.dodges > d0:
+		if not flared and missiles.incoming_t < 1.5:
+			flared = jet.release_flares()
+		if missiles.decoys > dc0:
 			break
-	if missiles.dodges <= d0 or missiles.counter_t <= 0.0:
-		errs.append("rolling as the rings meet did not dodge the missile")
+	for i in 60:
+		await t.get_tree().process_frame
+	missiles.flare_luck = -1.0
+	if missiles.decoys <= dc0 or jet.flares != fl0 - 1:
+		errs.append("flares did not decoy the missile (decoys %d, flares %d -> %d)" % [missiles.decoys - dc0, fl0, jet.flares])
+	if jet.health < hp0:
+		errs.append("a decoyed missile still hit the plane")
+	# --- out-maneuvered: target outside the seeker's view / missile out of energy
+	missiles.clear()
+	var dg0 := missiles.dodges
+	var m1 = missiles._spawn(true, jet.position + jet.right() * 500.0, -jet.forward3() * 300.0, jet)
+	var m2 = missiles._spawn(true, jet.position - jet.forward3() * 900.0, jet.forward3() * 150.0, jet)
+	m2.burn = 0.0
+	await t.get_tree().process_frame
+	await t.get_tree().process_frame
+	if missiles.dodges < dg0 + 2 or m1 == null:
+		errs.append("missiles that lost the target / their energy were not evaded (%d)" % (missiles.dodges - dg0))
+	missiles.clear()
+	# --- instructor: aim 90 degrees to the right, the nose follows it
+	var sch0 := controls.scheme
+	controls.scheme = Controls.AIM
+	jet.position.y = 600.0
+	jet.set_attitude(jet.yaw)
+	jet.speed = jet.base_speed()
+	var goal_dir: Vector3 = Basis(Vector3.UP, -PI * 0.5) * jet.forward3()
+	goal_dir.y = 0.0
+	controls.set_aim(goal_dir)
+	var y_before := jet.position.y
+	for i in 480:
+		await t.get_tree().process_frame
+		if jet.forward3().angle_to(controls.aim_dir) < 0.12:
+			break
+	var nerr := jet.forward3().angle_to(controls.aim_dir)
+	print("    instructor: nose error %.2f rad, alt %.0f -> %.0f" % [nerr, y_before, jet.position.y])
+	if nerr > 0.25:
+		errs.append("instructor did not bring the nose onto the aim (error %.2f rad)" % nerr)
+	if absf(jet.position.y - y_before) > 250.0:
+		errs.append("instructor lost / gained too much altitude in a level turn")
+	# --- instructor ground protection: aim straight down low over the ground
+	jet.position.y = 140.0
+	jet.set_attitude(jet.yaw, -0.5) # diving at the ground, aim along the dive
+	controls.set_aim(jet.forward3())
+	var min_y := 999.0
+	var warned := false
+	for i in 240:
+		await t.get_tree().process_frame
+		min_y = minf(min_y, jet.position.y)
+		warned = warned or Instructor.warning == "PULL UP"
+	if not jet.alive or min_y < 8.0 or not warned:
+		errs.append("instructor did not pull up from the ground (min alt %.0f, warned %s)" % [min_y, warned])
+	controls.set_aim(jet.forward3())
+	controls.scheme = sch0
+	jet.position.y = 400.0
+	jet.invuln = 0.0
 	Engine.time_scale = 1.0
 	fleet.process_mode = Node.PROCESS_MODE_INHERIT
 	_spawn_wingmen()
@@ -1837,6 +1895,9 @@ func test_hook(t: Node) -> Array:
 	if float(jet.cfg["speed"]) != float(d["speed"]) or traffic.level != int(d["traffic"]) or Save.settings.size() < d.size():
 		errs.append("reset to defaults did not restore settings")
 	# cockpit view: camera locks into the canopy, jet hidden, overlay shown
+	# (level flight, the aim on the nose: no G head motion)
+	jet.position.y = maxf(jet.position.y, 400.0)
+	jet.set_attitude(jet.yaw)
 	cam.mode = GameCamera.Mode.COCKPIT
 	cam._since_switch = 0.0
 	await t.get_tree().create_timer(2.5).timeout
@@ -1847,7 +1908,7 @@ func test_hook(t: Node) -> Array:
 	var pk: Array = []
 	for r in settings_ui.page_rows():
 		pk.append(r[1])
-	if pk != ["lang", "quality", "volume", "music", "invert", "stick_indicator", "vibration"]:
+	if pk != ["lang", "quality", "volume", "music", "scheme", "aim_sens", "invert", "stick_indicator", "vibration"]:
 		errs.append("player settings page shows %s" % [pk])
 	settings_ui.debug_page = true
 	if settings_ui.page_rows().size() < 30:
@@ -1900,7 +1961,7 @@ func test_hook(t: Node) -> Array:
 	if not cockpit3d.active or cockpit3d._body.mesh == null or cockpit3d._body.mesh.get_surface_count() == 0:
 		errs.append("3D cockpit not active / no geometry")
 	elif hr.size.x <= 0.0 or hr.size.x > pv.low.x * 0.2 or absf(hr.get_center().x - pv.low.x * 0.5) > 4.0:
-		errs.append("HUD combiner wrong size / place (%s of %s)" % [hr, pv.low])
+		errs.append("HUD combiner wrong size / place (%s of %s; roll %.2f rr %.2f look %s home %s err %.2f)" % [hr, pv.low, jet.roll, jet._roll_rate, cam.look, jet.steer_home, jet.forward3().angle_to(controls.aim_dir)])
 	elif cockpit3d.lip_y() < pv.low.y * 0.55:
 		errs.append("glareshield too high (%.0f of %d)" % [cockpit3d.lip_y(), pv.low.y])
 	controls.debug_look = Vector2(0, 0)

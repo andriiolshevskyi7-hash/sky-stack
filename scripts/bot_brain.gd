@@ -35,6 +35,8 @@ var _react := 0.0
 var _mistake := 0.0 # > 0: currently making a mistake
 var _mistake_kind := 0
 var _rolled_for := 0.0
+var _break_t := 0.0 # > 0: break turn away from a missile
+var _break_goal := Vector3.ZERO
 var _wobble := Vector2.ZERO
 var _home := Vector3.ZERO
 ## ground target picker (attackers): Callable(plane) -> Object with pos/active
@@ -166,6 +168,9 @@ func think(delta: float) -> void:
 			_fly_patrol()
 		_:
 			_fly_engage(delta)
+	if _break_t > 0.0:
+		_break_t -= delta
+		_steer_to(_break_goal, 1.0)
 	_avoid_ground()
 	_avoid_planes()
 	_keep_in_bounds()
@@ -362,20 +367,27 @@ func _dodge_missiles() -> void:
 	if fleet.missiles == null:
 		return
 	var t: float = fleet.missiles.incoming_for(plane)
-	if t > 3.0:
+	if t > 4.0:
 		_rolled_for = 0.0
 		return
-	# skilled pilots roll right as the missile arrives; rookies guess
-	var when := 0.4 + rng.randf_range(-0.5, 0.5) * (1.0 - skill)
+	# break turn: put the missile on the beam (90 degrees off) so it has to
+	# out-turn the plane; skilled pilots start it earlier
+	if _break_t <= 0.0 and t < lerpf(1.5, 3.5, skill) and rng.randf() < 0.3 + skill * 0.7:
+		var mp: Vector3 = fleet.missiles.threat_pos(plane)
+		if mp != Vector3.INF:
+			var los := (plane.position - mp)
+			los.y = 0.0
+			var side := los.normalized().cross(Vector3.UP)
+			if side.dot(plane.forward3()) < 0.0:
+				side = -side
+			_break_goal = plane.position + side * 600.0 + Vector3(0, -40, 0)
+			_break_t = 2.5
+	# flares just before it arrives; rookies misjudge the timing
+	var when := 1.8 + rng.randf_range(-1.2, 1.2) * (1.0 - skill)
 	if _rolled_for <= 0.0 and t < when:
 		_rolled_for = 1.0
-		if rng.randf() < 0.15 + skill * 0.8:
-			plane.barrel_roll()
-		if plane.flares > 0 and rng.randf() < skill:
-			plane.flares -= 1
-			plane.flares_active = 1.5
-			if fleet.fx != null:
-				fleet.fx.flares(plane.position, -plane.forward3(), plane.forward3() * plane.speed)
+		if rng.randf() < 0.3 + skill * 0.7:
+			plane.release_flares()
 
 
 ## Mid-air collisions are fatal: break away from any plane that will pass

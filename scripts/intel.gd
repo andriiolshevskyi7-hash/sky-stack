@@ -7,12 +7,11 @@ signal closed
 
 const TABS := ["TOUCH", "CONTROLLER", "MOUSE + KEYS"]
 const ROWS := {
-	"TOUCH": [["FLY", ""], ["STICK", "Touch anywhere: that point is the stick centre"], ["TURN", "Drag left or right"], ["CLIMB / DIVE", "Drag down to climb, up to dive"], ["THROTTLE", "Drag the lever on the right edge; the top zone is afterburner"], ["CHANGE VIEW", "VIEW"], ["LOOK AROUND", "In the cockpit hold the eye and drag"],
-		["ENERGY", "Climbing and hard turns cost speed, diving gains it"], ["STALL", "Too slow with the stick back: the nose drops"], ["AFTERBURNER", "Hold BOOST. It overheats, then needs to cool"],
-		["TRICKS", ""], ["ROLL", "Double tap anywhere free"], ["LOOP", "LOOP (flown for you), or pull fully back"], ["CRASH", "Hitting anything is fatal: the pilot ejects"],
-		["FIGHT", ""], ["CANNON", "Hold FIRE"], ["LOCK ON", "Keep an enemy ahead until the box turns red"], ["MISSILE", "MISSILE"], ["DODGE A MISSILE", "Roll as the two rings meet"], ["COUNTER", "Missile straight after a dodge fires three, free"], ["AMMO", "300 rounds, 6 missiles. Run out and it takes 5 s to reload"]],
-	"CONTROLLER": [["FLY", ""], ["TURN / PITCH", "Left stick"], ["THRUSTERS", "Right trigger"], ["CANNON", "A / Cross"], ["MISSILE", "B / Circle"], ["ROLL", "X / Square"], ["LOOP", "Y / Triangle"], ["VIEW", "Back / Select"], ["PAUSE", "Start"]],
-	"MOUSE + KEYS": [["FLY", ""], ["TURN", "A / D or arrows"], ["CLIMB / DIVE", "S climbs, W dives"], ["THRUSTERS", "Shift"], ["CANNON", "Space, J or mouse button"], ["MISSILE", "M"], ["ROLL", "R"], ["LOOP", "L"], ["VIEW", "C or V"], ["LOOK AROUND", "Hold Q / E, or drag with the middle mouse button"], ["PAUSE / INTEL", "Esc / I"]],
+	"TOUCH": [["FLY", ""], ["AIM", "Drag on the left half like a trackpad: the circle is where you fly"], ["NOSE", "The small cross is where the nose points; the instructor flies it onto the circle"], ["STICK SCHEME", "Settings: Controls - Stick (classic) puts a stick on the left half"], ["THROTTLE", "Drag the lever on the right edge; the top zone is afterburner"], ["LOOK AROUND", "Drag in the free area on the right; let go and the view returns"], ["CHANGE VIEW", "VIEW"],
+		["ENERGY", "Climbing and hard turns cost speed, diving gains it"], ["PULL UP", "Low and diving: the instructor pulls up for you"], ["LOOP", "LOOP (flown for you)"], ["CRASH", "Hitting anything is fatal: the pilot ejects"],
+		["FIGHT", ""], ["CANNON", "Hold FIRE; put the nose on the diamond to lead the target"], ["LOCK ON", "Keep an enemy ahead until the box turns red"], ["MISSILE", "MISSILE"], ["FLARES", "Double tap anywhere free. Best 1-2 s before the missile hits"], ["MISSILE DEFENCE", "Turn hard across its path: it bleeds energy and loses you"], ["AMMO", "300 rounds, 6 missiles. Run out and it takes 5 s to reload"]],
+	"CONTROLLER": [["FLY", ""], ["TURN / PITCH", "Left stick"], ["THRUSTERS", "Right trigger"], ["CANNON", "A / Cross"], ["MISSILE", "B / Circle"], ["FLARES", "X / Square"], ["LOOP", "Y / Triangle"], ["VIEW", "Back / Select"], ["PAUSE", "Start"]],
+	"MOUSE + KEYS": [["FLY", ""], ["AIM", "Move the mouse (aim scheme), or arrows / WASD"], ["TURN", "A / D or arrows (stick scheme)"], ["CLIMB / DIVE", "S climbs, W dives"], ["THROTTLE", "T / G or the mouse wheel"], ["CANNON", "Space, J or mouse button"], ["MISSILE", "M"], ["FLARES", "R"], ["LOOP", "L"], ["VIEW", "C or V"], ["LOOK AROUND", "Hold Q / E, or drag with the middle mouse button"], ["PAUSE / INTEL", "Esc / I"]],
 }
 
 var tab := 0

@@ -311,6 +311,9 @@ func test_touch(main: Node) -> void:
 	check(main.state == main.State.PLAY, "touch on lobby START starts the game")
 	check(not main.menu.visible and not main.screens.visible, "menus closed after START")
 	var c: Controls = main.controls
+	check(c.scheme == Controls.AIM, "aim scheme is the default")
+	# --- classic stick scheme
+	c.scheme = Controls.STICK
 	# drag steering anywhere: drag right + down = turn right + climb
 	var vs := c.get_viewport().get_visible_rect().size
 	var jp := Vector2(vs.x * 0.45, vs.y * 0.45)
@@ -350,24 +353,25 @@ func test_touch(main: Node) -> void:
 	await _frames(2)
 	check(c.drag_start == before and c.fire and c.stick.x > 0.1, "multitouch: steer + hold FIRE")
 	_touch(c.button_center("fire"), false, 2)
-	# double tap with a second finger WHILE steering = barrel roll
+	# double tap with a second finger WHILE steering = flares
+	main.jet.flares = 5
+	main.jet.flares_active = 0.0
 	var free := Vector2(vs.x * 0.7, vs.y * 0.3)
 	for k in 2:
 		_touch(free, true, 4)
 		await _frames(1)
 		_touch(free, false, 4)
 		await _frames(1)
-	check(main.jet.man == Jet.M_ROLL and c.dragging, "double tap rolls while the stick is held")
+	check(main.jet.flares == 4 and c.dragging, "double tap releases flares while the stick is held (%d)" % main.jet.flares)
 	_touch(jp, false, 1)
-	await _frames(40)
-	main.jet.man = Jet.M_NONE
-	main.jet.roll_extra = 0.0
-	# a single tap does nothing now
+	await _frames(10)
+	main.jet.flares_active = 0.0
+	# a single tap does nothing
 	_touch(jp, true, 1)
 	await _frames(1)
 	_touch(jp, false, 1)
 	await _frames(25)
-	check(main.jet.man == Jet.M_NONE, "single tap does not roll")
+	check(main.jet.flares == 4 and main.jet.man == Jet.M_NONE, "single tap does nothing")
 	_touch(jp, true, 1)
 	await _frames(1)
 	_touch(jp, false, 1)
@@ -376,7 +380,28 @@ func test_touch(main: Node) -> void:
 	await _frames(1)
 	_touch(jp, false, 1)
 	await _frames(2)
-	check(main.jet.man == Jet.M_ROLL, "double tap does a barrel roll")
+	check(main.jet.flares == 3, "double tap releases flares (%d)" % main.jet.flares)
+	check(main.jet.man == Jet.M_NONE, "no barrel roll any more")
+	# --- aim scheme: the left half is a trackpad for the aim circle
+	c.scheme = Controls.AIM
+	main.jet.set_attitude(main.jet.yaw)
+	c.set_aim(main.jet.forward3())
+	var a0: Vector3 = c.aim_dir
+	_touch(jp, true, 1)
+	await _frames(1)
+	_drag(jp + Vector2(60, 0), 1)
+	await _frames(1)
+	_drag(jp + Vector2(120, -60), 1)
+	await _frames(1)
+	var a1: Vector3 = c.aim_dir
+	_touch(jp + Vector2(120, -60), false, 1)
+	await _frames(3)
+	var yaw_d := atan2(a0.cross(a1).y, a0.dot(a1)) # + = left
+	check(yaw_d < -0.05 and a1.y > a0.y + 0.03, "aim drag right + up moves the aim right and up (yaw %.2f, dy %.2f)" % [yaw_d, a1.y - a0.y])
+	check(c.aim_dir.distance_to(a1) < 0.01, "the aim stays where it was left")
+	check(c.stick == Vector2.ZERO and not c.dragging, "no stick in the aim scheme")
+	check(main.jet.aim_mode(), "player plane flies with the instructor")
+	c.set_aim(main.jet.forward3())
 	# LOOP
 	main.jet.man = Jet.M_NONE
 	_touch(c.button_center("loop"), true)
@@ -394,18 +419,19 @@ func test_touch(main: Node) -> void:
 	await _frames(2)
 	check(main.cam.mode != mode_before, "VIEW button cycles the view")
 	main.cam.mode = mode_before
-	# hold VIEW and drag = look around (no view change), springs back
-	var vc: Vector2 = c.button_center("view")
-	main.cam.mode = GameCamera.Mode.COCKPIT
-	_touch(vc, true)
-	await _frames(1)
-	_drag(vc + Vector2(-300, 0))
-	await _frames(25)
-	var looked: float = main.cam.look.x
-	_touch(vc + Vector2(-300, 0), false)
-	await _frames(60)
-	check(main.cam.mode == GameCamera.Mode.COCKPIT and looked > 0.3 and absf(main.cam.look.x) < 0.1,
-		"hold + drag VIEW looks left (%.2f rad) without changing the view, then springs back (%.2f)" % [looked, main.cam.look.x])
+	# drag in the free area on the right = look around (cockpit and chase),
+	# springs back on release; the view does not change
+	for md in [GameCamera.Mode.COCKPIT, GameCamera.Mode.CHASE]:
+		main.cam.mode = md
+		_touch(free, true, 5)
+		await _frames(1)
+		_drag(free + Vector2(-300, 0), 5)
+		await _frames(25)
+		var looked: float = main.cam.look.x
+		_touch(free + Vector2(-300, 0), false, 5)
+		await _frames(60)
+		check(main.cam.mode == md and looked > 0.3 and absf(main.cam.look.x) < 0.1,
+			"right-side drag looks left (%.2f rad) in view %d, then springs back (%.2f)" % [looked, md, main.cam.look.x])
 	main.cam.mode = mode_before
 	# PAUSE -> RESUME
 	_touch(c.button_center("pause"), true)

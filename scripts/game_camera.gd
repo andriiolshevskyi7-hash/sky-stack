@@ -47,6 +47,9 @@ var look := Vector2.ZERO
 var look_target := Vector2.ZERO
 const LOOK_MAX := Vector2(2.0, 1.2) # ~115 deg to the side: the seat blocks the view further back
 const LOOK_MIN_PITCH := -0.45
+## Aim scheme: the chase camera looks along the player's aim (INF = off,
+## follow the jet's nose as before).
+var aim_dir := Vector3.INF
 
 
 func _ready() -> void:
@@ -96,8 +99,30 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 			var el := deg_to_rad(chase_height)
 			var p := jp - f * dist * cos(el) + Vector3.UP * (dist * sin(el) - sin(jet.pitch) * dist * 0.5)
 			var t := jp + f3 * dist * 0.6
+			var roll_k := 0.22
+			if aim_dir != Vector3.INF:
+				# War Thunder style: the camera looks where the pilot aims,
+				# the plane swings into view as it turns after the aim
+				var c := (f3 * 0.3 + aim_dir * 0.7).normalized()
+				var cf := Vector2(c.x, c.z)
+				var cflat := Vector3(cf.x, 0.0, cf.y).normalized() if cf.length() > 0.05 else f
+				var cp := clampf(asin(clampf(c.y, -1.0, 1.0)), -1.2, 1.2)
+				p = jp - cflat * dist * cos(el + cp * 0.5) * cos(cp * 0.5) + Vector3.UP * dist * sin(el - cp * 0.6)
+				t = jp + c * dist * 0.7
+				roll_k = 0.1
+			if look != Vector2.ZERO:
+				# free look: orbit around the plane
+				var off := p - jp
+				off = Basis(Vector3.UP, look.x) * off
+				var right := off.cross(Vector3.UP).normalized()
+				if right.length_squared() > 0.5:
+					off = Basis(right, clampf(-look.y, -0.9, 1.1)) * off
+				var k := clampf(look.length() * 2.0, 0.0, 1.0)
+				p = jp + off
+				t = t.lerp(jp, k)
+				roll_k *= 1.0 - k
 			var tr := Transform3D(Basis.IDENTITY, p).looking_at(t, Vector3.UP)
-			tr.basis = tr.basis * Basis(Vector3.BACK, -jet.roll * 0.22)
+			tr.basis = tr.basis * Basis(Vector3.BACK, -jet.roll * roll_k)
 			return tr
 		_:
 			var b: Basis = jet.visual_basis()
@@ -107,9 +132,11 @@ func _target(m: int, jet: Node3D) -> Transform3D:
 
 func update_cam(delta: float, jet: Node3D, speed_ratio: float) -> void:
 	_since_switch += delta
-	if mode != Mode.COCKPIT or override != null:
+	if mode == Mode.OVERHEAD or override != null:
 		look_target = Vector2.ZERO
 	var lt := Vector2(clampf(look_target.x, -LOOK_MAX.x, LOOK_MAX.x), clampf(look_target.y, LOOK_MIN_PITCH, LOOK_MAX.y))
+	if mode == Mode.CHASE:
+		lt = Vector2(wrapf(look_target.x, -PI, PI), clampf(look_target.y, -0.9, 1.1))
 	look = look.lerp(lt, 1.0 - exp(-delta * 9.0))
 	if look.length() < 0.002 and lt == Vector2.ZERO:
 		look = Vector2.ZERO

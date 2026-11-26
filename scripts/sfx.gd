@@ -51,6 +51,7 @@ func _ready() -> void:
 	streams["beep"] = _wav(_beep(1400.0, 0.05))
 	streams["tone"] = _wav(_beep(2000.0, 0.12))
 	streams["warn"] = _wav(_beep(900.0, 0.09))
+	streams["flare"] = _wav(_flare())
 	_make_buses()
 	for i in 16:
 		var p := AudioStreamPlayer.new()
@@ -282,6 +283,24 @@ func _boost() -> PackedFloat32Array:
 		var t := float(i) / RATE
 		lp += (_rng.randf_range(-1, 1) - lp) * (0.05 + t * 0.4)
 		b[i] = lp * 1.4 * sin(PI * t / 0.5)
+	return b
+
+
+## Flare salvo: a quick string of dull pops from the dispensers, then the
+## hiss of the burning flares.
+func _flare() -> PackedFloat32Array:
+	var b := _buf(0.7)
+	var lp := 0.0
+	for i in b.size():
+		var t := float(i) / RATE
+		var pop := 0.0
+		for k in 4:
+			var tk := t - k * 0.07
+			if tk >= 0.0:
+				pop += exp(-tk * 60.0) * sin(tk * TAU * (140.0 - k * 10.0))
+		lp += (_rng.randf_range(-1, 1) - lp) * 0.45
+		var hiss := lp * 0.35 * minf(1.0, t * 6.0) * exp(-t * 3.5)
+		b[i] = pop * 0.9 + hiss
 	return b
 
 

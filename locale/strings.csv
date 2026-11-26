@@ -433,3 +433,34 @@ DEBUG SETTINGS,DEBUG SETTINGS,НАЛАГОДЖЕННЯ
 DEBUG,DEBUG,НАЛАГОДЖЕННЯ
 GRAPHICS,GRAPHICS,ГРАФІКА
 CONTROLS,CONTROLS,КЕРУВАННЯ
+Controls,Controls,Керування
+aim_scheme,Aim (War Thunder style),Приціл (як у War Thunder)
+stick_scheme,Stick (classic),Ручка (класика)
+Aim sensitivity,Aim sensitivity,Чутливість прицілу
+Drag on the LEFT to move the aim circle - the plane follows it,Drag on the LEFT to move the aim circle - the plane follows it,"Ведіть пальцем ЛІВОРУЧ, щоб рухати коло прицілу — літак летить за ним"
+Move the aim UP to climb,Move the aim UP to climb,"Підніміть приціл ВГОРУ, щоб набрати висоту"
+Move the aim DOWN to dive,Move the aim DOWN to dive,"Опустіть приціл ВНИЗ, щоб знизитися"
+DOUBLE TAP the screen to release FLARES,DOUBLE TAP the screen to release FLARES,ПОДВІЙНИЙ ТАП по екрану — відстріл ПАСТОК
+Incoming missile! FLARES (double tap) and turn hard,Incoming missile! FLARES (double tap) and turn hard,Ракета! ПАСТКИ (подвійний тап) і різкий віраж
+PULL UP,PULL UP,ВИВОДЬ!
+EVADED,EVADED,УХИЛИВСЯ
+NO FLARES,NO FLARES,ПАСТОК НЕМАЄ
+DOUBLE TAP: FLARES,DOUBLE TAP: FLARES,ПОДВІЙНИЙ ТАП: ПАСТКИ
+AIM,AIM,ПРИЦІЛ
+NOSE,NOSE,НІС
+STICK SCHEME,STICK SCHEME,СХЕМА З РУЧКОЮ
+MISSILE DEFENCE,MISSILE DEFENCE,ЗАХИСТ ВІД РАКЕТ
+Drag on the left half like a trackpad: the circle is where you fly,Drag on the left half like a trackpad: the circle is where you fly,"Ведіть по лівій половині, як по тачпаду: коло — куди ви летите"
+The small cross is where the nose points; the instructor flies it onto the circle,The small cross is where the nose points; the instructor flies it onto the circle,Малий хрестик — куди дивиться ніс; інструктор веде його на коло
+Settings: Controls - Stick (classic) puts a stick on the left half,Settings: Controls - Stick (classic) puts a stick on the left half,Налаштування: Керування — Ручка (класика) ставить ручку ліворуч
+Drag in the free area on the right; let go and the view returns,Drag in the free area on the right; let go and the view returns,Ведіть у вільній зоні праворуч; відпустіть — вид повернеться
+Low and diving: the instructor pulls up for you,Low and diving: the instructor pulls up for you,Низько й у пікіруванні: інструктор виводить сам
+Hold FIRE; put the nose on the diamond to lead the target,Hold FIRE; put the nose on the diamond to lead the target,Тримайте ВОГОНЬ; наведіть ніс на ромб — це упередження
+Double tap anywhere free. Best 1-2 s before the missile hits,Double tap anywhere free. Best 1-2 s before the missile hits,Подвійний тап у вільному місці. Найкраще за 1–2 с до влучання
+Turn hard across its path: it bleeds energy and loses you,Turn hard across its path: it bleeds energy and loses you,Різко розверніться поперек її курсу: вона втратить енергію і вас
+"Move the mouse (aim scheme), or arrows / WASD","Move the mouse (aim scheme), or arrows / WASD",Рух миші (схема прицілу) або стрілки / WASD
+A / D or arrows (stick scheme),A / D or arrows (stick scheme),A / D або стрілки (схема з ручкою)
+T / G or the mouse wheel,T / G or the mouse wheel,T / G або коліщатко миші
+Evade %d missiles by maneuvering,Evade %d missiles by maneuvering,Ухилитися маневром від ракет: %d
+Decoy %d missiles with flares,Decoy %d missiles with flares,Відвести пастками ракет: %d
+Fly %d loops,Fly %d loops,Петлі: %d

@@ -1,7 +1,16 @@
 class_name Missiles
 extends Node3D
-## Lock-on + homing missiles for the player, enemy missiles with the
-## two-ring dodge mechanic, counter-attack volleys and slow motion.
+## Lock-on + heat-seeking missiles with real limits:
+##  motor  - burns BURN_T seconds (accelerating), then coasts and slows down
+##           (drag, gravity); too slow = no longer a threat
+##  turn   - limited by its G (turn rate = G * 9.8 / speed): a sharp break
+##           turn at the right moment, or turning across / into it, beats it
+##  seeker - a limited field of view: if the target goes past the gimbal
+##           limit the missile loses it and flies on (evaded by maneuver)
+##  flares - a salvo can decoy each missile chasing the plane with a chance
+##           that depends on timing (best ~0.6-2.5 s before impact) and
+##           aspect (best from behind), plus a bonus for a hard turn
+## Warning: incoming time / direction for the player (HUD arrow + tone).
 
 const MAX := 40
 const LOCK_TIME := 0.8
@@ -19,8 +28,11 @@ class M:
 	var target: Object = null # Jet, enemy unit (E) or ground target
 	var life := 0.0
 	var smoke_cd := 0.0
-	var dodged := false
-	var rolled := false
+	var dodged := false # lost the target (maneuver / flare / too slow)
+	var burn := 0.0 # motor time left
+	var max_g := 28.0
+	var decoy := Vector3.INF # flare it chases instead
+	var decoy_vel := Vector3.ZERO
 
 var pool: Array[M] = []
 var batch: PointBatch
@@ -33,15 +45,23 @@ var max_missiles := 6
 var ammo := 6
 var reload := 0.0
 var reload_time := 5.0
-var counter_t := 0.0 # > 0: next missile fires a free volley of three
-var slowmo_s := 1.3
-var _slowmo_until := 0
+## Tests: forces the flare decoy roll (-1 = random).
+var flare_luck := -1.0
+static var instance: Missiles
+const BURN_T := 2.6
+const BURN_ACC := 260.0
+const TOP_SPEED := 560.0
+const DRAG_K := 0.00012
+const GIMBAL := 0.95 # seeker field of view (rad off the missile's path)
+const MIN_SPEED := 170.0
+const FUSE := 15.0
 var lock_target: Object = null
 var lock_t := 0.0
 var locked := false
 var incoming_t := 99.0 # seconds until the nearest enemy missile hits
 var incoming_pos := Vector3.ZERO
-var dodges := 0
+var dodges := 0 # missiles the player beat by maneuvering
+var decoys := 0 # missiles the player decoyed with flares
 var hits_taken := 0
 var fleet: Node
 var clouds: Node
@@ -50,6 +70,7 @@ var _warn_t := 0.0
 
 
 func _ready() -> void:
+	instance = self
 	for i in MAX:
 		pool.append(M.new())
 	batch = PointBatch.new().setup(MAX * 2)
@@ -75,9 +96,11 @@ func _spawn(enemy: bool, p: Vector3, v: Vector3, target: Object, shooter: Object
 			m.pos = p
 			m.vel = v
 			m.target = target
-			m.life = 5.0
+			m.life = 9.0
 			m.dodged = false
-			m.rolled = false
+			m.burn = BURN_T
+			m.max_g = 20.0 if (enemy and shooter == null) else 28.0
+			m.decoy = Vector3.INF
 			return m
 	return null
 
@@ -85,26 +108,18 @@ func _spawn(enemy: bool, p: Vector3, v: Vector3, target: Object, shooter: Object
 func fire_player() -> void:
 	if not jet.alive or reload > 0.0:
 		return
-	var volley := counter_t > 0.0
-	var n := 3 if volley else 1
-	if not volley:
-		ammo -= 1
-	counter_t = 0.0
+	ammo -= 1
 	var tgt: Object = lock_target if locked else null
-	for i in n:
-		var side := float(i - (n - 1) * 0.5)
-		var p := jet.position + jet.right() * side * 10.0 - Vector3(0, 3, 0)
-		_spawn(jet.team == 1, p, jet.forward3() * (jet.speed + 40.0) + jet.right() * side * 25.0, tgt, jet)
+	var p := jet.position - Vector3(0, 3, 0)
+	_spawn(jet.team == 1, p, jet.forward3() * (jet.speed + 30.0), tgt, jet)
 	Sfx.play("launch", 0.0)
 	if ammo <= 0:
 		reload = reload_time
-	if volley:
-		game.show_banner("COUNTER!", "", 0.8)
 
 
 ## Missile from any plane (bots use this after their own lock-on).
 func fire_from(plane: Jet, target: Object) -> void:
-	_spawn(plane.team == 1, plane.position - Vector3(0, 3, 0), plane.forward3() * (plane.speed + 40.0), target, plane)
+	_spawn(plane.team == 1, plane.position - Vector3(0, 3, 0), plane.forward3() * (plane.speed + 30.0), target, plane)
 	Sfx.play_at("launch", plane.position, -2.0)
 
 
@@ -116,7 +131,7 @@ func fire_enemy(from: Vector3) -> void:
 			active += 1
 	if active >= 2:
 		return
-	_spawn(true, from, (jet.position - from).normalized() * 120.0, jet)
+	_spawn(true, from, (jet.position - from).normalized() * 160.0, jet)
 	Sfx.play("alarm", -14.0, 1.6)
 
 
@@ -163,6 +178,42 @@ func _update_lock(delta: float) -> void:
 	locked = lock_target != null and lock_t >= lock_time
 
 
+## A plane released flares: every missile chasing it may take the decoy.
+func flare_release(plane: Jet) -> void:
+	for m in pool:
+		if not m.active or m.dodged or m.target != plane:
+			continue
+		var tp := plane.position
+		var d := m.pos.distance_to(tp)
+		if d > 2600.0:
+			continue
+		var closing := maxf(40.0, (m.vel - plane.forward3() * plane.speed).dot((tp - m.pos).normalized()))
+		var t_go := d / closing
+		var chance := 0.2
+		if t_go < 0.5:
+			chance = 0.3
+		elif t_go < 2.6:
+			chance = 0.75
+		elif t_go < 4.0:
+			chance = 0.45
+		var aspect := plane.forward3().dot((m.pos - tp).normalized()) # -1 = from behind
+		if aspect < -0.5:
+			chance += 0.15
+		elif aspect > 0.5:
+			chance -= 0.1
+		if plane.g_load > 5.0:
+			chance += 0.1
+		chance = clampf(chance, 0.05, 0.95)
+		var roll := randf() if flare_luck < 0.0 else 1.0 - flare_luck
+		if roll < chance:
+			m.decoy = tp - plane.forward3() * 12.0
+			m.decoy_vel = plane.forward3() * plane.speed * 0.25 + Vector3(0, -12, 0)
+			m.dodged = true
+			if plane == jet:
+				decoys += 1
+				Profile.track("flare_save")
+
+
 ## Seconds until the nearest missile aimed at `plane` hits (99 = none).
 func incoming_for(plane: Object) -> float:
 	var best := 99.0
@@ -177,12 +228,20 @@ func incoming_for(plane: Object) -> float:
 	return best
 
 
+## Where the nearest missile aimed at `plane` is (INF = none).
+func threat_pos(plane: Object) -> Vector3:
+	var best := INF
+	var out := Vector3.INF
+	for m in pool:
+		if m.active and not m.dodged and m.target == plane:
+			var d := m.pos.distance_squared_to(tpos(plane))
+			if d < best:
+				best = d
+				out = m.pos
+	return out
+
+
 func _process(delta: float) -> void:
-	# slow motion runs on real time
-	if _slowmo_until > 0 and Time.get_ticks_msec() > _slowmo_until:
-		_slowmo_until = 0
-		Engine.time_scale = 1.0
-	counter_t = maxf(0.0, counter_t - delta)
 	if reload > 0.0:
 		reload -= delta
 		if reload <= 0.0:
@@ -192,11 +251,11 @@ func _process(delta: float) -> void:
 	if jet.alive:
 		_update_lock(delta)
 	# lock-on audio: seeker growl / lock tone are continuous (SoundScape)
-	# incoming missile warning
+	# incoming missile warning: faster beeps as it closes in
 	_warn_t -= delta
-	if incoming_t < 3.0 and _warn_t <= 0.0:
+	if incoming_t < 5.0 and _warn_t <= 0.0:
 		Sfx.play("warn", -8.0)
-		_warn_t = clampf(incoming_t * 0.25, 0.08, 0.4)
+		_warn_t = clampf(incoming_t * 0.12, 0.08, 0.5)
 	incoming_t = 99.0
 	batch.begin()
 	for m in pool:
@@ -204,39 +263,71 @@ func _process(delta: float) -> void:
 			continue
 		m.life -= delta
 		var tp := tpos(m.target)
-		# missiles must outrun any plane on afterburner (planes top out ~290)
-		var spd := minf(m.vel.length() + 300.0 * delta, 330.0 if m.enemy and m.shooter == null else 450.0)
-		if tp != Vector3.INF and not m.dodged:
-			var want := (tp - m.pos).normalized() * spd
-			m.vel = m.vel.lerp(want, 1.0 - exp(-delta * (2.6 if m.target is Jet else 5.0)))
-		m.vel = m.vel.normalized() * spd
+		# motor: accelerate while burning, then coast (drag + gravity)
+		var spd := m.vel.length()
+		var dir := m.vel / maxf(spd, 1.0)
+		if m.burn > 0.0:
+			m.burn -= delta
+			spd = minf(spd + BURN_ACC * delta, TOP_SPEED if m.shooter != null or not m.enemy else 420.0)
+		else:
+			spd = maxf(0.0, spd - (DRAG_K * spd * spd + 9.8 * dir.y) * delta)
+		# guidance: lead pursuit, turn rate limited by the missile's G
+		var aim := Vector3.INF
+		if m.decoy != Vector3.INF:
+			m.decoy_vel.y -= 9.8 * delta
+			m.decoy += m.decoy_vel * delta
+			aim = m.decoy
+		elif tp != Vector3.INF and not m.dodged:
+			var tv := Vector3.ZERO
+			if m.target is Jet:
+				tv = (m.target as Jet).forward3() * (m.target as Jet).speed
+			elif "vel" in m.target:
+				tv = m.target.vel
+			var d0 := m.pos.distance_to(tp)
+			var t_go := d0 / maxf(80.0, spd)
+			aim = tp + tv * t_go * 0.85
+			# seeker field of view: past the gimbal limit the lock is lost
+			var los := (tp - m.pos) / maxf(d0, 1.0)
+			if m.target is Jet and dir.dot(los) < cos(GIMBAL) and d0 > FUSE * 2.0:
+				m.dodged = true
+				aim = Vector3.INF
+				if m.target == jet:
+					dodges += 1
+					game.show_banner("EVADED", "", 0.9)
+		if aim != Vector3.INF:
+			var want := (aim - m.pos).normalized()
+			var ang := dir.angle_to(want)
+			var max_turn := m.max_g * 9.8 / maxf(spd, 60.0) * delta
+			if ang > 1e-4:
+				var ax := dir.cross(want)
+				if ax.length_squared() > 1e-8:
+					dir = dir.rotated(ax.normalized(), minf(ang, max_turn))
+		m.vel = dir * spd
 		m.pos += m.vel * delta
 		m.smoke_cd -= delta
 		if m.smoke_cd <= 0.0:
 			m.smoke_cd = 0.03
-			fx.spawn(m.pos, Vector3(0, 3, 0), 1.2, 2.2, Fx.SMOKE)
-			fx.spawn(m.pos, Vector3.ZERO, 0.08, 2.0, Fx.BURNER)
+			fx.spawn(m.pos, Vector3(0, 3, 0), 1.6 if m.burn > 0.0 else 0.9, 2.2 if m.burn > 0.0 else 1.4, Fx.SMOKE)
+			if m.burn > 0.0:
+				fx.spawn(m.pos, Vector3.ZERO, 0.08, 2.0, Fx.BURNER)
 		var done := m.life <= 0.0 or m.pos.y < 0.0
+		# out of energy: no longer a threat
+		if spd < MIN_SPEED and m.burn <= 0.0 and not m.dodged and m.target is Jet:
+			m.dodged = true
+			if m.target == jet:
+				dodges += 1
+				game.show_banner("EVADED", "", 0.9)
 		if m.target is Jet and tp != Vector3.INF and not m.dodged:
 			var tj: Jet = m.target
 			var d := m.pos.distance_to(tp)
 			var closing := maxf(30.0, (m.vel - tj.forward3() * tj.speed).dot((tp - m.pos).normalized()))
-			var t := maxf(0.0, d - 18.0) / closing
+			var t := maxf(0.0, d - FUSE) / closing
 			if tj == jet and t < incoming_t:
 				incoming_t = t
 				incoming_pos = m.pos
-			if d < 18.0:
-				if tj.dodge_window > 0.0:
-					m.dodged = true
-					if tj == jet:
-						dodges += 1
-						counter_t = 2.5
-						game.show_banner("DODGED!", "Fire a MISSILE now: free volley of 3", 1.5)
-						if slowmo_s > 0.0:
-							Engine.time_scale = 0.35
-							_slowmo_until = Time.get_ticks_msec() + int(slowmo_s * 1000.0)
-				elif tj.flares_active > 0.0 or tj.invuln > 0.0:
-					m.dodged = true # flares, or spawn protection
+			if d < FUSE:
+				if tj.invuln > 0.0:
+					m.dodged = true # spawn protection
 				else:
 					if tj == jet:
 						hits_taken += 1
@@ -245,7 +336,10 @@ func _process(delta: float) -> void:
 					tj.damage(maxf(25.0, tj.max_health * 0.22), m.shooter)
 					fx.explosion(m.pos, 0.8)
 					done = true
-		elif m.target != null and m.target.has_method("take_damage") and tp != Vector3.INF:
+		elif m.decoy != Vector3.INF and m.pos.distance_to(m.decoy) < 12.0:
+			fx.explosion(m.pos, 0.6) # detonates on the flare
+			done = true
+		elif m.target != null and not (m.target is Jet) and m.target.has_method("take_damage") and tp != Vector3.INF:
 			if m.pos.distance_to(tp) < 26.0:
 				m.target.take_damage(30.0, m.shooter)
 				fx.explosion(m.pos, 1.2)
