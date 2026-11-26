@@ -146,6 +146,9 @@ var chunks: ChunkManager
 var combat: Node
 var fx: Node
 var trails: Trails
+var vapor: VaporFX
+var _tip := Vector3(17.0, 3.0, 9.0)
+static var _force_vapor := OS.get_cmdline_user_args().has("--vapor")
 
 
 func _ready() -> void:
@@ -156,6 +159,10 @@ func _ready() -> void:
 	stack.variant = skin
 	stack.tint = tint
 	add_child(stack)
+	vapor = VaporFX.new()
+	add_child(vapor)
+	vapor.setup(plane)
+	_tip = PlaneArt.wingtip(plane)
 	position.y = ALT
 
 
@@ -186,6 +193,9 @@ func apply_plane(p: int, lv: Dictionary, p_skin: int) -> void:
 	if stack != null:
 		stack.set_sheet(sheet_name, p_skin)
 		stack.tint = tint
+	if vapor != null:
+		vapor.setup(p)
+	_tip = PlaneArt.wingtip(p)
 
 
 ## Derive the drag polar and thrust from the plane's traits so that the
@@ -599,9 +609,14 @@ func _guns_and_effects(delta: float) -> void:
 			smoke_cd = 0.09
 			fx.smoke(position - forward3() * 14.0, 1)
 		var vb := visual_basis()
+		# wingtip vortices: faint in level flight, bright in hard pulls
+		var vk := clampf((g_load - 2.0) / 4.5, 0.0, 1.0)
 		if trails != null:
-			trails.add(0, position + vb * Vector3(-17.0, 3.0, 9.0))
-			trails.add(1, position + vb * Vector3(17.0, 3.0, 9.0))
+			trails.add(0, position + vb * Vector3(-_tip.x, _tip.y, _tip.z), 0.2 + 0.8 * vk)
+			trails.add(1, position + vb * _tip, 0.2 + 0.8 * vk)
+		elif vk > 0.45 and cam != null and position.distance_squared_to(cam.global_position) < 1400.0 * 1400.0:
+			for sx in [-1.0, 1.0]:
+				fx.spawn(position + vb * Vector3(_tip.x * sx, _tip.y, _tip.z), Vector3.ZERO, 0.5 + vk * 0.5, 1.4, Fx.TRAIL)
 		if is_player or cam == null or position.distance_squared_to(cam.global_position) < 2500.0 * 2500.0:
 			fx.afterburner(position + vb * Vector3(0.0, 2.5, 20.0), forward3(), boosting)
 		# sea spray when skimming the water
@@ -610,6 +625,21 @@ func _guns_and_effects(delta: float) -> void:
 	# ---- visual
 	stack.basis = visual_basis()
 	stack.bank = 0.0
+	if vapor != null:
+		vapor.basis = stack.basis
+		var near := is_player or cam == null or position.distance_squared_to(cam.global_position) < 2000.0 * 2000.0
+		var kc := 0.0
+		var kw := 0.0
+		if near and alive:
+			# vapour cone close to (or past) top speed, thicker low in humid air
+			var hum := 1.0 - clampf(position.y / 9000.0, 0.0, 0.4)
+			kc = smoothstep(0.93, 1.03, speed / boost_speed()) * hum
+			# wing vapour in hard pulls at speed
+			kw = smoothstep(4.2, 7.0, g_load) * clampf(speed / base_speed(), 0.0, 1.0) * hum
+			if _force_vapor:
+				kc = 1.0
+				kw = 1.0
+		vapor.set_k(kc, kw)
 	stack.flash = 1.0 if (invuln > 0.0 and int(_t * 20.0) % 2 == 0 and invuln < 0.8) else 0.0
 
 

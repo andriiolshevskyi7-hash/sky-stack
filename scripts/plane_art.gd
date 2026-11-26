@@ -283,6 +283,39 @@ func build(pi: int) -> void:
 	_soot(int(a["soot"]))
 
 
+## Local point of the plane model (relative to the plane node, nose
+## towards -z) from art pixels on the 64 grid: x across, y nose->tail, z up.
+static func art_local(x: float, y: float, z: float) -> Vector3:
+	var u := WORLD / 64.0
+	return Vector3(x * u, z * u, (y - 32.0) * u)
+
+
+## Right wing tip (local), for vortices.
+static func wingtip(pi: int) -> Vector3:
+	var w: Array = ART[Planes.LIST[pi]["id"]]["wing"]
+	return art_local(float(w[2]), (float(w[3]) + float(w[4])) * 0.5, float(w[5]) + float(w[6]) + 1.0)
+
+
+## Engine nozzle exits (local).
+static func nozzles(pi: int) -> Array[Vector3]:
+	var a: Dictionary = ART[Planes.LIST[pi]["id"]]
+	var out: Array[Vector3] = []
+	var nz: Array = a.get("noz", [56, 58])
+	for e: Array in a.get("eng", []):
+		if float(e[0]) == 0.0:
+			out.append(art_local(0.0, float(nz[1]), float(e[1])))
+		else:
+			out.append(art_local(float(e[0]), float(nz[1]), float(e[1])))
+			out.append(art_local(-float(e[0]), float(nz[1]), float(e[1])))
+	if a.has("nacelles"):
+		for n: Array in a["nacelles"]:
+			out.append(art_local(float(n[0]), float(n[4]) + 2.0, float(n[1])))
+			out.append(art_local(-float(n[0]), float(n[4]) + 2.0, float(n[1])))
+	if out.is_empty():
+		out.append(art_local(0.0, 58.0, 7.0))
+	return out
+
+
 ## Art parameters from the 64 px grid to the HD grid (fin cant is pixels
 ## per slice: unchanged; "sec" is an exponent).
 static func scale_art(a: Dictionary) -> Dictionary:

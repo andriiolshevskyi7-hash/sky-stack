@@ -39,6 +39,7 @@ var music: Music
 var sound: SoundScape
 var _stage_a := 0.0
 var trails: Trails
+var contrails: Contrails
 var missiles: Missiles
 var fleet: Fleet
 var match_rules: Match
@@ -211,6 +212,10 @@ func _ready() -> void:
 	trails.name = "Trails"
 	trails.cam = cam
 	world.add_child(trails)
+	contrails = Contrails.new()
+	contrails.name = "Contrails"
+	contrails.cam = cam
+	world.add_child(contrails)
 	jet.trails = trails
 	combat.game = self
 	combat.jet = jet
@@ -449,6 +454,40 @@ func _fight_tick() -> void:
 	controls.fire = _frame > _shot_frames * 2 / 3
 
 
+## Heat haze behind the nozzles: the player's and the 3 nearest planes on
+## screen, stronger with the afterburner (post shader distortion).
+func _update_heat_haze() -> void:
+	var out: Array[Vector4] = [Vector4.ZERO, Vector4.ZERO, Vector4.ZERO, Vector4.ZERO]
+	if quality >= 1 and state != State.TITLE:
+		var cands: Array = []
+		for p in fleet.planes:
+			if p.alive and p != jet and p.position.distance_squared_to(cam.global_position) < 700.0 * 700.0:
+				cands.append(p)
+		cands.sort_custom(func(a, b) -> bool: return a.position.distance_squared_to(cam.global_position) < b.position.distance_squared_to(cam.global_position))
+		if jet.alive and cam.cockpit_blend < 0.5:
+			cands.push_front(jet)
+		var focal := (pv.low.y * 0.5) / tan(deg_to_rad(cam.fov) * 0.5)
+		var k := 0
+		for p: Jet in cands:
+			if k >= 4:
+				break
+			var noz: Array[Vector3] = PlaneArt.nozzles(p.plane)
+			var c := Vector3.ZERO
+			for v in noz:
+				c += v
+			c /= noz.size()
+			var wp: Vector3 = p.position + p.visual_basis() * c - p.forward3() * 5.0
+			if cam.is_position_behind(wp):
+				continue
+			var d := cam.global_position.distance_to(wp)
+			var uv: Vector2 = cam.unproject_position(wp) / Vector2(pv.low)
+			var r := 6.0 * focal / maxf(d, 1.0) / float(pv.low.y)
+			var s := 0.5 + 0.5 * (1.0 if p.boosting else 0.0)
+			out[k] = Vector4(uv.x, uv.y, r, s)
+			k += 1
+	pv.set_post("haze", out)
+
+
 func _shot_tick() -> void:
 	if _shot_path == "":
 		return
@@ -574,6 +613,8 @@ func _process(delta: float) -> void:
 		ray_k = (1.0 - daynight.night) * (0.18 + 0.42 * low_sun)
 		pv.set_post("ray_col", Vector3(daynight.sun_col.r, daynight.sun_col.g, daynight.sun_col.b))
 	pv.set_post("rays", ray_k)
+	contrails.update_planes(fleet.planes if fleet.planes.has(jet) else fleet.planes + [jet], delta)
+	_update_heat_haze()
 	flash = maxf(0.0, flash - delta * 2.0)
 	pv.set_post("flash", flash)
 	pv.set_post("gblack", jet.gloc if jet.alive and state == State.PLAY else 0.0)
@@ -804,6 +845,7 @@ func start_match() -> void:
 	jet.autopilot = false
 	jet.reset(jet.position, jet.yaw)
 	trails.clear()
+	contrails.clear()
 	score = 0
 	wave = 0
 	kills = 0

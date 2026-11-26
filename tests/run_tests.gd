@@ -513,6 +513,23 @@ func test_launch() -> void:
 	await get_tree().create_timer(3.0).timeout
 	check(main.jet.position.distance_to(start) > 50.0, "jet flies (%.0f units)" % main.jet.position.distance_to(start))
 	check(main.state == main.State.PLAY or main.state == main.State.OVER, "game running")
+	# contrails: high up, the trail keeps its points and builds a ribbon
+	var ct := Contrails.new()
+	ct.cam = main.cam
+	main.add_child(ct)
+	var j: Jet = main.jet
+	var keep: Vector3 = j.position
+	for i in 12:
+		j.position = main.cam.global_position + Vector3(0, 0, -300.0 - i * 20.0)
+		j.position.y = 3000.0
+		ct.update_planes([j], 0.13)
+	var n := 0
+	for key in ct._bufs:
+		n = maxi(n, ct._bufs[key].len)
+	check(n >= 10 or not j.alive, "contrail keeps its points (%d, alive %s)" % [n, j.alive])
+	check(ct.mesh.get_surface_count() == 1 or not j.alive, "contrail ribbon built")
+	j.position = keep
+	ct.queue_free()
 	if main.has_method("test_hook"):
 		var errs: Array = await main.test_hook(self)
 		for e in errs:

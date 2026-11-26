@@ -16,6 +16,9 @@ uniform float res_k = 1.0; // render height / 336: effects keep their screen siz
 uniform vec2 sun_uv = vec2(0.5, -1.0);
 uniform float rays = 0.0;
 uniform vec3 ray_col = vec3(1.0, 0.95, 0.85);
+// heat haze behind nozzles: xy = screen UV, z = radius (UV of the height),
+// w = strength
+uniform vec4 haze[4];
 uniform float threshold = 0.8;
 uniform float fog = 0.0;
 uniform float flash = 0.0;
@@ -40,7 +43,19 @@ vec3 bright(vec2 uv) {
 
 void fragment() {
 	vec2 px = 1.0 / vec2(textureSize(src, 0));
-	vec3 c = texture(src, UV).rgb;
+	vec2 suv = UV;
+	float aspect = px.y / px.x;
+	for (int i = 0; i < 4; i++) {
+		vec4 h = haze[i];
+		if (h.w <= 0.0 || h.z <= 0.0) continue;
+		vec2 d = (UV - h.xy) * vec2(aspect, 1.0);
+		float r = length(d) / h.z;
+		if (r < 1.0) {
+			float w = sin(UV.y * 260.0 + TIME * 31.0 + float(i) * 1.7) * sin(UV.x * 190.0 * aspect - TIME * 24.0);
+			suv += vec2(w, w * 0.6) * h.w * (1.0 - r) * (1.0 - r) * 0.0035;
+		}
+	}
+	vec3 c = texture(src, suv).rgb;
 	vec3 b = vec3(0.0);
 	for (int i = 0; i < 8; i++) {
 		float a = float(i) * 0.785398;

@@ -90,7 +90,9 @@ void fragment() {
 	// pixels when flying below it)
 	int n = max(6, int(float(steps) * clamp(1.25 - t0 / 6000.0, 0.45, 1.0)));
 	float dt = (t1 - t0) / float(n);
-	float jit = bayer4(FRAGCOORD.xy);
+	// interleaved gradient noise: finer and less patterned than a Bayer
+	// matrix at the cloud edges
+	float jit = fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715))));
 	vec3 sd = normalize(sun_dir);
 	float mu = dot(rd, sd);
 	// silver lining: forward scattering towards the sun

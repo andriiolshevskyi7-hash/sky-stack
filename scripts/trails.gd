@@ -10,13 +10,15 @@ var cam: Camera3D
 var _pts: Array[PackedVector3Array] = []
 var _head := PackedInt32Array()
 var _len := PackedInt32Array()
+var _alpha: Array[PackedFloat32Array] = []
 var _im := ImmediateMesh.new()
 
 
 func _ready() -> void:
 	mesh = _im
 	var m := ShaderMaterial.new()
-	m.shader = preload("res://shaders/trail.gdshader")
+	m.shader = preload("res://shaders/ribbon.gdshader")
+	m.set_shader_parameter("brightness", 1.05)
 	material_override = m
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	custom_aabb = AABB(Vector3(-1e6, -500, -1e6), Vector3(2e6, 4000, 2e6))
@@ -24,6 +26,9 @@ func _ready() -> void:
 		var a := PackedVector3Array()
 		a.resize(N)
 		_pts.append(a)
+		var al := PackedFloat32Array()
+		al.resize(N)
+		_alpha.append(al)
 		_head.append(0)
 		_len.append(0)
 
@@ -33,9 +38,10 @@ func clear() -> void:
 		_len[i] = 0
 
 
-func add(i: int, p: Vector3) -> void:
+func add(i: int, p: Vector3, a: float = 1.0) -> void:
 	_head[i] = (_head[i] + 1) % N
 	_pts[i][_head[i]] = p
+	_alpha[i][_head[i]] = a
 	_len[i] = mini(_len[i] + 1, N)
 
 
@@ -65,20 +71,24 @@ func _process(_d: float) -> void:
 			var side := dir.cross(cp - a).normalized() * width * 0.5
 			# fade near the camera: the close chase camera sits right in the
 			# trails' path and they would fill the screen
-			var aa := (1.0 - float(k) / n) * clampf((a.distance_to(cp) - 30.0) / 70.0, 0.0, 1.0)
-			var ab := (1.0 - float(k + 1) / n) * clampf((b.distance_to(cp) - 30.0) / 70.0, 0.0, 1.0)
+			var aa := (1.0 - float(k) / n) * clampf((a.distance_to(cp) - 30.0) / 70.0, 0.0, 1.0) * _alpha[i][ia]
+			var ab := (1.0 - float(k + 1) / n) * clampf((b.distance_to(cp) - 30.0) / 70.0, 0.0, 1.0) * _alpha[i][ib]
 			if aa <= 0.0 and ab <= 0.0:
 				continue
-			var ca := Color(1, 1, 1, aa * 1.2)
-			var cb := Color(1, 1, 1, ab * 1.2)
-			_im.surface_set_color(ca)
-			_im.surface_add_vertex(a - side)
-			_im.surface_add_vertex(a + side)
-			_im.surface_set_color(cb)
-			_im.surface_add_vertex(b + side)
-			_im.surface_set_color(ca)
-			_im.surface_add_vertex(a - side)
-			_im.surface_set_color(cb)
-			_im.surface_add_vertex(b + side)
-			_im.surface_add_vertex(b - side)
+			var ca := Color(1, 1, 1, aa * 0.9)
+			var cb := Color(1, 1, 1, ab * 0.9)
+			var ua := float(k) / n
+			var ub := float(k + 1) / n
+			_v(ca, Vector2(0, ua), a - side)
+			_v(ca, Vector2(1, ua), a + side)
+			_v(cb, Vector2(1, ub), b + side)
+			_v(ca, Vector2(0, ua), a - side)
+			_v(cb, Vector2(1, ub), b + side)
+			_v(cb, Vector2(0, ub), b - side)
 	_im.surface_end()
+
+
+func _v(c: Color, uv: Vector2, p: Vector3) -> void:
+	_im.surface_set_color(c)
+	_im.surface_set_uv(uv)
+	_im.surface_add_vertex(p)
