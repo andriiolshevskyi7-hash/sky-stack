@@ -150,6 +150,18 @@ cloud_cov_tex={
 "type": "sampler2D",
 "value": ""
 }
+sky_lut={
+"type": "sampler2D",
+"value": ""
+}
+water_nrm={
+"type": "sampler2D",
+"value": ""
+}
+cloud_thick={
+"type": "float",
+"value": 500.0
+}
 cloud_base={
 "type": "float",
 "value": 650.0

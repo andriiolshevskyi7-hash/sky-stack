@@ -40,6 +40,7 @@ var sound: SoundScape
 var _stage_a := 0.0
 var trails: Trails
 var contrails: Contrails
+var wakes: Wakes
 var missiles: Missiles
 var fleet: Fleet
 var match_rules: Match
@@ -79,6 +80,8 @@ var _hitstop_until := 0
 var _aa_fail := 0
 var rng := RandomNumberGenerator.new()
 # --shot=<file.png> --frames=<n> [--play] [--cam=1..2] [--time=0..1]: debug screenshots
+var _near_ship := false
+var _god := false # --god (screenshots): the player can't be shot down
 var _shot_path := ""
 var _shot_frames := 0
 var _frame := 0
@@ -216,6 +219,10 @@ func _ready() -> void:
 	contrails.name = "Contrails"
 	contrails.cam = cam
 	world.add_child(contrails)
+	wakes = Wakes.new()
+	wakes.name = "Wakes"
+	wakes.cam = cam
+	world.add_child(wakes)
 	jet.trails = trails
 	combat.game = self
 	combat.jet = jet
@@ -229,6 +236,7 @@ func _ready() -> void:
 	enemies.fx = fx
 	enemies.missiles = null
 	traffic.fx = fx
+	traffic.wakes = wakes
 	missiles.game = self
 	missiles.jet = jet
 	missiles.enemies = enemies
@@ -328,6 +336,11 @@ func _parse_args() -> void:
 			_crash_test = true
 		elif a == "--stickdemo":
 			_stick_demo = true
+		elif a == "--god":
+			_god = true
+		elif a == "--nearship":
+			_near_ship = true
+			_god = true
 		elif a == "--fight":
 			_fight_test = true
 		elif a.begins_with("--chase="):
@@ -456,6 +469,20 @@ func _fight_tick() -> void:
 
 ## Heat haze behind the nozzles: the player's and the 3 nearest planes on
 ## screen, stronger with the afterburner (post shader distortion).
+## Planes skimming the sea drag a line of spray on the surface.
+func _plane_wakes(planes: Array) -> void:
+	if StackBatch.water_frozen:
+		return
+	for p: Jet in planes:
+		if p == null or not is_instance_valid(p) or not p.alive or p.position.y > 40.0:
+			continue
+		if not CityGen.is_water_w(p.position.x, p.position.z):
+			continue
+		var k := 1.0 - p.position.y / 40.0
+		var at := p.position - p.forward() * 12.0
+		wakes.track(p.get_instance_id(), Vector3(at.x, 0.0, at.z), 1.5 + k * 1.5, 1.2 + k * 1.5, 5.0, k)
+
+
 func _update_heat_haze() -> void:
 	var out: Array[Vector4] = [Vector4.ZERO, Vector4.ZERO, Vector4.ZERO, Vector4.ZERO]
 	if quality >= 1 and state != State.TITLE:
@@ -491,6 +518,15 @@ func _update_heat_haze() -> void:
 func _shot_tick() -> void:
 	if _shot_path == "":
 		return
+	if _god:
+		jet.invuln = 999.0
+	if _near_ship:
+		# keep the jet beside the first ship at sea (wake screenshots)
+		for b: Vector4 in traffic.sea_boats:
+			if b.w > 0.0:
+				var fwd := Vector3(-sin(b.z), 0.0, -cos(b.z))
+				jet.position = Vector3(b.x, 260.0, b.y) - fwd * 160.0
+				break
 	_fight_tick()
 	if _stick_demo:
 		var vs := get_viewport().get_visible_rect().size
@@ -613,7 +649,9 @@ func _process(delta: float) -> void:
 		ray_k = (1.0 - daynight.night) * (0.18 + 0.42 * low_sun)
 		pv.set_post("ray_col", Vector3(daynight.sun_col.r, daynight.sun_col.g, daynight.sun_col.b))
 	pv.set_post("rays", ray_k)
-	contrails.update_planes(fleet.planes if fleet.planes.has(jet) else fleet.planes + [jet], delta)
+	var all_planes: Array = fleet.planes if fleet.planes.has(jet) else fleet.planes + [jet]
+	contrails.update_planes(all_planes, delta)
+	_plane_wakes(all_planes)
 	_update_heat_haze()
 	flash = maxf(0.0, flash - delta * 2.0)
 	pv.set_post("flash", flash)
@@ -846,6 +884,7 @@ func start_match() -> void:
 	jet.reset(jet.position, jet.yaw)
 	trails.clear()
 	contrails.clear()
+	wakes.clear()
 	score = 0
 	wave = 0
 	kills = 0
@@ -1614,6 +1653,7 @@ func apply_settings(key: String) -> void:
 	plane_shadows.enabled = quality >= 1
 	Stacks.shadow_mat.set_shader_parameter("soft", 1.0 if quality >= 2 else 0.0)
 	RenderingServer.global_shader_parameter_set("gfx_quality", float(quality))
+	StackBatch.reflections = quality >= 1
 	fx.quality = quality
 	pv.set_post("bloom", float(st["glow"]) * 0.55 if quality >= 1 else 0.0)
 	pv.set_post("contrast", st["contrast"])

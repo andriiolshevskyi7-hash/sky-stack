@@ -530,6 +530,24 @@ func test_launch() -> void:
 	check(ct.mesh.get_surface_count() == 1 or not j.alive, "contrail ribbon built")
 	j.position = keep
 	ct.queue_free()
+	# water: wakes build a ribbon, the reflection sky table is filled,
+	# plane batches carry a mirrored copy for reflections
+	var wk := Wakes.new()
+	wk.cam = main.cam
+	main.add_child(wk)
+	for i in 6:
+		wk.track(7, main.cam.global_position + Vector3(0, -main.cam.global_position.y, -200.0 - i * 10.0), 5.0, 3.0, 20.0, 1.0)
+		wk._process(0.1)
+	check(wk.mesh.get_surface_count() == 1, "ship wake ribbon built")
+	wk.queue_free()
+	var lut: Image = main.daynight._lut_img
+	var lc := lut.get_pixel(8, 4)
+	check(lut.get_width() == DayNight.LUT_W and lc.r + lc.g + lc.b > 0.05, "reflection sky table filled (%s)" % lc)
+	var mirrored := false
+	for b in StackBatch._shared.values():
+		if is_instance_valid(b) and b.mirror != null:
+			mirrored = true
+	check(mirrored, "plane batches have water reflections")
 	if main.has_method("test_hook"):
 		var errs: Array = await main.test_hook(self)
 		for e in errs:

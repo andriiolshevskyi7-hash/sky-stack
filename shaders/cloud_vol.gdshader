@@ -90,9 +90,9 @@ void fragment() {
 	// pixels when flying below it)
 	int n = max(6, int(float(steps) * clamp(1.25 - t0 / 6000.0, 0.45, 1.0)));
 	float dt = (t1 - t0) / float(n);
-	// interleaved gradient noise: finer and less patterned than a Bayer
-	// matrix at the cloud edges
-	float jit = fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715))));
+	// per-pixel white-noise jitter of the march start: fine grain instead
+	// of the bands / patterns a Bayer matrix or gradient noise leaves
+	float jit = hash12(FRAGCOORD.xy);
 	vec3 sd = normalize(sun_dir);
 	float mu = dot(rd, sd);
 	// silver lining: forward scattering towards the sun

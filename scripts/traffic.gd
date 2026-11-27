@@ -34,6 +34,7 @@ var boat_batch: StackBatch
 var ship_batch: StackBatch
 var active_cars := 0
 var fx: Fx
+var wakes: Wakes
 
 
 func _ready() -> void:
@@ -253,9 +254,14 @@ func _boats(delta: float) -> void:
 		else:
 			boat_batch.push(Vector3(b.x, 0.6, b.y), b.z, k % 2, Color.WHITE, 0.0, 0.0, 1.0)
 		# long V-shaped wake behind the stern
-		if fx != null and Engine.get_process_frames() % 18 == i % 18:
+		var stern := Vector2(b.x, b.y) - fwd * (40.0 if big else 14.0)
+		if wakes != null and big:
+			# Kelvin wedge: each arm spreads at ~tan(19.5 deg) of the speed
+			wakes.track(1000 + k, Vector3(stern.x, 0.0, stern.y), 7.0, b.w * 0.354, 40.0, 1.0)
+		elif wakes != null:
+			wakes.track(2000 + k, Vector3(stern.x, 0.0, stern.y), 2.5, b.w * 0.354, 16.0, 0.85)
+		elif fx != null and Engine.get_process_frames() % 18 == i % 18:
 			var side := Vector2(-fwd.y, fwd.x)
-			var stern := Vector2(b.x, b.y) - fwd * (40.0 if big else 14.0)
 			fx.wake_v(Vector3(stern.x, 0.5, stern.y), Vector3(side.x, 0, side.y), 18.0 if big else 10.0, big)
 	boat_batch.end()
 	ship_batch.end()

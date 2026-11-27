@@ -68,6 +68,7 @@ func _apply_palette() -> void:
 		var c: Color = pal[k]
 		mat.set_shader_parameter(k.to_upper(), Vector3(c.r, c.g, c.b))
 	mat.set_shader_parameter("frozen", pal["frozen"])
+	StackBatch.water_frozen = pal["frozen"]
 	mat.set_shader_parameter("bound_half", half)
 
 

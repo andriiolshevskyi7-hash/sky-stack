@@ -3,7 +3,7 @@ extends Node3D
 ## Pooled pixel particles: explosions, smoke trails, sparks, muzzle flashes,
 ## afterburner. Structure-of-arrays, swap-remove, zero per-frame allocations.
 
-enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL, SPARK_W, CANOPY, WAKE }
+enum { FIRE, SMOKE, SPARK, FLASH, BURNER, DEBRIS, TRAIL, SPARK_W, CANOPY, WAKE, MIST }
 const MAX := 1400
 
 var pos := PackedVector3Array()
@@ -143,9 +143,15 @@ func spray(p: Vector3, k: float) -> void:
 	k *= spray_mult
 	if k <= 0.0:
 		return
+	# droplets thrown up, falling back
 	for i in int(1 + k * 3.0):
-		spawn(p + Vector3(rng.randf_range(-6, 6), 0, rng.randf_range(-6, 6)), Vector3(rng.randf_range(-8, 8), rng.randf_range(10, 30) * k, rng.randf_range(-8, 8)), rng.randf_range(0.3, 0.7), rng.randf_range(1.5, 2.5), SPARK_W)
-	spawn(p, Vector3.ZERO, 1.4, 2.5, TRAIL)
+		spawn(p + Vector3(rng.randf_range(-6, 6), 0, rng.randf_range(-6, 6)), Vector3(rng.randf_range(-8, 8), rng.randf_range(10, 30) * k, rng.randf_range(-8, 8)), rng.randf_range(0.3, 0.7), rng.randf_range(0.6, 1.4), SPARK_W)
+	# a billowing white mist of spray, rising and spreading
+	if quality >= 1:
+		for i in 2:
+			spawn(p + _rv(4.0), Vector3(rng.randf_range(-4, 4), rng.randf_range(3, 9) * (0.4 + k), rng.randf_range(-4, 4)), rng.randf_range(1.0, 1.8), rng.randf_range(2.5, 4.5) * (0.6 + k * 0.6), MIST)
+	else:
+		spawn(p, Vector3.ZERO, 1.4, 2.5, TRAIL)
 
 
 ## White foam wake behind boats.
@@ -236,6 +242,10 @@ func _process(delta: float) -> void:
 			CANOPY:
 				v.y -= 50.0 * delta
 				col = Color(0.55, 0.85, 1.0) if int(t * 12.0 + i) % 2 == 0 else Color(0.9, 0.97, 1.0)
+			MIST:
+				v *= 1.0 - 1.2 * delta
+				col = Color(0.97, 0.99, 1.0, 0.7 * (1.0 - t) * minf(1.0, t * 6.0 + 0.3))
+				s *= 1.0 + t * 2.2
 			WAKE:
 				col = Color(0.92, 0.96, 1.0, 0.85 * (1.0 - t))
 				s *= 1.0 + t * 2.2
@@ -256,7 +266,7 @@ func _process(delta: float) -> void:
 		pos[i] += v * delta
 		var stl := 0.0
 		if quality >= 1 and s >= 2.0:
-			if k == SMOKE or k == WAKE:
+			if k == SMOKE or k == WAKE or k == MIST:
 				stl = 1.0
 			elif k == FIRE or k == FLASH:
 				stl = 2.0

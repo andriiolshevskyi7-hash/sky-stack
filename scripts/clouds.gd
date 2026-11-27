@@ -99,6 +99,7 @@ func set_layer(p_base: float, p_thick: float) -> void:
 	base = p_base
 	thick = p_thick
 	RenderingServer.global_shader_parameter_set("cloud_base", base)
+	RenderingServer.global_shader_parameter_set("cloud_thick", thick)
 	vol_mat.set_shader_parameter("thick", thick)
 
 

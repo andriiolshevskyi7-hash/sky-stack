@@ -41,6 +41,18 @@ const EXPOSURE := 3.0
 var sun_col := Color.WHITE
 var _atmo_t := 0.0
 var _sun_ground := Vector3.ONE
+## Sky seen in reflections (water): a small table of the physical sky's
+## colour by elevation (rows) and azimuth from the sun (columns, the sky is
+## mirror-symmetric about the sun's vertical plane), refreshed a few texels
+## per frame so it follows the time of day and weather.
+const LUT_W := 16
+const LUT_H := 8
+var sky_lut: ImageTexture
+var _lut_img: Image
+var _lut_raw := PackedColorArray()
+var _lut_i := 0
+var _lut_t := -1.0
+var _lut_oc := 0.0
 var _fog := [Color(0.62, 0.8, 0.95), Color(0.35, 0.5, 0.7), Color(0.9, 0.85, 0.8)]
 
 var beams: Array[MeshInstance3D] = []
@@ -49,6 +61,12 @@ var beam_count := 3 # Night City sweeps 4 searchlights
 
 
 func _ready() -> void:
+	_lut_img = Image.create(LUT_W, LUT_H, false, Image.FORMAT_RGB8)
+	_lut_img.fill(Color(0.55, 0.72, 0.92))
+	_lut_raw.resize(LUT_W * LUT_H)
+	_lut_raw.fill(Color(0.55, 0.72, 0.92))
+	sky_lut = ImageTexture.create_from_image(_lut_img)
+	RenderingServer.global_shader_parameter_set("sky_lut", sky_lut)
 	var m := _beam_mesh()
 	for i in 9:
 		var mi := MeshInstance3D.new()
@@ -161,7 +179,44 @@ func _process(delta: float) -> void:
 	RenderingServer.global_shader_parameter_set("haze_k", haze * (1.0 + overcast * 0.6))
 	if env != null:
 		env.background_color = SKY_DAY.lerp(SKY_NIGHT, night)
+	# a jump in time / weather (map start, debug): redo the whole table now
+	if absf(t - _lut_t) > 0.02 or absf(overcast - _lut_oc) > 0.1:
+		_lut_i = 0
+		_update_lut(sd, LUT_W * LUT_H)
+	else:
+		_update_lut(sd, 8)
 	_update_beams(delta)
+
+
+## Recompute `n` texels of the reflection sky table (the whole table every
+## LUT_W * LUT_H / n frames) and upload it once a full pass is done.
+func _update_lut(sd: Vector3, n: int) -> void:
+	var sa := clampf(1.0 - night * 1.5, 0.0, 1.0)
+	var sf := Vector2(sd.x, sd.z).normalized()
+	var grey := Color(0.62, 0.65, 0.7) * (1.0 - night * 0.8)
+	for k in n:
+		var i := _lut_i
+		_lut_i = (_lut_i + 1) % (LUT_W * LUT_H)
+		var x := i % LUT_W
+		var y := i / LUT_W
+		var az := float(x) / (LUT_W - 1) * PI
+		var v := float(y) / (LUT_H - 1)
+		var el := v * v # rows packed towards the horizon
+		var f := sf.rotated(az)
+		var h := sqrt(maxf(1.0 - el * el, 0.0))
+		var dir := Vector3(f.x * h, el, f.y * h)
+		var c := Atmo.sky(dir, cam_alt, sd, sa, haze, EXPOSURE, ground_albedo)
+		# night: the sky shader's deep-blue floor, lighter towards the horizon
+		var nf := HORIZON_NIGHT.darkened(0.35).lerp(TOP_NIGHT.lightened(0.1), clampf(el * 1.6, 0.0, 1.0))
+		c = Color(maxf(c.r, nf.r * night), maxf(c.g, nf.g * night), maxf(c.b, nf.b * night))
+		c = c.lerp(grey, overcast)
+		_lut_raw[i] = c
+		if _lut_i == 0:
+			_lut_t = t
+			_lut_oc = overcast
+			for j in LUT_W * LUT_H:
+				_lut_img.set_pixel(j % LUT_W, j / LUT_W, _lut_raw[j])
+			sky_lut.update(_lut_img)
 
 
 func sun_shift() -> Vector2:

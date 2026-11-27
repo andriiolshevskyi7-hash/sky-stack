@@ -26,6 +26,9 @@ global uniform vec3 fog_sun;
 global uniform vec3 sun_dir;
 global uniform vec3 sun_col;
 global uniform float haze_k;
+global uniform sampler2D sky_lut : filter_linear, repeat_disable;
+global uniform sampler2D water_nrm : filter_linear_mipmap, repeat_enable;
+global uniform float cloud_thick;
 
 const vec3 SHADOW_TINT = vec3(0.42, 0.55, 0.88);
 
@@ -143,10 +146,83 @@ bool fade_hides(vec3 view_pos, mat4 view_m, vec2 frag) {
 }
 
 
-// Water: sky reflection growing towards the horizon (Fresnel) and twinkling
-// sun glints where the sun reflects towards the camera (medium+ quality).
+// ---- Water -------------------------------------------------------------
+// The sky seen in a reflection: DayNight's table of the physical sky by
+// elevation and azimuth from the sun (mirror-symmetric about the sun).
+vec3 sky_refl(vec3 r) {
+	vec2 sf = normalize(sun_dir.xz + vec2(1e-5));
+	vec2 rf = normalize(r.xz + vec2(1e-5));
+	float az = acos(clamp(dot(rf, sf), -1.0, 1.0)) / 3.14159265;
+	float v = sqrt(clamp(r.y, 0.0, 1.0));
+	vec2 uv = (vec2(az, v) * vec2(15.0, 7.0) + 0.5) / vec2(16.0, 8.0);
+	return texture(sky_lut, uv).rgb;
+}
+
+// Wave normal at a water point: two long swells plus three octaves of
+// drifting ripples (water_nrm: tileable slopes), calmer with distance so the
+// far sea doesn't shimmer; `rough` scales the waves (weather, sheltered
+// water).
+vec3 water_normal(vec2 xz, float dist, float rough) {
+	float t = TIME;
+	vec2 s = vec2(0.0);
+	// swell: long, slow, from the open sea
+	vec2 d1 = vec2(0.80, 0.60);
+	vec2 d2 = vec2(-0.35, 0.94);
+	s += d1 * cos(dot(xz, d1) * 0.045 - t * 0.9) * 0.10;
+	s += d2 * cos(dot(xz, d2) * 0.071 - t * 1.15) * 0.07;
+	vec2 n1 = texture(water_nrm, xz / 61.0 + t * vec2(0.012, 0.008)).rg * 2.0 - 1.0;
+	vec2 n2 = texture(water_nrm, xz / 23.0 + t * vec2(-0.021, 0.017)).rg * 2.0 - 1.0;
+	s += n1 * 0.34 + n2 * 0.24;
+	if (dist < 900.0) {
+		vec2 n3 = texture(water_nrm, xz / 7.3 + t * vec2(0.043, -0.035)).rg * 2.0 - 1.0;
+		s += n3 * 0.16 * (1.0 - dist / 900.0);
+	}
+	s *= rough / (1.0 + dist / 1100.0);
+	return normalize(vec3(-s.x, 1.0, -s.y));
+}
+
+// Shade open water: body colour (`body`, already lit) under a Fresnel
+// reflection of the sky and the clouds above (where the reflected ray meets
+// the cloud layer), the sun's path of glints and sheen (dimmed in cloud and
+// plane shadows), the moon's path at night.
+vec3 water_shade(vec3 body, vec3 w, float rough) {
+	vec3 dv = w - cam_pos;
+	float d = length(dv);
+	vec3 v = -dv / max(d, 0.001);
+	vec3 n = water_normal(w.xz, d, rough);
+	float ndv = max(dot(n, v), 0.0);
+	float F = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+	vec3 r = reflect(-v, n);
+	r.y = abs(r.y) + 0.004;
+	vec3 sky = sky_refl(r);
+	float day = 1.0 - night;
+	// clouds in the reflection: their bases, lit by the sky and the sun
+	float hc = cloud_base + cloud_thick * 0.3;
+	if (gfx_quality > 0.5 && w.y < hc) {
+		float tc = (hc - w.y) / r.y;
+		vec2 cp = w.xz + r.xz * tc;
+		float cov = texture(cloud_cov_tex, (cp + cloud_offset) / 4200.0).r;
+		float ca = smoothstep(cloud_cover, cloud_cover + 0.2, cov) * (1.0 - smoothstep(5000.0, 14000.0, tc));
+		vec3 cc = mix(fog_color, vec3(1.0), 0.45) * 0.8 + sun_col * 0.22;
+		cc = mix(cc, vec3(0.07, 0.08, 0.13), night * 0.85);
+		sky = mix(sky, cc, ca * 0.92);
+	}
+	vec3 col = mix(body, sky, F);
+	// the sun's path: sharp glints from the wave facets + a broad sheen
+	float lit_k = 1.0 - shadow_amount(w);
+	vec3 sd = normalize(sun_dir);
+	float rs = max(dot(r, sd), 0.0);
+	col += sun_col * (pow(rs, 1100.0) * 22.0 + pow(rs, 160.0) * 0.9 + pow(rs, 14.0) * 0.07) * day * lit_k;
+	// the moon's path at night
+	float rm = max(dot(r, normalize(vec3(0.45, 0.45, -0.75))), 0.0);
+	col += vec3(0.65, 0.75, 1.0) * (pow(rm, 600.0) * 4.0 + pow(rm, 60.0) * 0.12) * night;
+	return col;
+}
+
+// Older look (low quality): Fresnel tint and twinkling sun glints.
 vec3 water_light(vec3 col, vec3 w, vec2 p) {
 	if (gfx_quality < 0.5) return col;
+	if (gfx_quality > 0.5) return water_shade(col, w, 1.0);
 	vec3 v = normalize(cam_pos - w);
 	float fres = pow(1.0 - clamp(v.y, 0.0, 1.0), 4.0);
 	col = mix(col, fog_color * 1.05, fres * 0.5 * (1.0 - night * 0.5));

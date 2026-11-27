@@ -20,6 +20,10 @@ var _used := 0
 var _dirty := false
 
 static var _shared := {}
+## Water reflections of planes and ships (graphics quality, not on ice).
+static var reflections := true
+static var water_frozen := false
+var mirror: MultiMeshInstance3D
 
 
 func setup(p_sheet: String, p_capacity: int, mat: Material = null) -> StackBatch:
@@ -40,6 +44,16 @@ func setup(p_sheet: String, p_capacity: int, mat: Material = null) -> StackBatch
 	custom_aabb = AABB(Vector3(-1e6, -500, -1e6), Vector3(2e6, 2000, 2e6))
 	buf.resize(capacity * STRIDE)
 	buf.fill(0.0)
+	if mat == null and (Stacks.get_sheet(p_sheet).atlas == 1 or p_sheet == "ship" or p_sheet == "boat"):
+		# the same instances mirrored under the water surface (y = 0)
+		mirror = MultiMeshInstance3D.new()
+		mirror.name = "Mirror"
+		mirror.multimesh = mm
+		mirror.material_override = Stacks.mirror_material(p_sheet)
+		mirror.transform = Transform3D(Basis.from_scale(Vector3(1, -1, 1)), Vector3.ZERO)
+		mirror.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mirror.custom_aabb = AABB(Vector3(-1e6, -2000, -1e6), Vector3(2e6, 2500, 2e6))
+		add_child(mirror)
 	return self
 
 
@@ -165,6 +179,8 @@ func _set_basis(i: int, b: Basis) -> void:
 
 
 func _process(_delta: float) -> void:
+	if mirror != null:
+		mirror.visible = reflections and not water_frozen
 	if _slot_mode and _dirty:
 		_dirty = false
 		RenderingServer.multimesh_set_buffer(multimesh.get_rid(), buf)

@@ -60,6 +60,8 @@ var cloud_tex: ImageTexture
 var cloud_detail_img: Image
 var cloud_detail_tex: ImageTexture
 var cloud_noise3d: ImageTexture3D
+## Tileable water ripples: RG = surface slope (0.5 = flat), B = foam noise.
+var water_nrm_tex: ImageTexture
 ## Smooth coverage field of the volumetric clouds (and their shadows).
 var cloud_cov_img: Image
 var cloud_cov_tex: ImageTexture
@@ -399,6 +401,23 @@ func batch_material(sheet_name: String) -> ShaderMaterial:
 	m.set_shader_parameter("dynamic", true)
 	m.set_shader_parameter("fadeable", false)
 	_batch_mats[sheet_name] = m
+	return m
+
+
+## Material for the mirrored copy of a batch (water reflections).
+func mirror_material(sheet_name: String) -> ShaderMaterial:
+	var key := sheet_name + "#mirror"
+	if _batch_mats.has(key):
+		return _batch_mats[key]
+	var src := batch_material(sheet_name)
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://shaders/stack_mirror.gdshader")
+	for p in ["palette_mode", "index_tex", "palette_tex", "albedo_tex", "emit_tex", "variant_stride"]:
+		var v: Variant = src.get_shader_parameter(p)
+		if v != null:
+			m.set_shader_parameter(p, v)
+	m.render_priority = -1
+	_batch_mats[key] = m
 	return m
 
 
@@ -902,6 +921,37 @@ func _noise3d_cached(n: int) -> ImageTexture3D:
 ## Tileable 3D billow noise (n^3, R8) for the volumetric clouds' erosion:
 ## inverted Worley (one feature point per 8^3 cell, wrapped) mixed with a
 ## finer value noise. ~30 ms at start-up.
+func _make_water_nrm(n: int) -> ImageTexture:
+	var hn := FastNoiseLite.new()
+	hn.seed = 21
+	hn.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	hn.frequency = 0.045
+	hn.fractal_octaves = 3
+	hn.fractal_gain = 0.45
+	var hi := hn.get_seamless_image(n, n)
+	var fn := FastNoiseLite.new()
+	fn.seed = 5
+	fn.noise_type = FastNoiseLite.TYPE_CELLULAR
+	fn.cellular_return_type = FastNoiseLite.RETURN_DISTANCE2_SUB
+	fn.frequency = 0.07
+	fn.fractal_octaves = 2
+	var fi := fn.get_seamless_image(n, n)
+	var h := PackedFloat32Array()
+	h.resize(n * n)
+	for y in n:
+		for x in n:
+			h[y * n + x] = hi.get_pixel(x, y).r
+	var out := Image.create(n, n, false, Image.FORMAT_RGB8)
+	for y in n:
+		for x in n:
+			# slopes by central differences, wrapping (the texture tiles)
+			var dx := h[y * n + (x + 1) % n] - h[y * n + (x + n - 1) % n]
+			var dy := h[((y + 1) % n) * n + x] - h[((y + n - 1) % n) * n + x]
+			out.set_pixel(x, y, Color(clampf(0.5 + dx * 2.2, 0.0, 1.0), clampf(0.5 + dy * 2.2, 0.0, 1.0), fi.get_pixel(x, y).r))
+	out.generate_mipmaps()
+	return ImageTexture.create_from_image(out)
+
+
 func _make_noise3d(n: int) -> ImageTexture3D:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5150
@@ -984,6 +1034,8 @@ func _build_globals() -> void:
 	RenderingServer.global_shader_parameter_set("jet_shadow_size", float(get_sheet("jet").w))
 	RenderingServer.global_shader_parameter_set("cloud_tex", cloud_tex)
 	RenderingServer.global_shader_parameter_set("cloud_cov_tex", cloud_cov_tex)
+	water_nrm_tex = _make_water_nrm(128)
+	RenderingServer.global_shader_parameter_set("water_nrm", water_nrm_tex)
 	rebuild_islands(int(Save.settings.get("seed", 7)), float(Save.settings.get("islands", 0.33)))
 
 
